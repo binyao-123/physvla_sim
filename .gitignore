@@ -1,0 +1,4 @@
+collect/datasets/
+collect/__pycache__/
+collect/${data}/
+*.hdf5
