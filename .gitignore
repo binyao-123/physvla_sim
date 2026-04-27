@@ -2,3 +2,6 @@ collect/datasets/
 collect/__pycache__/
 collect/${data}/
 *.hdf5
+collect/__pycache__/
+collect/${data}/
+__pycache__/
