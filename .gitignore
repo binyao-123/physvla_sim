@@ -1,7 +1,8 @@
-collect/datasets/
-collect/__pycache__/
-collect/${data}/
-*.hdf5
-collect/__pycache__/
-collect/${data}/
 __pycache__/
+*.py[cod]
+
+*.hdf5
+collect/datasets/
+
+${data}/
+collect/${data}/

@@ -3,6 +3,7 @@ import os
 import re
 import sys
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import torch
 import h5py
@@ -16,6 +17,8 @@ from isaaclab_env_module import (
     CameraPrimSpec,
     EnvironmentModuleConfig,
     IsaacLabEnvironmentModule,
+    JointDrivePrimSpec,
+    JointLimitPrimSpec,
     apply_camera_launch_workarounds,
 )
 from task_registry import DEFAULT_TASK_ID, get_task_preset, list_task_presets
@@ -89,7 +92,7 @@ class OfficialEpisodeCollector:
     """对齐官方 record_demos/replay_demos 数据组织的简化收集器。"""
 
     def __init__(self, dataset_file: str, env_name: str, num_demos: int = 0):
-        self.dataset_file = dataset_file
+        self.dataset_file = self._make_session_dataset_file(dataset_file)
         self.env_name = env_name
         self.num_demos = num_demos
 
@@ -141,6 +144,15 @@ class OfficialEpisodeCollector:
         self._episode = EpisodeData()
         self.exported_successful_episode_count = 0
         self.exported_failed_episode_count = 0
+
+    @staticmethod
+    def _make_session_dataset_file(dataset_file: str) -> str:
+        output_dir = os.path.dirname(dataset_file) or "."
+        output_name = os.path.splitext(os.path.basename(dataset_file))[0]
+        session_dir = os.path.join(output_dir, output_name)
+        utc8 = timezone(timedelta(hours=8))
+        timestamp = datetime.now(utc8).strftime("%Y%m%d_%H%M%S")
+        return os.path.join(session_dir, f"{output_name}_{timestamp}.hdf5")
 
     def _prepare_episode_for_export(self):
         if hasattr(self._episode, "pre_export") and callable(self._episode.pre_export):
@@ -246,6 +258,25 @@ env_cfg = EnvironmentModuleConfig(
         )
         for spec in task_preset.camera_specs
     ],
+    joint_drive_specs=[
+        JointDrivePrimSpec(
+            prim_path=spec.prim_path,
+            damping=spec.damping,
+            stiffness=spec.stiffness,
+            max_force=spec.max_force,
+            target_position=spec.target_position,
+            target_velocity=spec.target_velocity,
+        )
+        for spec in task_preset.joint_drive_specs
+    ],
+    joint_limit_specs=[
+        JointLimitPrimSpec(
+            prim_path=spec.prim_path,
+            lower_limit=spec.lower_limit,
+            upper_limit=spec.upper_limit,
+        )
+        for spec in task_preset.joint_limit_specs
+    ],
 )
 
 env_module = IsaacLabEnvironmentModule(env_cfg)
@@ -279,7 +310,7 @@ device = sim.device
 diff_ik_cfg = DifferentialIKControllerCfg(
     command_type="pose",
     ik_method="dls",
-    ik_params={"lambda_val": 0.05},
+    ik_params={"lambda_val": 0.1},
 )
 diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=1, device=device)
 
@@ -318,20 +349,20 @@ def request_exit():
 
 teleop_interface.add_callback("R", reset_recording_instance)
 teleop_interface.add_callback("SPACE", skip_recording_instance)
-teleop_interface.add_callback("X", request_exit)
+teleop_interface.add_callback("P", request_exit)
 teleop_interface.reset()
+teleop_interface._close_gripper = True
 
 # ── 7. 初始化目标位姿 ──────────────────────────────────────────────
 target_pos = robot.data.body_pos_w[:, ee_body_id].clone()
 target_quat = robot.data.body_quat_w[:, ee_body_id].clone()
 
-# 夹爪开合目标位置（单位：rad，对应 Piper joint7/joint8 旋转关节）
-# TODO: 根据 Piper URDF joint limit 核实具体数值后替换
-gripper_open_target = torch.full((1, 2), 0.04, dtype=torch.float32, device=device)
+# 夹爪开合目标位置（单位：m，对应 Piper joint7/joint8 平移关节）
+gripper_open_target = torch.tensor([[0.035, -0.035]], dtype=torch.float32, device=device)
 gripper_close_target = torch.zeros((1, 2), dtype=torch.float32, device=device)
 
 print("\n=== Isaac Lab Teleoperation Ready ===")
-print('[INFO] Hotkeys: "R" save current demo and next, "SPACE" skip current demo and next, "X" exit.')
+print('[INFO] Hotkeys: "R" save current demo and next, "SPACE" skip current demo and next, "P" exit.')
 
 # ── 相机视口与传感器初始化 ────────────────────────────────────────
 import omni.kit.viewport.utility as vp_utils
@@ -513,6 +544,8 @@ try:
                 for sensor in sensor_cameras.values():
                     sensor.reset()
             robot.write_joint_state_to_sim(robot.data.default_joint_pos, robot.data.default_joint_vel)
+            robot.set_joint_position_target(gripper_close_target, joint_ids=gripper_joint_ids)
+            robot.write_data_to_sim()
 
             sim.step()
             robot.update(sim.cfg.dt)
@@ -520,6 +553,8 @@ try:
             target_pos = robot.data.body_pos_w[:, ee_body_id].clone()
             target_quat = robot.data.body_quat_w[:, ee_body_id].clone()
             teleop_interface.reset()
+            teleop_interface._close_gripper = True
+            diff_ik_controller.reset()   # ← 清除 IK 控制器旧状态
             should_reset = False
 
             collector.reset_episode()
@@ -573,7 +608,7 @@ try:
                     [[1.0 if gripper_cmd else 0.0]], dtype=torch.float32, device=device
                 )
 
-                # 记录动作为 8-DoF：6 维手臂关节 + 1 维夹爪开合 + 1 维夹爪状态
+                #  记录动作为 7-DoF：6 维手臂关节角 + 1 维夹爪开合(0=关/1=开)
                 actual_action = torch.cat([arm_joint_targets, gripper_action], dim=-1)
 
                 robot.set_joint_position_target(arm_joint_targets, joint_ids=arm_joint_ids)

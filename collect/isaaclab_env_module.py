@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -8,10 +9,30 @@ from typing import Any
 class CameraPrimSpec:
 	name: str
 	prim_path: str
-	translation: tuple[float, float, float]
-	rotation_xyz: tuple[float, float, float]
-	focal_length: float
+	# None means keeping the value authored in the USD scene.
+	translation: tuple[float, float, float] | None
+	# Isaac Sim Transform panel Orient XYZ values, in degrees.
+	# None means keeping the value authored in the USD scene.
+	rotation_xyz: tuple[float, float, float] | None
+	focal_length: float | None
 	enable_sensor_capture: bool = True
+
+
+@dataclass
+class JointDrivePrimSpec:
+	prim_path: str
+	damping: float | None = None
+	stiffness: float | None = None
+	max_force: float | None = None
+	target_position: float | None = None
+	target_velocity: float | None = None
+
+
+@dataclass
+class JointLimitPrimSpec:
+	prim_path: str
+	lower_limit: float | None = None
+	upper_limit: float | None = None
 
 
 @dataclass
@@ -23,6 +44,8 @@ class EnvironmentModuleConfig:
 	warmup_render_steps: int = 6
 	reset_robot_root_pose: bool = False
 	camera_specs: list[CameraPrimSpec] = field(default_factory=list)
+	joint_drive_specs: list[JointDrivePrimSpec] = field(default_factory=list)
+	joint_limit_specs: list[JointLimitPrimSpec] = field(default_factory=list)
 
 
 def apply_camera_launch_workarounds(args_cli: Any) -> Any:
@@ -86,11 +109,76 @@ class IsaacLabEnvironmentModule:
 	def _should_reset_root_pose(self) -> bool:
 		return bool(self.cfg.reset_robot_root_pose) and (not self._robot_is_fixed_base())
 
+	def apply_joint_drive_overrides(self):
+		if not self.cfg.joint_drive_specs:
+			return
+
+		import omni.usd
+		from pxr import Sdf
+
+		stage = omni.usd.get_context().get_stage()
+		if stage is None:
+			raise RuntimeError("USD stage is unavailable for joint drive overrides.")
+
+		drive_attrs = {
+			"damping": "drive:angular:physics:damping",
+			"stiffness": "drive:angular:physics:stiffness",
+			"max_force": "drive:angular:physics:maxForce",
+			"target_position": "drive:angular:physics:targetPosition",
+			"target_velocity": "drive:angular:physics:targetVelocity",
+		}
+
+		for spec in self.cfg.joint_drive_specs:
+			prim = stage.GetPrimAtPath(spec.prim_path)
+			if not prim.IsValid():
+				raise RuntimeError(f"Joint drive prim '{spec.prim_path}' does not exist on stage.")
+
+			for field_name, attr_name in drive_attrs.items():
+				value = getattr(spec, field_name)
+				if value is None:
+					continue
+				attr = prim.GetAttribute(attr_name)
+				if not attr.IsValid():
+					attr = prim.CreateAttribute(attr_name, Sdf.ValueTypeNames.Float)
+				attr.Set(float(value))
+
+	def apply_joint_limit_overrides(self):
+		if not self.cfg.joint_limit_specs:
+			return
+
+		import omni.usd
+		from pxr import Sdf
+
+		stage = omni.usd.get_context().get_stage()
+		if stage is None:
+			raise RuntimeError("USD stage is unavailable for joint limit overrides.")
+
+		limit_attrs = {
+			"lower_limit": "physics:lowerLimit",
+			"upper_limit": "physics:upperLimit",
+		}
+
+		for spec in self.cfg.joint_limit_specs:
+			prim = stage.GetPrimAtPath(spec.prim_path)
+			if not prim.IsValid():
+				raise RuntimeError(f"Joint limit prim '{spec.prim_path}' does not exist on stage.")
+
+			for field_name, attr_name in limit_attrs.items():
+				value = getattr(spec, field_name)
+				if value is None:
+					continue
+				attr = prim.GetAttribute(attr_name)
+				if not attr.IsValid():
+					attr = prim.CreateAttribute(attr_name, Sdf.ValueTypeNames.Float)
+				attr.Set(float(value))
+
 	def create_simulation(self, dt: float = 1.0 / 60.0, render_interval: int = 4, use_fabric: bool = True):
 		import omni.usd
 		import isaaclab.sim as sim_utils
 
 		omni.usd.get_context().open_stage(self.cfg.usd_path)
+		self.apply_joint_drive_overrides()
+		self.apply_joint_limit_overrides()
 
 		try:
 			physx_cfg = sim_utils.PhysxCfg(enable_stabilization=True)
@@ -150,33 +238,65 @@ class IsaacLabEnvironmentModule:
 		return None
 
 	@staticmethod
-	def _rotation_xyz_to_quat(rotation_xyz):
+	def _editor_orient_xyz_to_quatd(orient_xyz):
 		from pxr import Gf
 
-		rot_x = Gf.Rotation(Gf.Vec3d(1.0, 0.0, 0.0), rotation_xyz[0])
-		rot_y = Gf.Rotation(Gf.Vec3d(0.0, 1.0, 0.0), rotation_xyz[1])
-		rot_z = Gf.Rotation(Gf.Vec3d(0.0, 0.0, 1.0), rotation_xyz[2])
-		return (rot_x * rot_y * rot_z).GetQuat()
+		def _axis_quat(axis: str, degrees: float):
+			half_angle = math.radians(float(degrees)) * 0.5
+			cos_v = math.cos(half_angle)
+			sin_v = math.sin(half_angle)
+			if axis == "x":
+				return (cos_v, sin_v, 0.0, 0.0)
+			if axis == "y":
+				return (cos_v, 0.0, sin_v, 0.0)
+			return (cos_v, 0.0, 0.0, sin_v)
+
+		def _quat_mul(left, right):
+			w0, x0, y0, z0 = left
+			w1, x1, y1, z1 = right
+			return (
+				w0 * w1 - x0 * x1 - y0 * y1 - z0 * z1,
+				w0 * x1 + x0 * w1 + y0 * z1 - z0 * y1,
+				w0 * y1 - x0 * z1 + y0 * w1 + z0 * x1,
+				w0 * z1 + x0 * y1 - y0 * x1 + z0 * w1,
+			)
+
+		quat = (1.0, 0.0, 0.0, 0.0)
+		for axis, degrees in zip(("x", "y", "z"), orient_xyz):
+			quat = _quat_mul(quat, _axis_quat(axis, degrees))
+		w, x, y, z = quat
+		return Gf.Quatd(float(w), Gf.Vec3d(float(x), float(y), float(z)))
+
+	def _apply_editor_orient_after_standardize(self, cam_prim, orient_xyz):
+		from pxr import UsdGeom
+
+		xformable = UsdGeom.Xformable(cam_prim)
+		orient_op = self._find_xform_op(xformable, UsdGeom.XformOp.TypeOrient)
+		if orient_op is None:
+			raise RuntimeError(
+				f"Camera '{cam_prim.GetPath()}' is missing xformOp:orient after standardize_xform_ops."
+			)
+
+		orient_quat = self._editor_orient_xyz_to_quatd(orient_xyz)
+		orient_op.Set(orient_quat)
 
 	def _set_camera_transform(self, cam, translation, rotation_xyz):
 		from pxr import Gf, UsdGeom
 
 		xformable = UsdGeom.Xformable(cam.GetPrim())
 
-		translate_op = self._find_xform_op(xformable, UsdGeom.XformOp.TypeTranslate)
-		if translate_op is None:
-			translate_op = xformable.AddTranslateOp()
-		translate_op.Set(Gf.Vec3d(*translation))
+		if translation is not None:
+			translate_op = self._find_xform_op(xformable, UsdGeom.XformOp.TypeTranslate)
+			if translate_op is None:
+				translate_op = xformable.AddTranslateOp()
+			translate_op.Set(Gf.Vec3d(*translation))
 
-		orient_op = self._find_xform_op(xformable, UsdGeom.XformOp.TypeOrient)
-		if orient_op is not None:
-			orient_op.Set(self._rotation_xyz_to_quat(rotation_xyz))
-			return
-
-		rotate_xyz_op = self._find_xform_op(xformable, UsdGeom.XformOp.TypeRotateXYZ)
-		if rotate_xyz_op is None:
-			rotate_xyz_op = xformable.AddRotateXYZOp()
-		rotate_xyz_op.Set(Gf.Vec3d(*rotation_xyz))
+		if rotation_xyz is not None:
+			rotate_xyz_op = self._find_xform_op(xformable, UsdGeom.XformOp.TypeRotateXYZ)
+			if rotate_xyz_op is None and self._find_xform_op(xformable, UsdGeom.XformOp.TypeOrient) is None:
+				rotate_xyz_op = xformable.AddRotateXYZOp()
+			if rotate_xyz_op is not None:
+				rotate_xyz_op.Set(Gf.Vec3d(*rotation_xyz))
 
 	def refresh_camera_prim(
 		self,
@@ -196,6 +316,10 @@ class IsaacLabEnvironmentModule:
 			if spec.name == camera_name:
 				translation = spec.translation
 				if translation_offset is not None:
+					if spec.translation is None:
+						raise ValueError(
+							"Camera translation_offset cannot be applied when translation is None."
+						)
 					if len(translation_offset) != 3:
 						raise ValueError("Camera translation_offset must contain exactly 3 values.")
 					translation = tuple(
@@ -205,13 +329,16 @@ class IsaacLabEnvironmentModule:
 
 				cam = UsdGeom.Camera.Define(stage, spec.prim_path)
 				self._set_camera_transform(cam, translation, spec.rotation_xyz)
-				cam.GetFocalLengthAttr().Set(spec.focal_length)
+				if spec.focal_length is not None:
+					cam.GetFocalLengthAttr().Set(spec.focal_length)
 
 				cam_prim = cam.GetPrim()
 				if not sim_utils.standardize_xform_ops(cam_prim):
 					raise RuntimeError(
 						f"Failed to standardize camera xform ops at '{spec.prim_path}'."
 					)
+				if spec.rotation_xyz is not None:
+					self._apply_editor_orient_after_standardize(cam_prim, spec.rotation_xyz)
 				self._camera_paths[spec.name] = spec.prim_path
 				return spec.prim_path
 
@@ -268,7 +395,8 @@ class IsaacLabEnvironmentModule:
 				raise RuntimeError(
 					f"Failed to standardize camera xform ops at '{spec.prim_path}' before sensor initialization."
 				)
-
+			if spec.rotation_xyz is not None:
+				self._apply_editor_orient_after_standardize(cam_prim, spec.rotation_xyz)
 			cam_cfg = cfg_cls(
 				prim_path=spec.prim_path,
 				update_period=0.0,

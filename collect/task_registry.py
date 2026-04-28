@@ -7,10 +7,31 @@ from dataclasses import dataclass, field
 class TaskCameraSpec:
     name: str
     prim_path: str
-    translation: tuple[float, float, float]
-    rotation_xyz: tuple[float, float, float]
-    focal_length: float
+    # None means keeping the value authored in the USD scene.
+    translation: tuple[float, float, float] | None
+    # Isaac Sim Transform panel Orient XYZ values, in degrees.
+    # None means keeping the value authored in the USD scene.
+    rotation_xyz: tuple[float, float, float] | None
+    focal_length: float | None
     enable_sensor_capture: bool = True
+
+
+@dataclass(frozen=True)
+class TaskJointDriveSpec:
+    prim_path: str
+    damping: float | None = None
+    stiffness: float | None = None
+    max_force: float | None = None
+    target_position: float | None = None
+    target_velocity: float | None = None
+
+
+@dataclass(frozen=True)
+class TaskJointLimitSpec:
+    prim_path: str
+    # None means keeping the value authored in the USD scene.
+    lower_limit: float | None = None
+    upper_limit: float | None = None
 
 
 @dataclass(frozen=True)
@@ -33,6 +54,8 @@ class TaskPreset:
     robot_init_root_rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
     robot_init_joint_pos: dict[str, float] = field(default_factory=dict)
     camera_specs: tuple[TaskCameraSpec, ...] = field(default_factory=tuple)
+    joint_drive_specs: tuple[TaskJointDriveSpec, ...] = field(default_factory=tuple)
+    joint_limit_specs: tuple[TaskJointLimitSpec, ...] = field(default_factory=tuple)
 
 
 OPEN_LAPTOP_TASK_ID = "open_laptop_lid"
@@ -45,7 +68,7 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         env_name="OpenLaptopTask",
         dataset_file="./datasets/open_laptop_lid.hdf5",
         language_instruction="open_laptop_lid",
-        sensitivity=4.0,
+        sensitivity=2.0,
         control_hz=30,
         vision_hz=10,
         camera_width=400,
@@ -67,24 +90,40 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         },
         camera_specs=(
             # 主俯视相机：固定于场景右侧，斜俯视机械臂+笔记本
-            # 参数来自 Isaac Sim Property 面板实测
+            # rotation_xyz 对应 Isaac Sim Transform 面板里的 Orient XYZ
             TaskCameraSpec(
                 name="main",
                 prim_path="/World/Camera",
-                translation=(0.0, -1.1, 0.3),
-                rotation_xyz=(75.0, 0.0, 0.0),
-                focal_length=18.15,
+				translation=(0.1, -0.5, 0.8),
+				rotation_xyz=(0.0, 0.0, -90.0),
+				focal_length=6.9,
                 enable_sensor_capture=True,
             ),
             # 腕部相机：挂载于 gripper_base，朝向夹爪操作目标
-            # translation/rotation 为初始估计值，需跑起来后根据实际视角微调
+            # translation 为局部挂载偏移，rotation_xyz 对应 Transform 面板里的 Orient XYZ
             TaskCameraSpec(
                 name="wrist",
                 prim_path="/World/piper_description/gripper_base/WristCamera",
-                translation=(0.0, 0.05, -0.08),
-                rotation_xyz=(180.0, 0.0, 90.0),
-                focal_length=28.0,
+				translation=(-0.25, 0.0, -0.88),
+				rotation_xyz=(-180.0, -7.0, 90.0),
+				focal_length= 45.0,
                 enable_sensor_capture=True,
+            ),
+        ),
+        joint_drive_specs=(
+            # 笔记本转轴：调节 Angular Drive 阻尼，让机械臂能推动盖子。
+            TaskJointDriveSpec(
+                prim_path="/World/generated/joints/joint_1",
+                damping=0.5,
+                stiffness=0.0,
+                max_force=20.0,
+            ),
+        ),
+        joint_limit_specs=(
+            # 笔记本转轴：保留原始 lower limit，仅限制最高闭合角度。
+            TaskJointLimitSpec(
+                prim_path="/World/generated/joints/joint_1",
+                upper_limit=104.0,
             ),
         ),
     ),
