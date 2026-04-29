@@ -5,6 +5,7 @@ from __future__ import annotations
 # 在场景中按动作重播轨迹，而不仅仅查看图像。
 
 import argparse
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import h5py
@@ -30,6 +31,14 @@ def _select_episode(h5_file: h5py.File, demo: str | None) -> h5py.Group:
     if demo not in h5_file["data"]:
         raise ValueError(f"Episode '{demo}' not found. Available: {', '.join(names)}")
     return h5_file["data"][demo]
+
+
+def _timestamp_utc8() -> str:
+    return datetime.now(timezone(timedelta(hours=8))).strftime("%Y%m%d_%H%M%S")
+
+
+def _default_output_h264_path(demo_name: str) -> Path:
+    return Path(f"hdf5_camera_replay_{demo_name}_{_timestamp_utc8()}.mp4")
 
 
 def _to_uint8_rgb(array: np.ndarray) -> np.ndarray:
@@ -153,7 +162,7 @@ def main():
     parser.add_argument("--fps", type=float, default=10.0)
     parser.add_argument("--stride", type=int, default=1)
     parser.add_argument("--max-frames", type=int, default=None)
-    parser.add_argument("--output-h264", default="hdf5_camera_replay_h264.mp4")
+    parser.add_argument("--output-h264", default=None, help="Output MP4 path. Defaults to a timestamped filename.")
     args = parser.parse_args()
 
     if args.stride < 1:
@@ -168,7 +177,8 @@ def main():
 
         episode = _select_episode(h5_file, args.demo)
         if args.mode == "h264":
-            export_h264(episode, args.cameras, Path(args.output_h264), args.fps, args.max_frames, args.stride)
+            output_h264 = Path(args.output_h264) if args.output_h264 else _default_output_h264_path(episode.name.rsplit("/", 1)[-1])
+            export_h264(episode, args.cameras, output_h264, args.fps, args.max_frames, args.stride)
 
 
 if __name__ == "__main__":
