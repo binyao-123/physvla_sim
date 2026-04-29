@@ -3,6 +3,7 @@ __pycache__/
 
 *.hdf5
 collect/datasets/
+hdf5_camera_replay*.mp4
 
 ${data}/
 collect/${data}/
