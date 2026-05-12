@@ -7,3 +7,6 @@ hdf5_camera_replay*.mp4
 
 ${data}/
 collect/${data}/
+
+# LeRobot dataset exports (large video/parquet; host via Hub or storage)
+lerobot_datasets/

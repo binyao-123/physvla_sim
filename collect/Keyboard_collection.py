@@ -645,7 +645,7 @@ try:
                     device=device,
                 )
 
-                # observation.state：8 维 = 6 维手臂关节角 + 1 维夹爪状态
+                # observation.state：7 维 = 6 维手臂关节角 + 1 维夹爪状态
                 gripper_state = robot.data.joint_pos[:, gripper_joint_ids[0:1]].clone()
                 obs_joint_pos = torch.cat([robot.data.joint_pos[:, arm_joint_ids].clone(), gripper_state], dim=-1)
 
