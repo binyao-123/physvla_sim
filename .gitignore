@@ -8,5 +8,9 @@ hdf5_camera_replay*.mp4
 ${data}/
 collect/${data}/
 
+# ---- Local-only / unpublished (keep clones to Python-only; assets & tasks stay on your machine)
+assets/
+tasks/
+
 # LeRobot dataset exports (large video/parquet; host via Hub or storage)
 lerobot_datasets/
