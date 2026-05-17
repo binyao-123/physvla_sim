@@ -3,6 +3,7 @@ import os
 import re
 import sys
 import time
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import torch
@@ -18,16 +19,22 @@ from isaaclab_env_module import (
     EnvironmentModuleConfig,
     IsaacLabEnvironmentModule,
     JointDrivePrimSpec,
+    JointInitialPrimSpec,
     JointLimitPrimSpec,
     apply_camera_launch_workarounds,
 )
-from task_registry import DEFAULT_TASK_ID, get_task_preset, list_task_presets
+from task_registry import DEFAULT_TASK_ID, get_task_preset, list_task_presets, PHYSVLA_ASSETS_DIR
 
-# ── 1. CLI 参数与 App 启动 ─────────────────────────────────────────
 parser = argparse.ArgumentParser()
 parser.add_argument("--num_demos", type=int, default=5)
 parser.add_argument("--task_id", type=str, default=DEFAULT_TASK_ID)
 parser.add_argument("--list_tasks", action="store_true", help="List all available task presets and exit.")
+parser.add_argument(
+    "--usd_path",
+    type=str,
+    default=None,
+    help="Override TaskPreset.usd_path if your scene is elsewhere (absolute path or cwd-relative).",
+)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -38,6 +45,14 @@ if args_cli.list_tasks:
     raise SystemExit(0)
 
 task_preset = get_task_preset(args_cli.task_id)
+if args_cli.usd_path:
+    p = Path(args_cli.usd_path).expanduser()
+    if not p.is_absolute():
+        p = (Path.cwd() / p).resolve()
+    else:
+        p = p.resolve()
+    task_preset = replace(task_preset, usd_path=str(p))
+    print(f"[INFO] usd_path override: {task_preset.usd_path}")
 
 args_cli = apply_camera_launch_workarounds(args_cli)
 
@@ -55,13 +70,8 @@ from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 # IsaacLab 2.3 使用通用数据集接口导出 HDF5
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
-# ── Piper 机械臂 ArticulationCfg ──────────────────────────────────
-# spawn=None：机械臂已在 scene.usd 中，Isaac Lab 直接接管，不重复生成。
-# PD 参数为经验初始值（参考同量级机械臂），可根据实际手感在 Isaac Sim
-# Gain Tuner 中调整后回填：stiffness↑ 响应更硬，damping↑ 抑制振荡。
-# 夹爪 joint7/joint8 开合范围待根据 Piper URDF joint limit 核实。
 PIPER_CFG = ArticulationCfg(
-    prim_path="/World/piper_description",   # 被 task_preset.robot_prim_path 覆盖
+    prim_path="/World/piper_description",
     spawn=None,
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.0),
@@ -89,8 +99,6 @@ PIPER_CFG = ArticulationCfg(
 
 
 class OfficialEpisodeCollector:
-    """对齐官方 record_demos/replay_demos 数据组织的简化收集器。"""
-
     def __init__(self, dataset_file: str, env_name: str, num_demos: int = 0):
         self.dataset_file = self._make_session_dataset_file(dataset_file)
         self.env_name = env_name
@@ -229,7 +237,6 @@ CAMERA_WIDTH = max(32, int(task_preset.camera_width))
 CAMERA_HEIGHT = max(32, int(task_preset.camera_height))
 CAMERA_PATHS = {spec.name: spec.prim_path for spec in task_preset.camera_specs}
 
-# 只需要 main 和 wrist 两路相机
 for required_camera_name in ("main", "wrist"):
     if required_camera_name not in CAMERA_PATHS:
         raise ValueError(
@@ -240,7 +247,19 @@ WRIST_CAM_PATH = CAMERA_PATHS["wrist"]
 
 print(f"[INFO] Selected task preset: {task_preset.task_id}")
 
-# ── 3. 场景搭建 (SimulationContext 替代 World) ───────────────────
+_scene_usd = Path(task_preset.usd_path)
+if not _scene_usd.is_file():
+    raise FileNotFoundError(
+        f"Scene USD missing: {_scene_usd}\n"
+        "See collect/task_registry.py (TaskPreset.usd_path) for the expected path; "
+        "or override with --usd_path /path/to/scene.usd"
+    )
+
+print(
+    f"[INFO] Assets root {PHYSVLA_ASSETS_DIR.resolve()}: reference payloads relative to this tree in scene.usd."
+)
+
+# ── 3. 场景搭建 ───────────────────
 env_cfg = EnvironmentModuleConfig(
     usd_path=USD_PATH,
     camera_width=CAMERA_WIDTH,
@@ -277,13 +296,16 @@ env_cfg = EnvironmentModuleConfig(
         )
         for spec in task_preset.joint_limit_specs
     ],
+    joint_initial_specs=[
+        JointInitialPrimSpec(prim_path=spec.prim_path, position=spec.position)
+        for spec in task_preset.joint_initial_specs
+    ],
 )
 
 env_module = IsaacLabEnvironmentModule(env_cfg)
 sim = env_module.create_simulation(dt=1 / 60.0, render_interval=4)
 
 # ── 4. 资产接管 (Articulation) ───────────────────────────────────
-# 使用 PIPER_CFG，spawn=None 表示接管 scene.usd 中已有的 prim。
 robot_cfg = PIPER_CFG.replace(prim_path=task_preset.robot_prim_path)
 robot_cfg = robot_cfg.replace(
     init_state=ArticulationCfg.InitialStateCfg(
@@ -292,14 +314,6 @@ robot_cfg = robot_cfg.replace(
         joint_pos=dict(task_preset.robot_init_joint_pos),
     )
 )
-
-# # 为 Piper 补充 ArticulationRootAPI（固定底座机械臂必须加在父 Xform 上）
-# from pxr import UsdPhysics
-# _stage = omni.usd.get_context().get_stage()
-# _piper_prim = _stage.GetPrimAtPath("/World/piper_description")
-# if not UsdPhysics.ArticulationRootAPI(_piper_prim):
-#     UsdPhysics.ArticulationRootAPI.Apply(_piper_prim)
-#     print("[INFO] ArticulationRootAPI applied to /World/piper_description")
 
 robot = env_module.create_robot(robot_cfg)
 env_module.initialize_robot_home_pose()
@@ -543,6 +557,7 @@ try:
             if sensor_cameras:
                 for sensor in sensor_cameras.values():
                     sensor.reset()
+            env_module.apply_joint_initial_overrides()
             robot.write_joint_state_to_sim(robot.data.default_joint_pos, robot.data.default_joint_vel)
             robot.set_joint_position_target(gripper_close_target, joint_ids=gripper_joint_ids)
             robot.write_data_to_sim()
@@ -550,12 +565,13 @@ try:
             sim.step()
             robot.update(sim.cfg.dt)
 
+            env_module.define_camera_prims()
+
             target_pos = robot.data.body_pos_w[:, ee_body_id].clone()
             target_quat = robot.data.body_quat_w[:, ee_body_id].clone()
             teleop_interface.reset()
             teleop_interface._close_gripper = True
-            diff_ik_controller.reset()   # ← 清除 IK 控制器旧状态
-            should_reset = False
+            diff_ik_controller.reset()
 
             collector.reset_episode()
             episode_start_wall_time = time.perf_counter()

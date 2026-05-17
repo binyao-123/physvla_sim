@@ -1,16 +1,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
+
+PHYSVLA_SIM_ROOT: Path = Path(__file__).resolve().parent.parent
+PHYSVLA_ASSETS_DIR: Path = PHYSVLA_SIM_ROOT / "assets"
+# Scene /World/generated payload (from tasks/*/data/): use relpaths into assets/, e.g.
+
+
+def _tasks_scene_usd(*parts: str) -> str:
+    return str((PHYSVLA_SIM_ROOT / "tasks").joinpath(*parts).resolve())
 
 
 @dataclass(frozen=True)
 class TaskCameraSpec:
     name: str
     prim_path: str
-    # None means keeping the value authored in the USD scene.
     translation: tuple[float, float, float] | None
-    # Isaac Sim Transform panel Orient XYZ values, in degrees.
-    # None means keeping the value authored in the USD scene.
     rotation_xyz: tuple[float, float, float] | None
     focal_length: float | None
     enable_sensor_capture: bool = True
@@ -29,9 +35,14 @@ class TaskJointDriveSpec:
 @dataclass(frozen=True)
 class TaskJointLimitSpec:
     prim_path: str
-    # None means keeping the value authored in the USD scene.
     lower_limit: float | None = None
     upper_limit: float | None = None
+
+
+@dataclass(frozen=True)
+class TaskJointInitialSpec:
+    prim_path: str
+    position: float
 
 
 @dataclass(frozen=True)
@@ -48,7 +59,6 @@ class TaskPreset:
     camera_width: int = 400
     camera_height: int = 400
     camera_sensor_type: str = "camera"
-    # robot_prim_path: str = "/World/piper_description"
     robot_prim_path: str = "/World/piper_description/root_joint"
     robot_init_root_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
     robot_init_root_rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
@@ -56,15 +66,71 @@ class TaskPreset:
     camera_specs: tuple[TaskCameraSpec, ...] = field(default_factory=tuple)
     joint_drive_specs: tuple[TaskJointDriveSpec, ...] = field(default_factory=tuple)
     joint_limit_specs: tuple[TaskJointLimitSpec, ...] = field(default_factory=tuple)
+    joint_initial_specs: tuple[TaskJointInitialSpec, ...] = field(default_factory=tuple)
 
 
 OPEN_LAPTOP_TASK_ID = "open_laptop_lid"
+ADJUST_MONITOR_TASK_ID = "adjust_the_monitor"
+
+
+@dataclass(frozen=True)
+class SharedTeleopPiperCfg:
+    articulation_prim_path: str
+    root_pos: tuple[float, float, float]
+    root_rot: tuple[float, float, float, float]
+    joint_pos_entries: tuple[tuple[str, float], ...]
+
+    def joint_pos_dict(self) -> dict[str, float]:
+        return dict(self.joint_pos_entries)
+
+
+# ---------------------------------------------------------------------------
+# 公共配置注册
+# ---------------------------------------------------------------------------
+SHARED_TELEOP_PIPER = SharedTeleopPiperCfg(
+    articulation_prim_path="/World/piper_description/root_joint",
+    root_pos=(0.0, 0.0, 0.0),
+    root_rot=(1.0, 0.0, 0.0, 0.0),
+    joint_pos_entries=(
+        ("joint1", 0.0),
+        ("joint2", 0.3),  # 约 [0, π]
+        ("joint3", -0.5),  # 约 [-2.967, 0]
+        ("joint4", 0.0),
+        ("joint5", 0.5),
+        ("joint6", 0.0),
+        ("joint7", 0.0),
+        ("joint8", 0.0),
+    ),
+)
+
+SHARED_CAMERA_SPECS: tuple[TaskCameraSpec, ...] = (
+    TaskCameraSpec(
+        name="main",
+        prim_path="/World/Camera",
+        translation=None,
+        rotation_xyz=None,
+        focal_length=None,
+        enable_sensor_capture=True,
+    ),
+    TaskCameraSpec(
+        name="wrist",
+        prim_path="/World/piper_description/gripper_base/WristCamera",
+        translation=(-0.25, 0.2, -0.88),
+        rotation_xyz=(-180.0, -7.0, 90.0),
+        focal_length=45.0,
+        enable_sensor_capture=True,
+    ),
+)
+
+# ---------------------------------------------------------------------------
+# 任务资产注册
+# ---------------------------------------------------------------------------
 
 TASK_PRESETS: dict[str, TaskPreset] = {
     OPEN_LAPTOP_TASK_ID: TaskPreset(
         task_id=OPEN_LAPTOP_TASK_ID,
         description="Keyboard teleoperation data collection for opening laptop lid task.",
-        usd_path="/home/ubuntu/workspace/physvla_sim/tasks/open_laptop/data/scene.usd",
+        usd_path=_tasks_scene_usd("open_laptop", "data", "scene.usd"),
         env_name="OpenLaptopTask",
         dataset_file="./datasets/open_laptop_lid.hdf5",
         language_instruction="open_laptop_lid",
@@ -74,56 +140,57 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         camera_width=400,
         camera_height=400,
         camera_sensor_type="camera",
-        # robot_prim_path="/World/piper_description",
-        robot_prim_path="/World/piper_description/root_joint",
-        robot_init_root_pos=(0.0, 0.0, 0.0),
-        robot_init_root_rot=(1.0, 0.0, 0.0, 0.0),
-        robot_init_joint_pos={
-            "joint1": 0.0,
-            "joint2": 0.3,    # [0, 3.14] 范围内
-            "joint3": -0.5,   # [-2.967, 0] 范围内
-            "joint4": 0.0,
-            "joint5": 0.5,
-            "joint6": 0.0,
-            "joint7": 0.0,
-            "joint8": 0.0,
-        },
-        camera_specs=(
-            # 主俯视相机：固定于场景右侧，斜俯视机械臂+笔记本
-            # rotation_xyz 对应 Isaac Sim Transform 面板里的 Orient XYZ
-            TaskCameraSpec(
-                name="main",
-                prim_path="/World/Camera",
-				translation=(0.1, -0.5, 0.8),
-				rotation_xyz=(0.0, 0.0, -90.0),
-				focal_length=6.9,
-                enable_sensor_capture=True,
-            ),
-            # 腕部相机：挂载于 gripper_base，朝向夹爪操作目标
-            # translation 为局部挂载偏移，rotation_xyz 对应 Transform 面板里的 Orient XYZ
-            TaskCameraSpec(
-                name="wrist",
-                prim_path="/World/piper_description/gripper_base/WristCamera",
-				translation=(-0.25, 0.0, -0.88),
-				rotation_xyz=(-180.0, -7.0, 90.0),
-				focal_length= 45.0,
-                enable_sensor_capture=True,
-            ),
-        ),
+        robot_prim_path=SHARED_TELEOP_PIPER.articulation_prim_path,
+        robot_init_root_pos=SHARED_TELEOP_PIPER.root_pos,
+        robot_init_root_rot=SHARED_TELEOP_PIPER.root_rot,
+        robot_init_joint_pos=SHARED_TELEOP_PIPER.joint_pos_dict(),
+        camera_specs=SHARED_CAMERA_SPECS,
         joint_drive_specs=(
-            # 笔记本转轴：调节 Angular Drive 阻尼，让机械臂能推动盖子。
             TaskJointDriveSpec(
                 prim_path="/World/generated/joints/joint_1",
-                damping=0.5,
+                damping=50.0,
                 stiffness=0.0,
-                max_force=20.0,
+                max_force=15.0,
             ),
         ),
         joint_limit_specs=(
-            # 笔记本转轴：保留原始 lower limit，仅限制最高闭合角度。
             TaskJointLimitSpec(
                 prim_path="/World/generated/joints/joint_1",
                 upper_limit=104.0,
+            ),
+        ),
+    ),
+    ADJUST_MONITOR_TASK_ID: TaskPreset(
+        task_id=ADJUST_MONITOR_TASK_ID,
+        description="Keyboard teleoperation data collection for adjusting the monitor (generated URDF hinge).",
+        usd_path=_tasks_scene_usd("adjust_the_display", "data", "scene.usd"),
+        env_name="AdjustMonitorTask",
+        dataset_file="./datasets/adjust_the_monitor.hdf5",
+        language_instruction="adjust the monitor",
+        sensitivity=2.0,
+        control_hz=30,
+        vision_hz=10,
+        camera_width=400,
+        camera_height=400,
+        camera_sensor_type="camera",
+        robot_prim_path=SHARED_TELEOP_PIPER.articulation_prim_path,
+        robot_init_root_pos=SHARED_TELEOP_PIPER.root_pos,
+        robot_init_root_rot=SHARED_TELEOP_PIPER.root_rot,
+        robot_init_joint_pos=SHARED_TELEOP_PIPER.joint_pos_dict(),
+        camera_specs=SHARED_CAMERA_SPECS,
+        joint_drive_specs=(
+            TaskJointDriveSpec(
+                prim_path="/World/generated/joints/joint_1",
+                damping=100.0,
+                stiffness=0.0,
+                max_force=30.0,
+            ),
+        ),
+        joint_limit_specs=(),
+        joint_initial_specs=(
+            TaskJointInitialSpec(
+                prim_path="/World/generated/joints/joint_1",
+                position=-20.0,
             ),
         ),
     ),

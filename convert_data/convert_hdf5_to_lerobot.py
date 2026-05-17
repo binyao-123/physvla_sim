@@ -8,7 +8,6 @@ import shutil
 import sys
 from typing import Literal
 
-# `piper_physical_units` lives in physvla_sim/; avoid requiring PYTHONPATH=.../physvla_sim.
 _physvla_sim_root = Path(__file__).resolve().parent.parent
 if str(_physvla_sim_root) not in sys.path:
     sys.path.insert(0, str(_physvla_sim_root))

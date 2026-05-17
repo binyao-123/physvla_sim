@@ -9,7 +9,6 @@ from typing import Any
 class CameraPrimSpec:
 	name: str
 	prim_path: str
-	# None means keeping the value authored in the USD scene.
 	translation: tuple[float, float, float] | None
 	# Isaac Sim Transform panel Orient XYZ values, in degrees.
 	# None means keeping the value authored in the USD scene.
@@ -36,6 +35,12 @@ class JointLimitPrimSpec:
 
 
 @dataclass
+class JointInitialPrimSpec:
+	prim_path: str
+	position: float
+
+
+@dataclass
 class EnvironmentModuleConfig:
 	usd_path: str
 	camera_width: int = 400
@@ -46,16 +51,11 @@ class EnvironmentModuleConfig:
 	camera_specs: list[CameraPrimSpec] = field(default_factory=list)
 	joint_drive_specs: list[JointDrivePrimSpec] = field(default_factory=list)
 	joint_limit_specs: list[JointLimitPrimSpec] = field(default_factory=list)
+	joint_initial_specs: list[JointInitialPrimSpec] = field(default_factory=list)
 
 
 def apply_camera_launch_workarounds(args_cli: Any) -> Any:
-	"""Apply IsaacLab 2.3 and Isaac Sim 5.1 camera launch flags.
-
-	Official docs and release notes recommend:
-	1) enable camera rendering explicitly when using camera sensors
-	2) use offscreen rendering for headless camera capture
-	3) apply known render-loop workarounds for 5.1 regressions
-	"""
+	"""Enable camera rendering / offscreen / kit_args workarounds for IsaacLab + Isaac Sim 5.1."""
 	args_cli.enable_cameras = True
 
 	if getattr(args_cli, "headless", False) and hasattr(args_cli, "offscreen_render"):
@@ -74,15 +74,7 @@ def apply_camera_launch_workarounds(args_cli: Any) -> Any:
 
 
 class IsaacLabEnvironmentModule:
-	"""Reusable environment bootstrapper for IsaacLab 2.3 scripts.
-
-	This module encapsulates:
-	- opening a USD stage
-	- creating SimulationContext
-	- taking over robot articulation
-	- creating camera prims and sensor cameras
-	- warm-up and reset routines
-	"""
+	"""Open USD stage, SimulationContext, articulation, cameras, warmup/reset."""
 
 	def __init__(self, cfg: EnvironmentModuleConfig):
 		self.cfg = cfg
@@ -172,6 +164,40 @@ class IsaacLabEnvironmentModule:
 					attr = prim.CreateAttribute(attr_name, Sdf.ValueTypeNames.Float)
 				attr.Set(float(value))
 
+	def apply_joint_initial_overrides(self):
+		if not self.cfg.joint_initial_specs:
+			return
+
+		import omni.usd
+		from pxr import Sdf
+
+		stage = omni.usd.get_context().get_stage()
+		if stage is None:
+			raise RuntimeError("USD stage is unavailable for joint initial overrides.")
+
+		state_pos_attr = "state:angular:physics:position"
+		state_vel_attr = "state:angular:physics:velocity"
+
+		for spec in self.cfg.joint_initial_specs:
+			prim = stage.GetPrimAtPath(spec.prim_path)
+			if not prim.IsValid():
+				raise RuntimeError(f"Joint prim '{spec.prim_path}' does not exist on stage.")
+
+			value = float(spec.position)
+
+			auth_attr = prim.GetAttribute("physics:position")
+			if not auth_attr.IsValid():
+				auth_attr = prim.CreateAttribute("physics:position", Sdf.ValueTypeNames.Float)
+			auth_attr.Set(value)
+
+			sta = prim.GetAttribute(state_pos_attr)
+			if sta.IsValid():
+				sta.Set(value)
+
+			stv = prim.GetAttribute(state_vel_attr)
+			if stv.IsValid():
+				stv.Set(0.0)
+
 	def create_simulation(self, dt: float = 1.0 / 60.0, render_interval: int = 4, use_fabric: bool = True):
 		import omni.usd
 		import isaaclab.sim as sim_utils
@@ -179,6 +205,7 @@ class IsaacLabEnvironmentModule:
 		omni.usd.get_context().open_stage(self.cfg.usd_path)
 		self.apply_joint_drive_overrides()
 		self.apply_joint_limit_overrides()
+		self.apply_joint_initial_overrides()
 
 		try:
 			physx_cfg = sim_utils.PhysxCfg(enable_stabilization=True)
@@ -219,6 +246,9 @@ class IsaacLabEnvironmentModule:
 
 		self.sim.reset()
 		self.robot.update(self.sim.cfg.dt)
+		# sim.reset() 会重建场景物理状态，非 Piper 的关节（如 /World/generated）可能回到 0；
+		# 需在每次 reset 后把 USD 上的关节初值重新写回 stage。
+		self.apply_joint_initial_overrides()
 
 		if self._should_reset_root_pose():
 			self.robot.write_root_pose_to_sim(self.robot.data.default_root_state[:, :7])
@@ -418,9 +448,12 @@ class IsaacLabEnvironmentModule:
 				self.robot.data.default_joint_pos,
 				self.robot.data.default_joint_vel,
 			)
+		self.apply_joint_initial_overrides()
 		self.sim.step(render=True)
 		if self.robot is not None:
 			self.robot.update(self.sim.cfg.dt)
+
+		self.define_camera_prims()
 
 		for sensor in self.sensor_cameras.values():
 			sensor.reset()
