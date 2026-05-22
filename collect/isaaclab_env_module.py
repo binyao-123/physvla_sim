@@ -4,6 +4,8 @@ import math
 from dataclasses import dataclass, field
 from typing import Any
 
+from task_registry import SCENE_ARTICULATION_PRIM_PATH
+
 
 @dataclass
 class CameraPrimSpec:
@@ -80,9 +82,12 @@ class IsaacLabEnvironmentModule:
 		self.cfg = cfg
 		self.sim = None
 		self.robot = None
+		self.scene_articulation = None
 		self.sensor_cameras: dict[str, Any] = {}
 		self.device: str | None = None
 		self._camera_paths: dict[str, str] = {}
+		self._scene_joint_articulation_ids: dict[str, int] = {}
+		self._scene_joint_pos_units: dict[str, str] = {}
 
 	def _robot_is_fixed_base(self) -> bool:
 		if self.robot is None:
@@ -198,6 +203,65 @@ class IsaacLabEnvironmentModule:
 			if stv.IsValid():
 				stv.Set(0.0)
 
+	def _read_scene_joint_angle_deg_usd(self, prim_path: str) -> float | None:
+		import omni.usd
+
+		stage = omni.usd.get_context().get_stage()
+		if stage is None:
+			return None
+		prim = stage.GetPrimAtPath(prim_path)
+		if not prim or not prim.IsValid():
+			return None
+		for attr_name in (
+			"state:angular:physics:position",
+			"drive:angular:physics:position",
+			"physics:position",
+		):
+			attr = prim.GetAttribute(attr_name)
+			if attr and attr.IsValid():
+				value = attr.Get()
+				if value is not None:
+					return float(value)
+		return None
+
+	def _articulation_joint_pos_to_deg(self, joint_prim_path: str, raw: float) -> float:
+		mode = self._scene_joint_pos_units.get(joint_prim_path)
+		if mode == "deg":
+			return float(raw)
+		if mode == "rad":
+			return math.degrees(float(raw))
+		usd_deg = self._read_scene_joint_angle_deg_usd(joint_prim_path)
+		if usd_deg is not None:
+			if abs(raw - usd_deg) <= abs(math.degrees(raw) - usd_deg) + 0.5:
+				mode = "deg"
+			else:
+				mode = "rad"
+			self._scene_joint_pos_units[joint_prim_path] = mode
+			return float(raw) if mode == "deg" else math.degrees(float(raw))
+		return math.degrees(float(raw))
+
+	def read_scene_joint_angle_deg(self, prim_path: str) -> float | None:
+		"""Read scene hinge angle (deg) via Isaac Lab Articulation."""
+		if self.scene_articulation is None or self.sim is None or not self.sim.is_playing():
+			return self._read_scene_joint_angle_deg_usd(prim_path)
+
+		joint_name = prim_path.rsplit("/", 1)[-1]
+		if prim_path not in self._scene_joint_articulation_ids:
+			joint_ids, _ = self.scene_articulation.find_joints(joint_name)
+			if not joint_ids:
+				return None
+			self._scene_joint_articulation_ids[prim_path] = int(joint_ids[0])
+
+		joint_id = self._scene_joint_articulation_ids[prim_path]
+		try:
+			raw = self.scene_articulation.data.joint_pos[0, joint_id]
+			if hasattr(raw, "item"):
+				raw = raw.item()
+			return self._articulation_joint_pos_to_deg(prim_path, float(raw))
+		except Exception as exc:
+			print(f"[WARN] Scene joint read failed for {prim_path}: {exc}")
+			return None
+
 	def create_simulation(self, dt: float = 1.0 / 60.0, render_interval: int = 4, use_fabric: bool = True):
 		import omni.usd
 		import isaaclab.sim as sim_utils
@@ -240,15 +304,52 @@ class IsaacLabEnvironmentModule:
 		self.robot = Articulation(cfg=robot_cfg)
 		return self.robot
 
+	def create_scene_articulation(self, articulation_cfg: Any):
+		if self.sim is None:
+			raise RuntimeError("Simulation must be created before scene articulation init.")
+
+		from isaaclab.assets import Articulation
+
+		self.scene_articulation = Articulation(cfg=articulation_cfg)
+		self._scene_joint_articulation_ids.clear()
+		return self.scene_articulation
+
+	def sync_scene_joint_initials_to_sim(self) -> None:
+		"""Write scene hinge initial angles to PhysX after sim.reset()."""
+		if self.scene_articulation is None or not self.cfg.joint_initial_specs:
+			return
+
+		import torch
+
+		device = self.device or "cuda:0"
+		scene_prefix = f"{SCENE_ARTICULATION_PRIM_PATH}/"
+		for spec in self.cfg.joint_initial_specs:
+			if not spec.prim_path.startswith(scene_prefix):
+				continue
+			joint_name = spec.prim_path.rsplit("/", 1)[-1]
+			joint_ids, _ = self.scene_articulation.find_joints(joint_name)
+			if not joint_ids:
+				continue
+			pos = torch.tensor(
+				[[math.radians(float(spec.position))]],
+				device=device,
+				dtype=torch.float32,
+			)
+			vel = torch.zeros((1, len(joint_ids)), device=device, dtype=torch.float32)
+			self.scene_articulation.write_joint_state_to_sim(pos, vel, joint_ids=joint_ids)
+		self.scene_articulation.write_data_to_sim()
+
 	def initialize_robot_home_pose(self):
 		if self.sim is None or self.robot is None:
 			raise RuntimeError("Simulation and robot must be created before home pose init.")
 
 		self.sim.reset()
 		self.robot.update(self.sim.cfg.dt)
-		# sim.reset() 会重建场景物理状态，非 Piper 的关节（如 /World/generated）可能回到 0；
-		# 需在每次 reset 后把 USD 上的关节初值重新写回 stage。
+		if self.scene_articulation is not None:
+			self.scene_articulation.reset()
+			self.scene_articulation.update(self.sim.cfg.dt)
 		self.apply_joint_initial_overrides()
+		self.sync_scene_joint_initials_to_sim()
 
 		if self._should_reset_root_pose():
 			self.robot.write_root_pose_to_sim(self.robot.data.default_root_state[:, :7])
@@ -259,6 +360,8 @@ class IsaacLabEnvironmentModule:
 
 		self.sim.step(render=True)
 		self.robot.update(self.sim.cfg.dt)
+		if self.scene_articulation is not None:
+			self.scene_articulation.update(self.sim.cfg.dt)
 
 	@staticmethod
 	def _find_xform_op(xformable, op_type):
@@ -448,10 +551,16 @@ class IsaacLabEnvironmentModule:
 				self.robot.data.default_joint_pos,
 				self.robot.data.default_joint_vel,
 			)
+		if self.scene_articulation is not None:
+			self.scene_articulation.reset()
+			self.scene_articulation.update(self.sim.cfg.dt)
 		self.apply_joint_initial_overrides()
+		self.sync_scene_joint_initials_to_sim()
 		self.sim.step(render=True)
 		if self.robot is not None:
 			self.robot.update(self.sim.cfg.dt)
+		if self.scene_articulation is not None:
+			self.scene_articulation.update(self.sim.cfg.dt)
 
 		self.define_camera_prims()
 

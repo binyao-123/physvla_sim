@@ -6,6 +6,8 @@ import time
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Optional, Tuple
+
 import torch
 import h5py
 from isaaclab.app import AppLauncher
@@ -23,11 +25,16 @@ from isaaclab_env_module import (
     JointLimitPrimSpec,
     apply_camera_launch_workarounds,
 )
-from task_registry import DEFAULT_TASK_ID, get_task_preset, list_task_presets, PHYSVLA_ASSETS_DIR
+from task_registry import get_task_preset, list_task_presets, PHYSVLA_ASSETS_DIR
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--num_demos", type=int, default=5)
-parser.add_argument("--task_id", type=str, default=DEFAULT_TASK_ID)
+parser.add_argument(
+    "--task_id",
+    type=str,
+    default=None,
+    help="Task preset id from task_registry.TASK_PRESETS (required unless --list_tasks).",
+)
 parser.add_argument("--list_tasks", action="store_true", help="List all available task presets and exit.")
 parser.add_argument(
     "--usd_path",
@@ -43,6 +50,9 @@ if args_cli.list_tasks:
     for preset in list_task_presets():
         print(f"  - {preset.task_id}: {preset.description}")
     raise SystemExit(0)
+
+if not args_cli.task_id:
+    parser.error("--task_id is required (use --list_tasks to see presets).")
 
 task_preset = get_task_preset(args_cli.task_id)
 if args_cli.usd_path:
@@ -207,14 +217,31 @@ class OfficialEpisodeCollector:
         self._episode.add("rewards", reward.detach().clone())
         self._episode.add("dones", done.detach().clone())
 
-    def export_episode(self, success: bool) -> bool:
+    def export_episode(self, success: bool) -> Tuple[bool, Optional[str], int]:
+        """Write current episode to HDF5.
+
+        Returns (written?, demo_group_name_written, num_timesteps).
+        Matches post-hoc checks like ``demo_k: T=..., success=...``.
+        """
         if self._episode.is_empty():
-            return False
+            return False, None, 0
+
+        handler = self._dataset_handler
+        demo_key = f"demo_{handler._demo_count}"
 
         self._episode.success = success
         self._prepare_episode_for_export()
-        self._dataset_handler.write_episode(self._episode)
-        self._dataset_handler.flush()
+
+        acts = self._episode.data.get("actions")
+        if acts is None:
+            num_steps = 0
+        elif isinstance(acts, torch.Tensor):
+            num_steps = int(acts.shape[0])
+        else:
+            num_steps = len(acts)
+
+        handler.write_episode(self._episode)
+        handler.flush()
 
         if success:
             self.exported_successful_episode_count += 1
@@ -222,7 +249,7 @@ class OfficialEpisodeCollector:
             self.exported_failed_episode_count += 1
 
         self.reset_episode()
-        return True
+        return True, demo_key, num_steps
 
     def close(self):
         self._dataset_handler.close()
@@ -462,9 +489,11 @@ collector = OfficialEpisodeCollector(
     num_demos=args_cli.num_demos,
 )
 
-instruction_text = (task_preset.language_instruction or "open laptop lid").strip()
+instruction_text = (task_preset.language_instruction or "").strip()
 if not instruction_text:
-    instruction_text = "open laptop lid"
+    raise ValueError(
+        f"TaskPreset '{task_preset.task_id}' has empty language_instruction; set a non-empty VLM task string in task_registry."
+    )
 instruction_bytes = instruction_text.encode("utf-8")
 language_instruction_tensor = torch.tensor(
     list(instruction_bytes), dtype=torch.uint8, device=device
@@ -530,10 +559,11 @@ try:
                 if last_obs_dict is not None and last_state_dict is not None:
                     done_flag = torch.ones((1,), device=device, dtype=torch.bool)
                     collector.add_step(last_obs_dict, last_action, last_reward, done_flag, last_state_dict)
-                    if collector.export_episode(success=True):
+                    saved, _, _ = collector.export_episode(success=True)
+                    if saved:
+                        slot_total = collector.num_demos if collector.num_demos > 0 else "?"
                         print(
-                            f"\n[INFO] Saved demo slot {completed_demo_slots + 1}"
-                            f"/{collector.num_demos if collector.num_demos > 0 else '?'}"
+                            f"\n[INFO] Saved demo slot {completed_demo_slots + 1}/{slot_total}"
                         )
                 else:
                     print("\n[INFO] No trajectory data yet. This slot will be counted and skipped.")
@@ -661,9 +691,13 @@ try:
                     device=device,
                 )
 
-                # observation.state：7 维 = 6 维手臂关节角 + 1 维夹爪状态
-                gripper_state = robot.data.joint_pos[:, gripper_joint_ids[0:1]].clone()
-                obs_joint_pos = torch.cat([robot.data.joint_pos[:, arm_joint_ids].clone(), gripper_state], dim=-1)
+                # observation.state：7 维 = 6 关节弧度 + 夹爪 0/1（与 actions[...,6] 一致，便于真机对齐）
+                gripper_open01 = torch.tensor(
+                    [[1.0 if gripper_cmd else 0.0]], dtype=torch.float32, device=device
+                )
+                obs_joint_pos = torch.cat(
+                    [robot.data.joint_pos[:, arm_joint_ids].clone(), gripper_open01], dim=-1
+                )
 
                 obs_dict = {
                     "robot_joint_pos": obs_joint_pos,
@@ -717,8 +751,11 @@ if collector.has_data() and last_obs_dict is not None and last_state_dict is not
     try:
         done_flag = torch.ones((1,), device=device, dtype=torch.bool)
         collector.add_step(last_obs_dict, last_action, last_reward, done_flag, last_state_dict)
-        if collector.export_episode(success=False):
-            print("[INFO] Exported in-progress episode before shutdown (marked as failed).")
+        saved, dk, nt = collector.export_episode(success=False)
+        if saved and dk is not None:
+            print(
+                f"[INFO] {dk}: T={nt}, success=False (in-progress shutdown export)"
+            )
     except Exception as e:
         print(f"[WARN] Failed to export in-progress episode on exit: {e}")
 

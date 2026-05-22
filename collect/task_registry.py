@@ -3,21 +3,33 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# ---------------------------------------------------------------------------
+# 路径
+# ---------------------------------------------------------------------------
+
 PHYSVLA_SIM_ROOT: Path = Path(__file__).resolve().parent.parent
 PHYSVLA_ASSETS_DIR: Path = PHYSVLA_SIM_ROOT / "assets"
-# Scene /World/generated payload (from tasks/*/data/): use relpaths into assets/, e.g.
 
 
 def _tasks_scene_usd(*parts: str) -> str:
+    """拼接 tasks/<任务>/.../scene.usd 的绝对路径。"""
     return str((PHYSVLA_SIM_ROOT / "tasks").joinpath(*parts).resolve())
+
+
+# ---------------------------------------------------------------------------
+# 任务级配置片段（相机、场景关节等）
+# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
 class TaskCameraSpec:
     name: str
     prim_path: str
+    # Isaac Sim → Transform → Translate（米）
     translation: tuple[float, float, float] | None
+    # Isaac Sim → Transform → Orient（度，与 isaaclab_env_module 一致）
     rotation_xyz: tuple[float, float, float] | None
+    # Isaac Sim → Camera → Lens → Focal Length
     focal_length: float | None
     enable_sensor_capture: bool = True
 
@@ -46,31 +58,18 @@ class TaskJointInitialSpec:
 
 
 @dataclass(frozen=True)
-class TaskPreset:
-    task_id: str
-    description: str
-    usd_path: str
-    env_name: str
-    dataset_file: str
-    language_instruction: str
-    sensitivity: float = 4.0
-    control_hz: int = 30
-    vision_hz: int = 10
-    camera_width: int = 400
-    camera_height: int = 400
-    camera_sensor_type: str = "camera"
-    robot_prim_path: str = "/World/piper_description/root_joint"
-    robot_init_root_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    robot_init_root_rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
-    robot_init_joint_pos: dict[str, float] = field(default_factory=dict)
-    camera_specs: tuple[TaskCameraSpec, ...] = field(default_factory=tuple)
-    joint_drive_specs: tuple[TaskJointDriveSpec, ...] = field(default_factory=tuple)
-    joint_limit_specs: tuple[TaskJointLimitSpec, ...] = field(default_factory=tuple)
-    joint_initial_specs: tuple[TaskJointInitialSpec, ...] = field(default_factory=tuple)
+class TaskRolloutSuccessSpec:
+    """Rollout 单关节成功条件：角度（度）大于 angle_gt_deg。"""
+    joint_prim: str
+    angle_gt_deg: float
 
 
-OPEN_LAPTOP_TASK_ID = "open_laptop_lid"
-ADJUST_MONITOR_TASK_ID = "adjust_the_monitor"
+SCENE_ARTICULATION_PRIM_PATH = "/World/generated"
+
+
+# ---------------------------------------------------------------------------
+# 共享：Piper 键盘遥操作（机器人 + 双相机）
+# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -84,19 +83,16 @@ class SharedTeleopPiperCfg:
         return dict(self.joint_pos_entries)
 
 
-# ---------------------------------------------------------------------------
-# 公共配置注册
-# ---------------------------------------------------------------------------
 SHARED_TELEOP_PIPER = SharedTeleopPiperCfg(
     articulation_prim_path="/World/piper_description/root_joint",
     root_pos=(0.0, 0.0, 0.0),
     root_rot=(1.0, 0.0, 0.0, 0.0),
     joint_pos_entries=(
         ("joint1", 0.0),
-        ("joint2", 0.3),  # 约 [0, π]
-        ("joint3", -0.5),  # 约 [-2.967, 0]
+        ("joint2", 0.0),
+        ("joint3", 0.0),
         ("joint4", 0.0),
-        ("joint5", 0.5),
+        ("joint5", 0.0),
         ("joint6", 0.0),
         ("joint7", 0.0),
         ("joint8", 0.0),
@@ -107,9 +103,9 @@ SHARED_CAMERA_SPECS: tuple[TaskCameraSpec, ...] = (
     TaskCameraSpec(
         name="main",
         prim_path="/World/Camera",
-        translation=None,
-        rotation_xyz=None,
-        focal_length=None,
+        translation=(0.4, -0.6, 0.8),
+        rotation_xyz=(0.0, -7.0, -90.0),
+        focal_length=7.0,
         enable_sensor_capture=True,
     ),
     TaskCameraSpec(
@@ -122,35 +118,81 @@ SHARED_CAMERA_SPECS: tuple[TaskCameraSpec, ...] = (
     ),
 )
 
+
+def _shared_teleop_kwargs() -> dict:
+    """各键盘遥操作任务共用的机器人初始位姿与相机配置。"""
+
+    return {
+        "robot_prim_path": SHARED_TELEOP_PIPER.articulation_prim_path,
+        "robot_init_root_pos": SHARED_TELEOP_PIPER.root_pos,
+        "robot_init_root_rot": SHARED_TELEOP_PIPER.root_rot,
+        "robot_init_joint_pos": SHARED_TELEOP_PIPER.joint_pos_dict(),
+        "camera_specs": SHARED_CAMERA_SPECS,
+    }
+
+
 # ---------------------------------------------------------------------------
-# 任务资产注册
+# 任务场景预设（TaskPreset）字段定义
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class TaskPreset:
+    task_id: str
+    description: str
+    usd_path: str
+    env_name: str
+    dataset_file: str
+    language_instruction: str
+    sensitivity: float = 4.0
+    # action频率和视觉频率
+    control_hz: int = 30
+    vision_hz: int = 30
+    camera_width: int = 400
+    camera_height: int = 400
+    camera_sensor_type: str = "camera"
+    robot_prim_path: str = "/World/piper_description/root_joint"
+    robot_init_root_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    robot_init_root_rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
+    robot_init_joint_pos: dict[str, float] = field(default_factory=dict)
+    camera_specs: tuple[TaskCameraSpec, ...] = field(default_factory=tuple)
+    joint_drive_specs: tuple[TaskJointDriveSpec, ...] = field(default_factory=tuple)
+    joint_limit_specs: tuple[TaskJointLimitSpec, ...] = field(default_factory=tuple)
+    joint_initial_specs: tuple[TaskJointInitialSpec, ...] = field(default_factory=tuple)
+    # 每任务单独定义；多 joint 时列多条，全部满足才算 success（AND）
+    rollout_success_specs: tuple[TaskRolloutSuccessSpec, ...] = field(default_factory=tuple)
+
+
+# ---------------------------------------------------------------------------
+# 任务 ID 与 喂给 VLM 的提示词（须与 convert_hdf5_to_lerobot.py --task 一致）
+# ---------------------------------------------------------------------------
+
+CLOSE_LAPTOP_TASK_ID = "close_laptop_lid"
+CLOSE_LAPTOP_LANGUAGE_INSTRUCTION = "Close the laptop lid until it is fully closed."
+
+ADJUST_MONITOR_TASK_ID = "adjust_the_monitor"
+ADJUST_MONITOR_LANGUAGE_INSTRUCTION = "adjust the display."
+
+
+# ---------------------------------------------------------------------------
+# 已注册任务
 # ---------------------------------------------------------------------------
 
 TASK_PRESETS: dict[str, TaskPreset] = {
-    OPEN_LAPTOP_TASK_ID: TaskPreset(
-        task_id=OPEN_LAPTOP_TASK_ID,
-        description="Keyboard teleoperation data collection for opening laptop lid task.",
+    CLOSE_LAPTOP_TASK_ID: TaskPreset(
+        task_id=CLOSE_LAPTOP_TASK_ID,
+        description="Keyboard teleoperation collection for closing the laptop lid (open_laptop scene).",
         usd_path=_tasks_scene_usd("open_laptop", "data", "scene.usd"),
         env_name="OpenLaptopTask",
-        dataset_file="./datasets/open_laptop_lid.hdf5",
-        language_instruction="open_laptop_lid",
+        dataset_file="./datasets/close_laptop_lid.hdf5",
+        language_instruction=CLOSE_LAPTOP_LANGUAGE_INSTRUCTION,
         sensitivity=2.0,
-        control_hz=30,
-        vision_hz=10,
-        camera_width=400,
-        camera_height=400,
-        camera_sensor_type="camera",
-        robot_prim_path=SHARED_TELEOP_PIPER.articulation_prim_path,
-        robot_init_root_pos=SHARED_TELEOP_PIPER.root_pos,
-        robot_init_root_rot=SHARED_TELEOP_PIPER.root_rot,
-        robot_init_joint_pos=SHARED_TELEOP_PIPER.joint_pos_dict(),
-        camera_specs=SHARED_CAMERA_SPECS,
         joint_drive_specs=(
             TaskJointDriveSpec(
                 prim_path="/World/generated/joints/joint_1",
-                damping=50.0,
+                damping=45.0,
                 stiffness=0.0,
-                max_force=15.0,
+                max_force=10.0,
             ),
         ),
         joint_limit_specs=(
@@ -159,25 +201,29 @@ TASK_PRESETS: dict[str, TaskPreset] = {
                 upper_limit=104.0,
             ),
         ),
+        joint_initial_specs=(
+            TaskJointInitialSpec(
+                prim_path="/World/generated/joints/joint_1",
+                # 笔记本盖初始开合角，由于数字资产初始化配置有偏差，position为15度对应真实世界90度,104度对应完全关闭笔记本盖
+                position=15.0,
+            ),
+        ),
+        rollout_success_specs=(
+            TaskRolloutSuccessSpec(
+                joint_prim="/World/generated/joints/joint_1",
+                angle_gt_deg=98.0,
+            ),
+        ),
+        **_shared_teleop_kwargs(),
     ),
     ADJUST_MONITOR_TASK_ID: TaskPreset(
         task_id=ADJUST_MONITOR_TASK_ID,
-        description="Keyboard teleoperation data collection for adjusting the monitor (generated URDF hinge).",
+        description="Keyboard teleoperation for adjusting the monitor (generated URDF hinge).",
         usd_path=_tasks_scene_usd("adjust_the_display", "data", "scene.usd"),
         env_name="AdjustMonitorTask",
         dataset_file="./datasets/adjust_the_monitor.hdf5",
-        language_instruction="adjust the monitor",
+        language_instruction=ADJUST_MONITOR_LANGUAGE_INSTRUCTION,
         sensitivity=2.0,
-        control_hz=30,
-        vision_hz=10,
-        camera_width=400,
-        camera_height=400,
-        camera_sensor_type="camera",
-        robot_prim_path=SHARED_TELEOP_PIPER.articulation_prim_path,
-        robot_init_root_pos=SHARED_TELEOP_PIPER.root_pos,
-        robot_init_root_rot=SHARED_TELEOP_PIPER.root_rot,
-        robot_init_joint_pos=SHARED_TELEOP_PIPER.joint_pos_dict(),
-        camera_specs=SHARED_CAMERA_SPECS,
         joint_drive_specs=(
             TaskJointDriveSpec(
                 prim_path="/World/generated/joints/joint_1",
@@ -193,10 +239,15 @@ TASK_PRESETS: dict[str, TaskPreset] = {
                 position=-20.0,
             ),
         ),
+        rollout_success_specs=(
+            TaskRolloutSuccessSpec(
+                joint_prim="/World/generated/joints/joint_1",
+                angle_gt_deg=0.0,
+            ),
+        ),
+        **_shared_teleop_kwargs(),
     ),
 }
-
-DEFAULT_TASK_ID = OPEN_LAPTOP_TASK_ID
 
 
 def get_task_preset(task_id: str) -> TaskPreset:

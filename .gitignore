@@ -2,8 +2,8 @@ __pycache__/
 *.py[cod]
 
 *.hdf5
+*.mp4
 collect/datasets/
-hdf5_camera_replay*.mp4
 
 ${data}/
 collect/${data}/
@@ -14,3 +14,6 @@ tasks/
 
 # LeRobot dataset exports (large video/parquet; host via Hub or storage)
 lerobot_datasets/
+
+# Pi05 sim rollout outputs (MP4 + summary.json)
+sim_rollout/rollouts/

@@ -8,9 +8,11 @@ import shutil
 import sys
 from typing import Literal
 
-_physvla_sim_root = Path(__file__).resolve().parent.parent
-if str(_physvla_sim_root) not in sys.path:
-    sys.path.insert(0, str(_physvla_sim_root))
+_convert_data_dir = Path(__file__).resolve().parent
+_physvla_sim_root = _convert_data_dir.parent
+for _p in (_convert_data_dir, _physvla_sim_root):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
 
 import h5py
 import numpy as np
@@ -19,9 +21,13 @@ import torch
 import piper_physical_units as _piper_phys
 
 JointValueSource = Literal["isaac_sim_radians", "piper_sdk_can_float"]
+GripperObsMode = Literal["binary", "mimic_joint_radians", "sdk_ctrl_scalar"]
 
 JointSlot = Literal["left", "right"]
 VectorDim = Literal[7, 14]
+
+GRIPPER_OBS_INDICES_7 = (6,)
+GRIPPER_OBS_INDICES_14 = (6, 13)
 
 
 def _apply_joint_encoding(state: np.ndarray, action: np.ndarray, *, source: JointValueSource) -> tuple[np.ndarray, np.ndarray]:
@@ -54,6 +60,54 @@ def _apply_joint_encoding(state: np.ndarray, action: np.ndarray, *, source: Join
         return state_out, action_out
 
     raise ValueError(f"--joint-value-source piper_sdk_can_float only supports HDF5 widths 7 or 14; got state dim {d_f}")
+
+
+def _gripper_indices_for_width(width: int) -> tuple[int, ...]:
+    if width == 7:
+        return GRIPPER_OBS_INDICES_7
+    if width == 14:
+        return GRIPPER_OBS_INDICES_14
+    raise ValueError(f"unsupported joint width for gripper obs: {width}")
+
+
+def _apply_gripper_obs_mode(
+    state: np.ndarray, action: np.ndarray, *, mode: GripperObsMode
+) -> np.ndarray:
+    """Align observation.state gripper dims with training / real-robot 0/1 semantics."""
+
+    if mode == "mimic_joint_radians":
+        return state
+
+    state = state.copy()
+    width = state.shape[1]
+    ctrl_max = _piper_phys.GRIPPER_CTRL_SCALAR_MAX
+
+    for gi in _gripper_indices_for_width(width):
+        col = state[:, gi].astype(np.float64)
+        act = np.clip(action[:, gi], 0.0, 1.0)
+
+        if mode == "sdk_ctrl_scalar":
+            state[:, gi] = _piper_phys.sdk_ctrl_scalar_to_policy_binary(col)
+            continue
+
+        unique = np.unique(np.round(col, 4))
+        already_binary = (
+            col.size > 0
+            and np.nanmin(col) >= -0.01
+            and np.nanmax(col) <= 1.01
+            and set(unique.tolist()).issubset({0.0, 1.0})
+        )
+        if already_binary:
+            state[:, gi] = np.clip(col, 0.0, 1.0).astype(np.float32)
+        elif col.size > 0 and np.nanmax(col) <= ctrl_max + 0.02:
+            # 真机 record_data / piper_controller：grippers_angle÷1e6，全开≈0.1
+            state[:, gi] = _piper_phys.sdk_ctrl_scalar_to_policy_binary(col)
+        elif col.size > 0 and np.nanmax(col) > 1.0:
+            # 原始 SDK 整数 0…100_000（若 HDF5 直接存 int cast float）
+            state[:, gi] = _piper_phys.sdk_gripper_int_to_policy_binary(col)
+        else:
+            state[:, gi] = act
+    return state
 
 
 def _expand_single_arm_7_to_dual_14(
@@ -90,9 +144,6 @@ def _expected_hdf5_joint_width(vector_dim: VectorDim, *, dual_arm_recorded_in_hd
 
 JOINT_NAMES_SINGLE_7 = ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "gripper"]
 JOINT_NAMES_DUAL_14 = [f"left_{n}" for n in JOINT_NAMES_SINGLE_7] + [f"right_{n}" for n in JOINT_NAMES_SINGLE_7]
-
-DEFAULT_REPO_ID = "physvla/open_laptop_lid"
-DEFAULT_TASK = "open_laptop_lid"
 
 # HDF5 paths under episode group `obs/` (Isaac Keyboard_collection).
 HDF5_CAMERA_KEYS = ("rgb_main", "rgb_wrist")
@@ -187,6 +238,56 @@ def _camera_dataset(episode: h5py.Group, camera_key: str) -> h5py.Dataset:
     if not isinstance(value, h5py.Dataset):
         raise ValueError(f"'{path}' is not a dataset.")
     return value
+
+
+def _vision_fresh_mask(episode: h5py.Group) -> np.ndarray | None:
+    """Return per-step bool mask from obs/vision_is_fresh, or None if field is absent."""
+
+    path = "obs/vision_is_fresh"
+    if path not in episode:
+        return None
+    fresh = np.asarray(episode[path][:]).astype(bool).reshape(-1)
+    return fresh
+
+
+def _export_frame_indices(
+    episode: h5py.Group,
+    num_frames: int,
+    *,
+    frame_filter: Literal["vision_fresh", "all"],
+    file_label: str,
+    episode_name: str,
+) -> np.ndarray:
+    """Indices to export so each LeRobot step has a new image paired with state/action."""
+
+    all_idx = np.arange(num_frames, dtype=np.int64)
+    if frame_filter == "all":
+        fresh = _vision_fresh_mask(episode)
+        if fresh is not None and fresh.shape[0] == num_frames:
+            ratio = float(fresh.mean())
+            if ratio < 0.95:
+                print(
+                    f"[WARN] {file_label}:{episode_name} --frame-filter all: "
+                    f"only {ratio:.1%} steps have vision_is_fresh=True. "
+                    "Prefer --frame-filter vision_fresh and matching --fps (e.g. 10 when vision_hz=10)."
+                )
+        return all_idx
+
+    fresh = _vision_fresh_mask(episode)
+    if fresh is None:
+        print(
+            f"[WARN] {file_label}:{episode_name} missing obs/vision_is_fresh; "
+            "exporting all control steps (--frame-filter vision_fresh unavailable)."
+        )
+        return all_idx
+    if fresh.shape[0] != num_frames:
+        raise ValueError(
+            f"{file_label}:{episode_name} vision_is_fresh length {fresh.shape[0]} != {num_frames}"
+        )
+    idx = np.flatnonzero(fresh)
+    if idx.size == 0:
+        raise ValueError(f"{file_label}:{episode_name} has no vision_is_fresh=True frames.")
+    return idx
 
 
 def _episode_frame_count(episode: h5py.Group, *, expected_joint_dim: int) -> int:
@@ -288,9 +389,11 @@ def _populate_dataset(
     include_failed: bool,
     max_episodes: int | None,
     joint_value_source: JointValueSource,
+    gripper_obs_mode: GripperObsMode,
     vector_dim: VectorDim,
     expected_hdf5_joint_width: int,
     hdf5_seven_in_slot: JointSlot | None,
+    frame_filter: Literal["vision_fresh", "all"],
 ):
     converted = 0
     skipped_failed = 0
@@ -317,6 +420,7 @@ def _populate_dataset(
                 )
                 action = _to_float32_2d(episode["actions"], key="actions", expected_dim=expected_hdf5_joint_width)
                 state, action = _apply_joint_encoding(state, action, source=joint_value_source)
+                state = _apply_gripper_obs_mode(state, action, mode=gripper_obs_mode)
 
                 if vector_dim == 14 and expected_hdf5_joint_width == 7:
                     if hdf5_seven_in_slot is None:
@@ -339,20 +443,31 @@ def _populate_dataset(
                         f"{dict(zip(('state', 'action', *HDF5_CAMERA_KEYS), lengths, strict=True))}"
                     )
 
-                head0 = _to_uint8_rgb(camera_datasets["rgb_main"][0], key="obs/rgb_main")
+                export_idx = _export_frame_indices(
+                    episode,
+                    state.shape[0],
+                    frame_filter=frame_filter,
+                    file_label=file_path.name,
+                    episode_name=episode_name,
+                )
+                head0 = _to_uint8_rgb(
+                    camera_datasets["rgb_main"][int(export_idx[0])],
+                    key="obs/rgb_main",
+                )
                 h, w = int(head0.shape[0]), int(head0.shape[1])
 
-                for frame_idx in range(state.shape[0]):
+                for frame_idx in export_idx:
+                    i = int(frame_idx)
                     frame = {
-                        "observation.state": torch.from_numpy(state[frame_idx]),
-                        "action": torch.from_numpy(action[frame_idx]),
+                        "observation.state": torch.from_numpy(state[i]),
+                        "action": torch.from_numpy(action[i]),
                         "task": task,
                         "observation.images.head": _to_uint8_rgb(
-                            camera_datasets["rgb_main"][frame_idx],
+                            camera_datasets["rgb_main"][i],
                             key="obs/rgb_main",
                         ),
                         "observation.images.left_wrist": _to_uint8_rgb(
-                            camera_datasets["rgb_wrist"][frame_idx],
+                            camera_datasets["rgb_wrist"][i],
                             key="obs/rgb_wrist",
                         ),
                         "observation.images.right_wrist": np.zeros((h, w, 3), dtype=np.uint8),
@@ -361,7 +476,10 @@ def _populate_dataset(
 
                 dataset.save_episode()
                 converted += 1
-                print(f"[INFO] Converted {file_path.name}:{episode_name} ({state.shape[0]} frames)")
+                print(
+                    f"[INFO] Converted {file_path.name}:{episode_name} "
+                    f"({export_idx.size}/{state.shape[0]} frames, filter={frame_filter})"
+                )
 
     return converted, skipped_failed, missing_success
 
@@ -372,9 +490,34 @@ def main():
     )
     parser.add_argument("--input", required=True, type=Path, help="Input HDF5 file or directory containing HDF5 files.")
     parser.add_argument("--output", type=Path, default=None, help="Optional final dataset directory.")
-    parser.add_argument("--repo-id", default=DEFAULT_REPO_ID, help="LeRobot repo_id used during dataset creation.")
-    parser.add_argument("--task", default=DEFAULT_TASK, help="Task string saved in LeRobot episodes.")
-    parser.add_argument("--fps", type=int, default=30, help="Control/data FPS for LeRobot metadata.")
+    parser.add_argument(
+        "--repo-id",
+        required=True,
+        help="LeRobot dataset repo_id written into dataset metadata (e.g. physvla/piper_dual14_close_laptop_lid_sim_r1).",
+    )
+    parser.add_argument(
+        "--task",
+        required=True,
+        help="Language conditioning string copied into every frame's `task` field (must match training / inference).",
+    )
+    parser.add_argument(
+        "--fps",
+        type=int,
+        default=30,
+        help=(
+            "LeRobot dataset FPS; must match exported frame rate. Default 30 matches Keyboard_collection "
+            "when control_hz=vision_hz=30. Legacy HDF5 (vision_hz=10): use --fps 10 --frame-filter vision_fresh."
+        ),
+    )
+    parser.add_argument(
+        "--frame-filter",
+        choices=["vision_fresh", "all"],
+        default="all",
+        help=(
+            "all (default): export every control step — correct when vision_hz=control_hz (each step has a new image). "
+            "vision_fresh: subsample to fresh camera steps only (legacy vision_hz=10 HDF5; pair with --fps 10)."
+        ),
+    )
     parser.add_argument("--mode", choices=["video", "image"], default="video", help="Store images as videos or images.")
     parser.add_argument("--include-failed", action="store_true", help="Convert episodes explicitly marked success=False.")
     parser.add_argument("--max-episodes", type=int, default=None, help="Optional cap for smoke conversions.")
@@ -388,6 +531,17 @@ def main():
             "Isaac Keyboard_collection HDF5 defaults to radians in obs joints and IK radians in actions[:6]; "
             "choose piper_sdk_can_float only when rows store Piper CAN ints as floats "
             "(see .cursor/plans/6_lerobot_pi05微调.plan.md §2.5)."
+        ),
+    )
+    parser.add_argument(
+        "--gripper-obs-mode",
+        choices=["binary", "mimic_joint_radians", "sdk_ctrl_scalar"],
+        default="binary",
+        help=(
+            "observation.state gripper dim for LeRobot (π0.5 trains on 0/1). "
+            "binary: new Isaac HDF5 0/1, or infer from action / ÷1e6 / SDK int. "
+            "sdk_ctrl_scalar: force grippers_angle÷1e6 (open≈0.1) → 0/1. "
+            "mimic_joint_radians: keep raw Isaac mimic joint angle in obs."
         ),
     )
     parser.add_argument(
@@ -431,6 +585,7 @@ def main():
 
     files = _iter_hdf5_files(args.input)
     print(f"[INFO] Found {len(files)} HDF5 file(s).")
+    print(f"[INFO] frame_filter={args.frame_filter}, fps={args.fps}, gripper_obs_mode={args.gripper_obs_mode}")
 
     first_h5, _ = _first_valid_episode(
         files, include_failed=args.include_failed, expected_joint_dim=expected_w
@@ -465,9 +620,11 @@ def main():
             include_failed=args.include_failed,
             max_episodes=args.max_episodes,
             joint_value_source=args.joint_value_source,
+            gripper_obs_mode=args.gripper_obs_mode,
             vector_dim=args.vector_dim,
             expected_hdf5_joint_width=expected_w,
             hdf5_seven_in_slot=None if dual_native or args.vector_dim == 7 else args.hdf5_seven_in_slot,
+            frame_filter=args.frame_filter,
         )
         dataset.finalize()
     except Exception:
@@ -480,6 +637,11 @@ def main():
     print(
         "[INFO] Done. "
         f"converted={converted}, skipped_failed={skipped_failed}, missing_success_attr={missing_success}"
+    )
+    print(
+        "[INFO] meta/stats.json (incl. QUANTILES q01/q99) is written during dataset.finalize(). "
+        "Use a new --output dir or --overwrite when gripper_obs_mode or data change; "
+        "only run augment_dataset_quantile_stats if an old dataset lacks q01/q99."
     )
 
 
