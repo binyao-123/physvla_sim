@@ -1,0 +1,10 @@
+#!/bin/bash
+# Phase C: visualize mesh contacts + move arm to top-ranked approach point.
+cd ~/workspace/physvla_sim/collect
+
+~/isaacsim/python.sh debug_link_contact_probe.py \
+  --task_id close_laptop_lid \
+  --livestream 2 \
+  --mode top_contact \
+  --probe_steps 400 \
+  --hold_steps 120

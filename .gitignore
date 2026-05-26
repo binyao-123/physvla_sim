@@ -13,7 +13,7 @@ assets/
 tasks/
 
 # LeRobot dataset exports (large video/parquet; host via Hub or storage)
-lerobot_datasets/
+convert_data/lerobot_datasets/
 
 # Pi05 sim rollout outputs (MP4 + summary.json)
-sim_rollout/rollouts/
+rollout_sim/rollouts/

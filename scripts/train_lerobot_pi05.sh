@@ -10,7 +10,7 @@ export https_proxy="${https_proxy:-$HTTPS_PROXY}"
 # === 任务：调节显示器，提示词：adjust the display. ===
 # uv run lerobot-train \
 #   --dataset.repo_id=physvla/adjust_the_monitor_sim_r1 \
-#   --dataset.root=/home/ubuntu/workspace/physvla_sim/lerobot_datasets/adjust_the_monitor_sim_r1 \
+#   --dataset.root=/home/ubuntu/workspace/physvla_sim/convert_data/lerobot_datasets/adjust_the_monitor_sim_r1 \
 #   --dataset.video_backend=pyav \
 #   --policy.type=pi05 \
 #   --policy.pretrained_path=/home/ubuntu/.cache/openpi/checkpoints/pi05_base \
@@ -37,7 +37,7 @@ export https_proxy="${https_proxy:-$HTTPS_PROXY}"
 # === 任务：关闭笔记本，提示词：Close the laptop lid until it is fully closed. ===
 uv run lerobot-train \
   --dataset.repo_id=physvla/piper_dual14_close_laptop_lid_sim_r1 \
-  --dataset.root=/home/ubuntu/workspace/physvla_sim/lerobot_datasets/piper_dual14_close_laptop_lid_sim_r1 \
+  --dataset.root=/home/ubuntu/workspace/physvla_sim/convert_data/lerobot_datasets/piper_dual14_close_laptop_lid_sim_r1 \
   --dataset.video_backend=pyav \
   --policy.type=pi05 \
   --policy.pretrained_path=/home/ubuntu/.cache/openpi/checkpoints/pi05_base \

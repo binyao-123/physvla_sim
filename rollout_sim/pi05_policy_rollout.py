@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
 import time
 from dataclasses import asdict, replace
@@ -15,7 +14,7 @@ from pathlib import Path
 # LeRobot (train/infer stack) — must be on PYTHONPATH before policy imports.
 _PHYSVLA_ROOT = Path(__file__).resolve().parents[1]
 _WORKSPACE_ROOT = _PHYSVLA_ROOT.parent
-_SIM_ROLLOUT_DIR = Path(__file__).resolve().parent
+_ROLLOUT_SIM_DIR = Path(__file__).resolve().parent
 _COLLECT_DIR = _PHYSVLA_ROOT / "collect"
 _LEROBOT_SRC = _WORKSPACE_ROOT / "lerobot" / "src"
 if _LEROBOT_SRC.is_dir() and str(_LEROBOT_SRC) not in sys.path:
@@ -24,19 +23,11 @@ if _LEROBOT_SRC.is_dir() and str(_LEROBOT_SRC) not in sys.path:
 import torch
 from isaaclab.app import AppLauncher
 
-for _path in (_SIM_ROLLOUT_DIR, _COLLECT_DIR):
+for _path in (_ROLLOUT_SIM_DIR, _COLLECT_DIR):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
-from isaaclab_env_module import (
-    CameraPrimSpec,
-    EnvironmentModuleConfig,
-    IsaacLabEnvironmentModule,
-    JointDrivePrimSpec,
-    JointInitialPrimSpec,
-    JointLimitPrimSpec,
-    apply_camera_launch_workarounds,
-)
+from isaaclab_env_module import apply_camera_launch_workarounds
 from policy_obs_utils import (
     build_policy_observation,
     build_state14,
@@ -44,8 +35,8 @@ from policy_obs_utils import (
     write_mp4,
     write_summary,
 )
+from success_utils import evaluate_rollout_success, update_peak_joint_degs
 from task_registry import (
-    SCENE_ARTICULATION_PRIM_PATH,
     get_task_preset,
     list_task_presets,
     PHYSVLA_ASSETS_DIR,
@@ -68,7 +59,7 @@ parser.add_argument(
     "--output_dir",
     type=str,
     default=None,
-    help="Directory for summary.json and episode_*.mp4 (default: sim_rollout/rollouts/...).",
+    help="Directory for summary.json and episode_*.mp4 (default: rollout_sim/rollouts/...).",
 )
 parser.add_argument(
     "--video_layout",
@@ -112,7 +103,7 @@ if args_cli.output_dir:
 else:
     utc8 = timezone(timedelta(hours=8))
     stamp = datetime.now(utc8).strftime("%Y%m%d_%H%M%S")
-    output_dir = (_SIM_ROLLOUT_DIR / "rollouts" / f"{task_preset.task_id}_{stamp}").resolve()
+    output_dir = (_ROLLOUT_SIM_DIR / "rollouts" / f"{task_preset.task_id}_{stamp}").resolve()
 
 args_cli = apply_camera_launch_workarounds(args_cli)
 if not getattr(args_cli, "headless", False):
@@ -121,80 +112,28 @@ if not getattr(args_cli, "headless", False):
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-# ── Isaac Lab imports (after AppLauncher) ─────────────────────────
-from isaaclab.actuators import ImplicitActuatorCfg  # noqa: E402
-from isaaclab.assets import ArticulationCfg  # noqa: E402
-from lerobot.policies.pi05.modeling_pi05 import PI05Policy  # noqa: E402
-from lerobot.processor.converters import (  # noqa: E402
+# Isaac Lab imports (after AppLauncher — env_setup pulls in isaaclab.actuators/pxr).
+from env_setup import (
+    build_environment_module_config,
+    build_piper_robot_cfg,
+    build_scene_hinge_cfg,
+)
+from isaaclab_env_module import IsaacLabEnvironmentModule
+
+# ── LeRobot policy imports ─────────────────────────────────────────
+from lerobot.policies.pi05.modeling_pi05 import PI05Policy
+from lerobot.processor.converters import (
     batch_to_transition,
     policy_action_to_transition,
     transition_to_batch,
     transition_to_policy_action,
 )
-from lerobot.processor.pipeline import PolicyProcessorPipeline  # noqa: E402
-from lerobot.utils.constants import (  # noqa: E402
+from lerobot.processor.pipeline import PolicyProcessorPipeline
+from lerobot.utils.constants import (
     POLICY_POSTPROCESSOR_DEFAULT_NAME,
     POLICY_PREPROCESSOR_DEFAULT_NAME,
 )
 
-
-def _build_scene_hinge_cfg(task_preset) -> ArticulationCfg | None:
-    if not task_preset.rollout_success_specs:
-        return None
-
-    scene_prefix = f"{SCENE_ARTICULATION_PRIM_PATH}/"
-    joint_pos = {
-        spec.prim_path.rsplit("/", 1)[-1]: math.radians(float(spec.position))
-        for spec in task_preset.joint_initial_specs
-        if spec.prim_path.startswith(scene_prefix)
-    }
-    actuators = {
-        drive.prim_path.rsplit("/", 1)[-1]: ImplicitActuatorCfg(
-            joint_names_expr=[drive.prim_path.rsplit("/", 1)[-1]],
-            effort_limit=float(drive.max_force if drive.max_force is not None else 30.0),
-            stiffness=float(drive.stiffness if drive.stiffness is not None else 0.0),
-            damping=float(drive.damping if drive.damping is not None else 100.0),
-        )
-        for drive in task_preset.joint_drive_specs
-        if drive.prim_path.startswith(scene_prefix)
-    }
-    if not joint_pos and not actuators:
-        return None
-
-    return ArticulationCfg(
-        prim_path=SCENE_ARTICULATION_PRIM_PATH,
-        spawn=None,
-        init_state=ArticulationCfg.InitialStateCfg(joint_pos=joint_pos),
-        actuators=actuators,
-    )
-
-
-PIPER_CFG = ArticulationCfg(
-    prim_path="/World/piper_description",
-    spawn=None,
-    init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.0),
-        rot=(1.0, 0.0, 0.0, 0.0),
-        joint_pos={
-            "joint[1-6]": 0.0,
-            "joint[7-8]": 0.0,
-        },
-    ),
-    actuators={
-        "arm": ImplicitActuatorCfg(
-            joint_names_expr=["joint[1-6]"],
-            effort_limit=50.0,
-            stiffness=400.0,
-            damping=40.0,
-        ),
-        "gripper": ImplicitActuatorCfg(
-            joint_names_expr=["joint[7-8]"],
-            effort_limit=20.0,
-            stiffness=200.0,
-            damping=20.0,
-        ),
-    },
-)
 
 CAMERA_WIDTH = max(32, int(task_preset.camera_width))
 CAMERA_HEIGHT = max(32, int(task_preset.camera_height))
@@ -220,61 +159,11 @@ else:
 SCENE_JOINT_PHYSICS_WARMUP_STEPS = 12
 JOINT_LOG_INTERVAL = 30  # 实时铰链角度；不需要时注释掉 run_episode 里的 [JOINT] 打印即可
 
-env_cfg = EnvironmentModuleConfig(
-    usd_path=task_preset.usd_path,
-    camera_width=CAMERA_WIDTH,
-    camera_height=CAMERA_HEIGHT,
-    camera_sensor_type=task_preset.camera_sensor_type.lower(),
-    warmup_render_steps=6,
-    camera_specs=[
-        CameraPrimSpec(
-            name=spec.name,
-            prim_path=spec.prim_path,
-            translation=spec.translation,
-            rotation_xyz=spec.rotation_xyz,
-            focal_length=spec.focal_length,
-            enable_sensor_capture=spec.enable_sensor_capture,
-        )
-        for spec in task_preset.camera_specs
-    ],
-    joint_drive_specs=[
-        JointDrivePrimSpec(
-            prim_path=spec.prim_path,
-            damping=spec.damping,
-            stiffness=spec.stiffness,
-            max_force=spec.max_force,
-            target_position=spec.target_position,
-            target_velocity=spec.target_velocity,
-        )
-        for spec in task_preset.joint_drive_specs
-    ],
-    joint_limit_specs=[
-        JointLimitPrimSpec(
-            prim_path=spec.prim_path,
-            lower_limit=spec.lower_limit,
-            upper_limit=spec.upper_limit,
-        )
-        for spec in task_preset.joint_limit_specs
-    ],
-    joint_initial_specs=[
-        JointInitialPrimSpec(prim_path=spec.prim_path, position=spec.position)
-        for spec in task_preset.joint_initial_specs
-    ],
-)
-
-env_module = IsaacLabEnvironmentModule(env_cfg)
+env_module = IsaacLabEnvironmentModule(build_environment_module_config(task_preset))
 sim = env_module.create_simulation(dt=1 / 60.0, render_interval=4)
 
-robot_cfg = PIPER_CFG.replace(prim_path=task_preset.robot_prim_path)
-robot_cfg = robot_cfg.replace(
-    init_state=ArticulationCfg.InitialStateCfg(
-        pos=task_preset.robot_init_root_pos,
-        rot=task_preset.robot_init_root_rot,
-        joint_pos=dict(task_preset.robot_init_joint_pos),
-    ),
-)
-robot = env_module.create_robot(robot_cfg)
-scene_hinge_cfg = _build_scene_hinge_cfg(task_preset)
+robot = env_module.create_robot(build_piper_robot_cfg(task_preset))
+scene_hinge_cfg = build_scene_hinge_cfg(task_preset)
 if scene_hinge_cfg is not None:
     env_module.create_scene_articulation(scene_hinge_cfg)
 env_module.initialize_robot_home_pose()
@@ -321,33 +210,6 @@ print(
     f"[INFO] control_hz={control_hz}, vision_hz={vision_hz}, "
     f"control_decimation={control_decimation}, max_steps={args_cli.max_steps}"
 )
-
-
-def evaluate_rollout_success(
-    specs: tuple,
-) -> tuple[bool, dict[str, float | None]]:
-    if not specs:
-        return False, {}
-    joint_degs = {
-        spec.joint_prim: env_module.read_scene_joint_angle_deg(spec.joint_prim)
-        for spec in specs
-    }
-    success = all(
-        deg is not None and deg > spec.angle_gt_deg
-        for spec, deg in ((s, joint_degs[s.joint_prim]) for s in specs)
-    )
-    return success, joint_degs
-
-
-def update_peak_joint_degs(
-    peak: dict[str, float | None],
-    sample: dict[str, float | None],
-) -> None:
-    for prim, deg in sample.items():
-        if deg is None:
-            continue
-        prev = peak.get(prim)
-        peak[prim] = deg if prev is None else max(prev, deg)
 
 
 def reset_episode() -> None:
@@ -399,7 +261,7 @@ def run_episode(episode_index: int) -> dict:
         if sim_step_count % control_decimation == 0:
             control_step_count += 1
 
-            success_now, joint_degs = evaluate_rollout_success(rollout_success_specs)
+            success_now, joint_degs = evaluate_rollout_success(env_module, rollout_success_specs)
             final_joint_degs = joint_degs
             update_peak_joint_degs(peak_joint_degs, joint_degs)
 

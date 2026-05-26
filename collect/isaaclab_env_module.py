@@ -7,6 +7,12 @@ from typing import Any
 from task_registry import SCENE_ARTICULATION_PRIM_PATH
 
 
+DEFAULT_SCENE_ROOT_PRIM = SCENE_ARTICULATION_PRIM_PATH
+
+# After sim.reset(), scene hinge state may lag until physics steps catch up USD physics:position.
+SCENE_JOINT_PHYSICS_WARMUP_STEPS = 12
+
+
 @dataclass
 class CameraPrimSpec:
 	name: str
@@ -43,6 +49,14 @@ class JointInitialPrimSpec:
 
 
 @dataclass
+class PhysicsMaterialPrimSpec:
+	root_prim_prefix: str
+	static_friction: float = 1.5
+	dynamic_friction: float = 1.2
+	restitution: float = 0.0
+
+
+@dataclass
 class EnvironmentModuleConfig:
 	usd_path: str
 	camera_width: int = 400
@@ -54,6 +68,7 @@ class EnvironmentModuleConfig:
 	joint_drive_specs: list[JointDrivePrimSpec] = field(default_factory=list)
 	joint_limit_specs: list[JointLimitPrimSpec] = field(default_factory=list)
 	joint_initial_specs: list[JointInitialPrimSpec] = field(default_factory=list)
+	physics_material_specs: list[PhysicsMaterialPrimSpec] = field(default_factory=list)
 
 
 def apply_camera_launch_workarounds(args_cli: Any) -> Any:
@@ -88,6 +103,11 @@ class IsaacLabEnvironmentModule:
 		self._camera_paths: dict[str, str] = {}
 		self._scene_joint_articulation_ids: dict[str, int] = {}
 		self._scene_joint_pos_units: dict[str, str] = {}
+		self._scene_root_baseline: dict[str, tuple[float, ...] | None] = {
+			"translate": None,
+			"orient_wxyz": None,
+			"scale": None,
+		}
 
 	def _robot_is_fixed_base(self) -> bool:
 		if self.robot is None:
@@ -169,6 +189,43 @@ class IsaacLabEnvironmentModule:
 					attr = prim.CreateAttribute(attr_name, Sdf.ValueTypeNames.Float)
 				attr.Set(float(value))
 
+	def apply_physics_material_overrides(self) -> int:
+		"""Set friction/restitution on USD physics material prims under configured roots."""
+		if not self.cfg.physics_material_specs:
+			return 0
+
+		import omni.usd
+		from pxr import UsdPhysics
+
+		stage = omni.usd.get_context().get_stage()
+		if stage is None:
+			raise RuntimeError("USD stage is unavailable for physics material overrides.")
+
+		updated = 0
+		for mat_spec in self.cfg.physics_material_specs:
+			prefix = str(mat_spec.root_prim_prefix).rstrip("/")
+			for prim in stage.Traverse():
+				path = prim.GetPath().pathString
+				if not path.startswith(prefix):
+					continue
+				if not UsdPhysics.MaterialAPI(prim):
+					continue
+				api = UsdPhysics.MaterialAPI(prim)
+				api.CreateStaticFrictionAttr().Set(float(mat_spec.static_friction))
+				api.CreateDynamicFrictionAttr().Set(float(mat_spec.dynamic_friction))
+				api.CreateRestitutionAttr().Set(float(mat_spec.restitution))
+				updated += 1
+
+		if updated:
+			first = self.cfg.physics_material_specs[0]
+			print(
+				f"[INFO] Physics material overrides: {updated} prim(s) "
+				f"(μs={first.static_friction:.2f}, μd={first.dynamic_friction:.2f}, "
+				f"restitution={first.restitution:.2f})",
+				flush=True,
+			)
+		return updated
+
 	def apply_joint_initial_overrides(self):
 		if not self.cfg.joint_initial_specs:
 			return
@@ -179,9 +236,6 @@ class IsaacLabEnvironmentModule:
 		stage = omni.usd.get_context().get_stage()
 		if stage is None:
 			raise RuntimeError("USD stage is unavailable for joint initial overrides.")
-
-		state_pos_attr = "state:angular:physics:position"
-		state_vel_attr = "state:angular:physics:velocity"
 
 		for spec in self.cfg.joint_initial_specs:
 			prim = stage.GetPrimAtPath(spec.prim_path)
@@ -195,13 +249,34 @@ class IsaacLabEnvironmentModule:
 				auth_attr = prim.CreateAttribute("physics:position", Sdf.ValueTypeNames.Float)
 			auth_attr.Set(value)
 
-			sta = prim.GetAttribute(state_pos_attr)
-			if sta.IsValid():
-				sta.Set(value)
+			# physics:position alone does not move the lid after sim.reset(); sync PhysX state too.
+			state_attr = prim.GetAttribute("state:angular:physics:position")
+			if not state_attr.IsValid():
+				state_attr = prim.CreateAttribute("state:angular:physics:position", Sdf.ValueTypeNames.Float)
+			state_attr.Set(value)
 
-			stv = prim.GetAttribute(state_vel_attr)
-			if stv.IsValid():
-				stv.Set(0.0)
+			target_attr = prim.GetAttribute("drive:angular:physics:targetPosition")
+			if not target_attr.IsValid():
+				target_attr = prim.CreateAttribute(
+					"drive:angular:physics:targetPosition", Sdf.ValueTypeNames.Float
+				)
+			target_attr.Set(value)
+
+	def _read_usd_authored_joint_angle_deg(self, prim_path: str) -> float | None:
+		"""USD physics:position (authoring default), not guaranteed to match live PhysX state."""
+		import omni.usd
+
+		stage = omni.usd.get_context().get_stage()
+		if stage is None:
+			return None
+		prim = stage.GetPrimAtPath(prim_path)
+		if not prim or not prim.IsValid():
+			return None
+		attr = prim.GetAttribute("physics:position")
+		if not attr or not attr.IsValid():
+			return None
+		value = attr.Get()
+		return float(value) if value is not None else None
 
 	def _read_scene_joint_angle_deg_usd(self, prim_path: str) -> float | None:
 		import omni.usd
@@ -212,16 +287,37 @@ class IsaacLabEnvironmentModule:
 		prim = stage.GetPrimAtPath(prim_path)
 		if not prim or not prim.IsValid():
 			return None
+
+		state_val: float | None = None
+		drive_val: float | None = None
+		auth_val: float | None = None
 		for attr_name in (
 			"state:angular:physics:position",
+			"drive:angular:physics:targetPosition",
 			"drive:angular:physics:position",
 			"physics:position",
 		):
 			attr = prim.GetAttribute(attr_name)
-			if attr and attr.IsValid():
-				value = attr.Get()
-				if value is not None:
-					return float(value)
+			if not attr or not attr.IsValid():
+				continue
+			value = attr.Get()
+			if value is None:
+				continue
+			val = float(value)
+			if attr_name == "state:angular:physics:position":
+				state_val = val
+			elif attr_name.startswith("drive:angular"):
+				drive_val = val
+			else:
+				auth_val = val
+
+		# Prefer live PhysX state over authored default (physics:position can stay 15 while sim is 0).
+		if state_val is not None:
+			return state_val
+		if drive_val is not None:
+			return drive_val
+		if auth_val is not None:
+			return auth_val
 		return None
 
 	def _articulation_joint_pos_to_deg(self, joint_prim_path: str, raw: float) -> float:
@@ -241,32 +337,65 @@ class IsaacLabEnvironmentModule:
 		return math.degrees(float(raw))
 
 	def read_scene_joint_angle_deg(self, prim_path: str) -> float | None:
-		"""Read scene hinge angle (deg) via Isaac Lab Articulation."""
-		if self.scene_articulation is None or self.sim is None or not self.sim.is_playing():
-			return self._read_scene_joint_angle_deg_usd(prim_path)
+		"""Read scene hinge angle in USD asset degrees (matches task_registry limits)."""
+		usd_deg = self._read_scene_joint_angle_deg_usd(prim_path)
 
-		joint_name = prim_path.rsplit("/", 1)[-1]
-		if prim_path not in self._scene_joint_articulation_ids:
-			joint_ids, _ = self.scene_articulation.find_joints(joint_name)
-			if not joint_ids:
-				return None
-			self._scene_joint_articulation_ids[prim_path] = int(joint_ids[0])
+		art_deg: float | None = None
+		if self.scene_articulation is not None and self.sim is not None and self.sim.is_playing():
+			joint_name = prim_path.rsplit("/", 1)[-1]
+			if prim_path not in self._scene_joint_articulation_ids:
+				joint_ids, _ = self.scene_articulation.find_joints(joint_name)
+				if joint_ids:
+					self._scene_joint_articulation_ids[prim_path] = int(joint_ids[0])
 
-		joint_id = self._scene_joint_articulation_ids[prim_path]
+			joint_id = self._scene_joint_articulation_ids.get(prim_path)
+			if joint_id is not None:
+				try:
+					raw = self.scene_articulation.data.joint_pos[0, joint_id]
+					if hasattr(raw, "item"):
+						raw = raw.item()
+					art_deg = self._articulation_joint_pos_to_deg(prim_path, float(raw))
+				except Exception as exc:
+					print(f"[WARN] Scene joint read failed for {prim_path}: {exc}")
+
+		if art_deg is not None:
+			return float(art_deg)
+		if usd_deg is not None:
+			return float(usd_deg)
+		return None
+
+	def _push_scene_joint_initials_to_sim(self) -> None:
+		"""Write task_registry hinge angles into scene Articulation (if present)."""
+		if self.scene_articulation is None or not self.cfg.joint_initial_specs:
+			return
+
+		import torch
+
+		joint_names: list[str] = []
+		joint_positions: list[float] = []
+		for spec in self.cfg.joint_initial_specs:
+			joint_names.append(spec.prim_path.rsplit("/", 1)[-1])
+			joint_positions.append(math.radians(float(spec.position)))
+
+		joint_ids, _ = self.scene_articulation.find_joints(joint_names)
+		if not joint_ids:
+			return
+
 		try:
-			raw = self.scene_articulation.data.joint_pos[0, joint_id]
-			if hasattr(raw, "item"):
-				raw = raw.item()
-			return self._articulation_joint_pos_to_deg(prim_path, float(raw))
+			pos = torch.tensor([joint_positions], dtype=torch.float32, device=self.device)
+			vel = torch.zeros_like(pos)
+			self.scene_articulation.write_joint_state_to_sim(pos, vel, joint_ids)
+			self.scene_articulation.set_joint_position_target(pos, joint_ids=joint_ids)
+			self.scene_articulation.write_data_to_sim()
 		except Exception as exc:
-			print(f"[WARN] Scene joint read failed for {prim_path}: {exc}")
-			return None
+			print(f"[WARN] scene_articulation joint initial write failed: {exc}")
 
 	def create_simulation(self, dt: float = 1.0 / 60.0, render_interval: int = 4, use_fabric: bool = True):
 		import omni.usd
 		import isaaclab.sim as sim_utils
 
 		omni.usd.get_context().open_stage(self.cfg.usd_path)
+		self.apply_physics_material_overrides()
 		self.apply_joint_drive_overrides()
 		self.apply_joint_limit_overrides()
 		self.apply_joint_initial_overrides()
@@ -315,29 +444,77 @@ class IsaacLabEnvironmentModule:
 		return self.scene_articulation
 
 	def sync_scene_joint_initials_to_sim(self) -> None:
-		"""Write scene hinge initial angles to PhysX after sim.reset()."""
-		if self.scene_articulation is None or not self.cfg.joint_initial_specs:
+		"""Apply scene hinge initials via USD (GPU-safe).
+
+		Do not call Articulation.write_joint_state_to_sim when the PhysX direct GPU
+		API is enabled — that path raises setJointPosition errors. Keyboard
+		collection relies on USD drive/position attributes instead.
+		"""
+		self.apply_joint_initial_overrides()
+
+	def refresh_scene_joint_physics_from_usd(self) -> None:
+		"""Re-apply joint drive, limits, and initials from cfg to USD (after sim.reset)."""
+		self.apply_joint_drive_overrides()
+		self.apply_joint_limit_overrides()
+		self.apply_joint_initial_overrides()
+
+	def sync_scene_joints_after_sim_reset(
+		self,
+		*,
+		warmup_steps: int = SCENE_JOINT_PHYSICS_WARMUP_STEPS,
+		render: bool = True,
+		log_angles: bool = True,
+	) -> None:
+		"""Re-apply task_registry joint initials and warm up PhysX (call after every sim.reset())."""
+		if self.scene_articulation is not None:
+			self.scene_articulation.reset()
+		self.refresh_scene_joint_physics_from_usd()
+		self._push_scene_joint_initials_to_sim()
+		if self.sim is None:
+			return
+		for _ in range(max(0, int(warmup_steps))):
+			self.sim.step(render=render)
+			if self.robot is not None:
+				self.robot.update(self.sim.cfg.dt)
+			if self.scene_articulation is not None:
+				self.scene_articulation.update(self.sim.cfg.dt)
+		if not log_angles or not self.cfg.joint_initial_specs:
+			return
+		for spec in self.cfg.joint_initial_specs:
+			sim_deg = self.read_scene_joint_angle_deg(spec.prim_path)
+			auth_deg = self._read_usd_authored_joint_angle_deg(spec.prim_path)
+			joint_name = spec.prim_path.rsplit("/", 1)[-1]
+			if sim_deg is not None:
+				msg = (
+					f"[INFO] Scene joint {joint_name}: "
+					f"target={spec.position:.1f}° sim={sim_deg:.2f}°"
+				)
+				if auth_deg is not None:
+					msg += f" usd_auth={auth_deg:.2f}°"
+				print(msg)
+				if abs(sim_deg - float(spec.position)) > 1.0:
+					print(
+						f"[WARN] Scene joint {joint_name}: sim angle {sim_deg:.2f}° "
+						f"!= task_registry target {spec.position:.1f}°"
+					)
+			else:
+				print(f"[INFO] Scene joint {joint_name}: target={spec.position:.1f}° (sim read failed)")
+
+	def reset_robot_pose_via_targets(
+		self,
+		gripper_targets=None,
+		gripper_joint_ids=None,
+	) -> None:
+		"""Reset robot using position targets (GPU-safe; avoids write_joint_state_to_sim)."""
+		if self.robot is None:
 			return
 
-		import torch
-
-		device = self.device or "cuda:0"
-		scene_prefix = f"{SCENE_ARTICULATION_PRIM_PATH}/"
-		for spec in self.cfg.joint_initial_specs:
-			if not spec.prim_path.startswith(scene_prefix):
-				continue
-			joint_name = spec.prim_path.rsplit("/", 1)[-1]
-			joint_ids, _ = self.scene_articulation.find_joints(joint_name)
-			if not joint_ids:
-				continue
-			pos = torch.tensor(
-				[[math.radians(float(spec.position))]],
-				device=device,
-				dtype=torch.float32,
-			)
-			vel = torch.zeros((1, len(joint_ids)), device=device, dtype=torch.float32)
-			self.scene_articulation.write_joint_state_to_sim(pos, vel, joint_ids=joint_ids)
-		self.scene_articulation.write_data_to_sim()
+		if self._should_reset_root_pose():
+			self.robot.write_root_pose_to_sim(self.robot.data.default_root_state[:, :7])
+		self.robot.set_joint_position_target(self.robot.data.default_joint_pos)
+		if gripper_targets is not None and gripper_joint_ids is not None:
+			self.robot.set_joint_position_target(gripper_targets, joint_ids=gripper_joint_ids)
+		self.robot.write_data_to_sim()
 
 	def initialize_robot_home_pose(self):
 		if self.sim is None or self.robot is None:
@@ -348,20 +525,11 @@ class IsaacLabEnvironmentModule:
 		if self.scene_articulation is not None:
 			self.scene_articulation.reset()
 			self.scene_articulation.update(self.sim.cfg.dt)
-		self.apply_joint_initial_overrides()
-		self.sync_scene_joint_initials_to_sim()
+		self.refresh_scene_joint_physics_from_usd()
 
-		if self._should_reset_root_pose():
-			self.robot.write_root_pose_to_sim(self.robot.data.default_root_state[:, :7])
-		self.robot.write_joint_state_to_sim(
-			self.robot.data.default_joint_pos,
-			self.robot.data.default_joint_vel,
-		)
+		self.reset_robot_pose_via_targets()
 
-		self.sim.step(render=True)
-		self.robot.update(self.sim.cfg.dt)
-		if self.scene_articulation is not None:
-			self.scene_articulation.update(self.sim.cfg.dt)
+		self.sync_scene_joints_after_sim_reset(warmup_steps=1, log_angles=False)
 
 	@staticmethod
 	def _find_xform_op(xformable, op_type):
@@ -545,22 +713,11 @@ class IsaacLabEnvironmentModule:
 		self.sim.reset()
 		if self.robot is not None:
 			self.robot.update(self.sim.cfg.dt)
-			if self._should_reset_root_pose():
-				self.robot.write_root_pose_to_sim(self.robot.data.default_root_state[:, :7])
-			self.robot.write_joint_state_to_sim(
-				self.robot.data.default_joint_pos,
-				self.robot.data.default_joint_vel,
-			)
+			self.reset_robot_pose_via_targets()
 		if self.scene_articulation is not None:
 			self.scene_articulation.reset()
 			self.scene_articulation.update(self.sim.cfg.dt)
-		self.apply_joint_initial_overrides()
-		self.sync_scene_joint_initials_to_sim()
-		self.sim.step(render=True)
-		if self.robot is not None:
-			self.robot.update(self.sim.cfg.dt)
-		if self.scene_articulation is not None:
-			self.scene_articulation.update(self.sim.cfg.dt)
+		self.sync_scene_joints_after_sim_reset()
 
 		self.define_camera_prims()
 
@@ -590,4 +747,287 @@ class IsaacLabEnvironmentModule:
 	@property
 	def camera_paths(self) -> dict[str, str]:
 		return dict(self._camera_paths)
+
+	def capture_scene_root_baseline(self, prim_path: str = DEFAULT_SCENE_ROOT_PRIM) -> None:
+		"""Store USD default translate/orient/scale for scene root (Z baseline preserved on apply)."""
+		import omni.usd
+		from pxr import Gf, UsdGeom
+
+		stage = omni.usd.get_context().get_stage()
+		if stage is None:
+			raise RuntimeError("USD stage is unavailable for scene baseline capture.")
+		prim = stage.GetPrimAtPath(prim_path)
+		if not prim or not prim.IsValid():
+			raise RuntimeError(f"Scene root prim '{prim_path}' does not exist on stage.")
+
+		xformable = UsdGeom.Xformable(prim)
+		translate = (0.0, 0.0, 0.0)
+		scale = (1.0, 1.0, 1.0)
+		orient_wxyz = (1.0, 0.0, 0.0, 0.0)
+
+		for op in xformable.GetOrderedXformOps():
+			value = op.Get()
+			if value is None:
+				continue
+			op_type = op.GetOpType()
+			if op_type == UsdGeom.XformOp.TypeTranslate:
+				translate = tuple(float(v) for v in value)
+			elif op_type == UsdGeom.XformOp.TypeScale:
+				scale = tuple(float(v) for v in value)
+			elif op_type == UsdGeom.XformOp.TypeOrient:
+				if hasattr(value, "GetReal"):
+					orient_wxyz = (
+						float(value.GetReal()),
+						float(value.GetImaginary()[0]),
+						float(value.GetImaginary()[1]),
+						float(value.GetImaginary()[2]),
+					)
+
+		self._scene_root_baseline = {
+			"translate": translate,
+			"orient_wxyz": orient_wxyz,
+			"scale": scale,
+		}
+
+	def apply_scene_root_xy_yaw_delta(
+		self,
+		dx: float,
+		dy: float,
+		yaw_deg: float,
+		prim_path: str = DEFAULT_SCENE_ROOT_PRIM,
+	) -> None:
+		"""Apply relative XY + yaw on captured baseline; Z uses baseline unchanged."""
+		import omni.usd
+		import isaaclab.sim as sim_utils
+		from pxr import Gf, UsdGeom
+
+		baseline = self._scene_root_baseline
+		if baseline["translate"] is None:
+			self.capture_scene_root_baseline(prim_path)
+
+		base_t = baseline["translate"]
+		base_q = baseline["orient_wxyz"]
+		assert base_t is not None and base_q is not None
+
+		stage = omni.usd.get_context().get_stage()
+		prim = stage.GetPrimAtPath(prim_path)
+		if not prim or not prim.IsValid():
+			raise RuntimeError(f"Scene root prim '{prim_path}' does not exist on stage.")
+
+		if not sim_utils.standardize_xform_ops(prim):
+			raise RuntimeError(f"Failed to standardize xform ops at '{prim_path}'.")
+
+		xformable = UsdGeom.Xformable(prim)
+		translate_op = self._find_xform_op(xformable, UsdGeom.XformOp.TypeTranslate)
+		orient_op = self._find_xform_op(xformable, UsdGeom.XformOp.TypeOrient)
+		if translate_op is None or orient_op is None:
+			raise RuntimeError(f"Scene root '{prim_path}' missing translate/orient xform ops.")
+
+		new_translate = Gf.Vec3d(base_t[0] + dx, base_t[1] + dy, base_t[2])
+		translate_op.Set(new_translate)
+
+		yaw_rad = math.radians(float(yaw_deg))
+		delta_q = Gf.Rotation(Gf.Vec3d(0.0, 0.0, 1.0), math.degrees(yaw_rad))
+		base_rot = Gf.Rotation(Gf.Quatd(base_q[0], Gf.Vec3d(base_q[1], base_q[2], base_q[3])))
+		combined = delta_q * base_rot
+		combined_quat = combined.GetQuat()
+		orient_op.Set(combined_quat)
+
+	def apply_scene_scale_relative(
+		self,
+		scale_delta: float,
+		prim_path: str = DEFAULT_SCENE_ROOT_PRIM,
+	) -> None:
+		"""Scale scene root uniformly: baseline_scale * (1 + scale_delta)."""
+		import omni.usd
+		import isaaclab.sim as sim_utils
+		from pxr import Gf, UsdGeom
+
+		if self._scene_root_baseline["scale"] is None:
+			self.capture_scene_root_baseline(prim_path)
+
+		base_s = self._scene_root_baseline["scale"]
+		assert base_s is not None
+		factor = max(0.05, 1.0 + float(scale_delta))
+		new_scale = tuple(float(v) * factor for v in base_s)
+
+		stage = omni.usd.get_context().get_stage()
+		prim = stage.GetPrimAtPath(prim_path)
+		if not prim or not prim.IsValid():
+			raise RuntimeError(f"Scene root prim '{prim_path}' does not exist on stage.")
+		if not sim_utils.standardize_xform_ops(prim):
+			raise RuntimeError(f"Failed to standardize xform ops at '{prim_path}'.")
+
+		xformable = UsdGeom.Xformable(prim)
+		scale_op = self._find_xform_op(xformable, UsdGeom.XformOp.TypeScale)
+		if scale_op is None:
+			scale_op = xformable.AddScaleOp()
+		scale_op.Set(Gf.Vec3d(*new_scale))
+
+	def set_scene_joint_initial_deg(self, joint_prim: str, angle_deg: float) -> None:
+		"""Override one scene hinge initial angle (deg) in USD + cfg."""
+		for spec in self.cfg.joint_initial_specs:
+			if spec.prim_path == joint_prim:
+				object.__setattr__(spec, "position", float(angle_deg))
+				break
+		else:
+			raise KeyError(f"joint_prim '{joint_prim}' not in joint_initial_specs.")
+		self.apply_joint_initial_overrides()
+
+	def apply_camera_main_jitter(
+		self,
+		translation_std: float = 0.0,
+		rotation_std_deg: float = 0.0,
+		camera_name: str = "main",
+	) -> None:
+		"""Randomize main camera pose around TaskCameraSpec baseline."""
+		import random
+
+		if translation_std <= 0.0 and rotation_std_deg <= 0.0:
+			return
+
+		tx = random.gauss(0.0, translation_std) if translation_std > 0 else 0.0
+		ty = random.gauss(0.0, translation_std) if translation_std > 0 else 0.0
+		tz = random.gauss(0.0, translation_std) if translation_std > 0 else 0.0
+		self.refresh_camera_prim(camera_name, translation_offset=(tx, ty, tz))
+
+		if rotation_std_deg > 0.0 and camera_name in self.sensor_cameras:
+			# Sensor re-init after prim move is handled by caller via reset if needed.
+			pass
+
+	def _joint_initial_target_deg(self, joint_prim: str) -> float | None:
+		for spec in self.cfg.joint_initial_specs:
+			if spec.prim_path == joint_prim:
+				return float(spec.position)
+		return None
+
+	def _hinge_world_from_link_bind_pose(
+		self,
+		link_pos: tuple[float, float, float],
+		link_quat_wxyz: tuple[float, float, float, float],
+		hinge_origin_link: tuple[float, float, float],
+		hinge_axis_link: tuple[float, float, float],
+	) -> tuple[Any, Any]:
+		import numpy as np
+		from scipy.spatial.transform import Rotation as R
+
+		w, x, y, z = link_quat_wxyz
+		rot = R.from_quat([x, y, z, w])
+		origin_w = rot.apply(np.asarray(hinge_origin_link, dtype=np.float64)) + np.asarray(link_pos)
+		axis_w = rot.apply(np.asarray(hinge_axis_link, dtype=np.float64))
+		return origin_w, axis_w
+
+	def _read_scene_articulation_body_pose_wxyz(
+		self,
+		link_prim: str,
+	) -> tuple[tuple[float, float, float], tuple[float, float, float, float]] | None:
+		if self.scene_articulation is None:
+			return None
+		link_name = link_prim.rsplit("/", 1)[-1]
+		try:
+			body_ids, _ = self.scene_articulation.find_bodies(link_name)
+			if not body_ids:
+				return None
+			body_id = int(body_ids[0])
+			pos = self.scene_articulation.data.body_pos_w[0, body_id].detach().cpu().numpy()
+			quat = tuple(
+				float(v) for v in self.scene_articulation.data.body_quat_w[0, body_id].tolist()
+			)
+			return (
+				(float(pos[0]), float(pos[1]), float(pos[2])),
+				quat,
+			)
+		except Exception:
+			return None
+
+	def get_movable_link_world_pose_wxyz(
+		self,
+		link_prim: str,
+		joint_prim: str,
+		*,
+		hinge_origin_link: tuple[float, float, float] = (0.0, 0.0, 0.0),
+		hinge_axis_link: tuple[float, float, float] = (1.0, 0.0, 0.0),
+		bind_joint_deg: float = 0.0,
+	) -> tuple[tuple[float, float, float], tuple[float, float, float, float]]:
+		"""Return link pose with live hinge angle applied.
+
+		USD link prim xform is authored at URDF rest (joint=0). task_registry
+		joint_initial_specs (e.g. 15° for close_laptop_lid) must be applied
+		before mapping link-local handle offsets to world coordinates.
+		"""
+		import numpy as np
+		from reference.opening_kinematics import link_pose_at_delta_angle
+
+		body_pose = self._read_scene_articulation_body_pose_wxyz(link_prim)
+		if body_pose is not None:
+			return body_pose
+
+		joint_deg = self.read_scene_joint_angle_deg(joint_prim)
+		if joint_deg is None:
+			joint_deg = self._joint_initial_target_deg(joint_prim)
+
+		link_pos, link_quat = self.get_prim_world_pose_wxyz(link_prim)
+		if joint_deg is None or abs(float(joint_deg) - float(bind_joint_deg)) < 1e-6:
+			return link_pos, link_quat
+
+		delta_rad = math.radians(float(joint_deg) - float(bind_joint_deg))
+		hinge_origin_w, hinge_axis_w = self._hinge_world_from_link_bind_pose(
+			link_pos,
+			link_quat,
+			hinge_origin_link,
+			hinge_axis_link,
+		)
+		link_pos_np, link_quat_out = link_pose_at_delta_angle(
+			np.asarray(link_pos, dtype=np.float64),
+			link_quat,
+			hinge_origin_w,
+			hinge_axis_w,
+			delta_rad,
+		)
+		return (float(link_pos_np[0]), float(link_pos_np[1]), float(link_pos_np[2])), link_quat_out
+
+	def get_prim_world_pose_wxyz(
+		self,
+		prim_path: str,
+	) -> tuple[tuple[float, float, float], tuple[float, float, float, float]]:
+		"""Return (position_xyz, quat_wxyz) for a stage prim in world frame."""
+		import omni.usd
+		from pxr import Gf, UsdGeom
+
+		stage = omni.usd.get_context().get_stage()
+		if stage is None:
+			raise RuntimeError("USD stage unavailable.")
+		prim = stage.GetPrimAtPath(prim_path)
+		if not prim or not prim.IsValid():
+			raise RuntimeError(f"Prim '{prim_path}' does not exist on stage.")
+
+		xformable = UsdGeom.Xformable(prim)
+		world_xf = xformable.ComputeLocalToWorldTransform(0.0)
+		translation = world_xf.ExtractTranslation()
+		rotation = world_xf.ExtractRotationQuat()
+		imag = rotation.GetImaginary()
+		pos = (float(translation[0]), float(translation[1]), float(translation[2]))
+		quat = (
+			float(rotation.GetReal()),
+			float(imag[0]),
+			float(imag[1]),
+			float(imag[2]),
+		)
+		return pos, quat
+
+	def get_hinge_world_frame(
+		self,
+		link_prim: str,
+		hinge_origin_link: tuple[float, float, float],
+		hinge_axis_link: tuple[float, float, float],
+	) -> tuple[Any, Any]:
+		"""Map hinge origin/axis from link local frame to world frame."""
+		link_pos, link_quat_wxyz = self.get_prim_world_pose_wxyz(link_prim)
+		return self._hinge_world_from_link_bind_pose(
+			link_pos,
+			link_quat_wxyz,
+			hinge_origin_link,
+			hinge_axis_link,
+		)
+
 

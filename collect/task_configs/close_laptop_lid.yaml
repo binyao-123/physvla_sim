@@ -1,0 +1,67 @@
+task_id: close_laptop_lid
+interaction_mode: push
+
+interaction:
+  link_prim: /World/generated/link_1
+  joint_prim: /World/generated/joints/joint_1
+  joint_type: revolute
+
+sampling:
+  assets:
+    subdir: laptop
+    mesh: link_1.obj
+    movable_link: link_1
+    base_link: link_0
+    mesh_origin: [0.129225, 0.622132, 0.611292]
+  hinge:
+    origin: [0.0, 0.0, 0.0]
+    axis: [1.0, 0.0, 0.0]
+  num_fps_points: 15
+  num_yaw_perturbations: 8
+  max_yaw_perturb_deg: 30.0
+  approach_offset_m: 0.04
+  contact_offset_m: 0.02
+  min_hinge_distance_percentile: 0.0
+  horizontal_grasp: true
+  # mesh FPS 仅 debug_link_contact_probe 使用；主路径 yaml_handle 不依赖 mesh。
+  max_contact_link_local_y_m: 0.25
+  max_contact_delta_y_from_link_m: 0.15
+  use_push_anchor_fallback: true
+  use_scene_approach_direction: true
+  approach_direction_world: [0.826, -0.051, -0.562]
+  min_approach_direction_dot: 0.08
+  min_contact_world_x_m: 0.05
+  max_contact_world_x_m: 0.95
+  min_contact_world_z_m: 0.02
+  max_contact_world_z_m: 0.22
+  max_contact_dist_from_link_m: 1.2
+  push_anchor_dist_m: 0.10
+  # Handle = link_1 坐标系下位姿（keyboard 标定，随 DR 由 runtime link_1 pose 变换到 world）。
+  # OFFLINE ONLY: inspect_touch_hdf5.py on keyboard HDF5 → copy here. Auto-collect never reads ref HDF5.
+  # Calibrated from close_laptop_lid_20260525_163747.hdf5 demo_0 peak touch @ USD joint=15°
+  push_contact_offset_link: [-0.17, 0.1265, 0.1534]
+  contact_quat_link: [-0.8007, -0.0113, -0.5585, 0.2163]
+  # 仅 mesh debug 排名 tie-break，非 yaml_handle 主路径硬约束。
+  reference_contact_world: [0.2268, 0.0001, 0.2199]
+
+push:
+  push_strategy: yaml_handle
+  close_ratio: 0.93
+  # ArticuBot: ~1°USD per waypoint (15→99 ≈ 85 steps). num_close_steps only if close_step_deg_usd=0.
+  close_step_deg_usd: 1.0
+  close_anchor_err_max_m: 0.03
+  close_recovery_substeps: 6
+  close_clamp_joints: false
+  close_pose_reach_tol_m: 0.005
+  close_max_steps_per_waypoint: 48
+  close_push_ee_step_m: 0.012
+  num_close_steps: 80
+  close_ik_substeps: 8
+  close_max_iters: 960
+  max_servo_steps_per_phase: 960
+  close_steps_per_waypoint: 12
+  max_approach_distance_m: 1.5
+  approach_steps: 80
+  contact_hold_steps: 24
+  approach_backoff_m: 0.04
+  approach_clearance_z_m: 0.14

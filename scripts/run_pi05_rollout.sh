@@ -1,5 +1,5 @@
 #!/bin/bash
-cd ~/workspace/physvla_sim/sim_rollout
+cd ~/workspace/physvla_sim/rollout_sim
 # 仿真推理启动脚本
 
 
@@ -10,7 +10,7 @@ cd ~/workspace/physvla_sim/sim_rollout
 #   --num_episodes 2 \
 #   --max_steps 600 \
 #   --policy.path /home/ubuntu/workspace/lerobot/outputs/pi05_adjust_the_monitor_sim_15k_v1/checkpoints/last/pretrained_model \
-#   --output_dir /home/ubuntu/workspace/physvla_sim/sim_rollout/rollouts/adjust_the_monitor_$(date +%Y%m%d_%H%M%S) \
+#   --output_dir /home/ubuntu/workspace/physvla_sim/rollout_sim/rollouts/adjust_the_monitor_$(date +%Y%m%d_%H%M%S) \
 #   --video_layout head_wrist \
 #   --video_fps 10
 
@@ -21,6 +21,6 @@ cd ~/workspace/physvla_sim/sim_rollout
   --num_episodes 2 \
   --max_steps 600 \
   --policy.path /home/ubuntu/workspace/lerobot/outputs/pi05_close_laptop_lid_sim_5k_v1/checkpoints/last/pretrained_model \
-  --output_dir /home/ubuntu/workspace/physvla_sim/sim_rollout/rollouts/close_laptop_lid_$(date +%Y%m%d_%H%M%S) \
+  --output_dir /home/ubuntu/workspace/physvla_sim/rollout_sim/rollouts/close_laptop_lid_$(date +%Y%m%d_%H%M%S) \
   --video_layout head_wrist \
   --video_fps 10

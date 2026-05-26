@@ -58,10 +58,42 @@ class TaskJointInitialSpec:
 
 
 @dataclass(frozen=True)
+class TaskPhysicsMaterialSpec:
+    """Override USD physics material friction/restitution under root_prefix (physics:physicsMaterial)."""
+
+    root_prim_prefix: str
+    static_friction: float = 1.5
+    dynamic_friction: float = 1.2
+    restitution: float = 0.0
+
+
+@dataclass(frozen=True)
 class TaskRolloutSuccessSpec:
-    """Rollout 单关节成功条件：角度（度）大于 angle_gt_deg。"""
+    """仿真 Rollout 单关节成功条件：角度（度）大于 angle_gt_deg。"""
     joint_prim: str
     angle_gt_deg: float
+
+
+@dataclass(frozen=True)
+class TaskRandomizationSpec:
+    """Domain randomization defaults (ArticuBot paper-style). CLI may override enable flags."""
+
+    obj_xy_enable: bool = False
+    obj_x_range: tuple[float, float] = (-0.04, 0.04)
+    obj_y_range: tuple[float, float] = (-0.03, 0.03)
+
+    obj_yaw_enable: bool = False
+    obj_yaw_range_deg: tuple[float, float] = (-12.0, 12.0)
+
+    obj_scale_enable: bool = False
+    obj_scale_delta: float = 0.3
+
+    joint_initial_enable: bool = False
+    joint_initial_delta_deg: float = 5.0
+
+    camera_main_enable: bool = False
+    camera_translation_std: float = 0.02
+    camera_rotation_std_deg: float = 3.0
 
 
 SCENE_ARTICULATION_PRIM_PATH = "/World/generated"
@@ -159,8 +191,10 @@ class TaskPreset:
     joint_drive_specs: tuple[TaskJointDriveSpec, ...] = field(default_factory=tuple)
     joint_limit_specs: tuple[TaskJointLimitSpec, ...] = field(default_factory=tuple)
     joint_initial_specs: tuple[TaskJointInitialSpec, ...] = field(default_factory=tuple)
+    physics_material_specs: tuple[TaskPhysicsMaterialSpec, ...] = field(default_factory=tuple)
     # 每任务单独定义；多 joint 时列多条，全部满足才算 success（AND）
     rollout_success_specs: tuple[TaskRolloutSuccessSpec, ...] = field(default_factory=tuple)
+    randomization: TaskRandomizationSpec = field(default_factory=TaskRandomizationSpec)
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +224,7 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         joint_drive_specs=(
             TaskJointDriveSpec(
                 prim_path="/World/generated/joints/joint_1",
-                damping=45.0,
+                damping=60.0,
                 stiffness=0.0,
                 max_force=10.0,
             ),
@@ -211,7 +245,19 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         rollout_success_specs=(
             TaskRolloutSuccessSpec(
                 joint_prim="/World/generated/joints/joint_1",
-                angle_gt_deg=98.0,
+                angle_gt_deg=98.0,  # 当笔记本闭合角度大于98时，判定任务成功
+            ),
+        ),
+        randomization=TaskRandomizationSpec(
+            joint_initial_delta_deg=5.0,
+        ),
+        # 提高笔记本场景（/World/generated）碰撞材质摩擦。
+        physics_material_specs=(
+            TaskPhysicsMaterialSpec(
+                root_prim_prefix="/World/generated",
+                static_friction=1.5,
+                dynamic_friction=1.2,
+                restitution=0.0,
             ),
         ),
         **_shared_teleop_kwargs(),
@@ -242,7 +288,7 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         rollout_success_specs=(
             TaskRolloutSuccessSpec(
                 joint_prim="/World/generated/joints/joint_1",
-                angle_gt_deg=0.0,
+                angle_gt_deg=0.0,   # 显示器角度大于0度时，判定任务成功
             ),
         ),
         **_shared_teleop_kwargs(),
