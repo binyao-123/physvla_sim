@@ -723,7 +723,7 @@ class PushInteractionExecutor:
         on_control_step: Callable[[bool, dict[str, float | None]], bool] | None,
         trajectory: list[tuple[np.ndarray, tuple[float, float, float, float]]] | None = None,
     ) -> bool:
-        """ArticuBot Sec IV-A: T_rel anchor at contact; each step recomputes EE target from live joint."""
+        """ArticuBot Sec IV-A: march precomputed T_rel arc once; advance wp when ee↔wp within tol."""
         if self._close_anchor is None:
             return False
 
@@ -732,99 +732,79 @@ class PushInteractionExecutor:
         if len(trajectory) < 2:
             return False
 
-        joint_prim = self.task_config.joint_prim
         anchor = self._close_anchor
         joint_init = float(anchor["joint_init_deg"])
         joint_target = float(anchor["joint_target_deg"])
-        step_deg = float(getattr(self.push_cfg, "close_step_deg_usd", 1.0))
-        steps_per_wp = max(
-            1, int(getattr(self.push_cfg, "close_steps_per_waypoint", 12))
-        )
-        max_steps_per_wp = max(
-            steps_per_wp,
-            int(getattr(self.push_cfg, "close_max_steps_per_waypoint", 48)),
-        )
+        close_poses = list(trajectory[1:])
         pos_tol_m = float(
             getattr(self.push_cfg, "close_pose_reach_tol_m", CLOSE_POSE_REACH_TOL_M)
         )
-        rot_tol_rad = float(
-            getattr(self.push_cfg, "close_pose_reach_rot_rad", CLOSE_POSE_REACH_ROT_RAD)
+        max_steps_per_wp = max(
+            1, int(getattr(self.push_cfg, "close_max_steps_per_waypoint", 500))
         )
+        close_step_m = float(getattr(self.push_cfg, "close_push_ee_step_m", 0.003))
         close_clamp = bool(getattr(self.push_cfg, "close_clamp_joints", False))
-        n_plan = self._resolve_num_close_waypoints(joint_init, joint_target)
-        max_close_steps = max(1, n_plan - 1)
-        theta_cmd = float(joint_init)
+        log_stride = max(1, len(close_poses) // 8)
 
         self._reset_ee_tracking_from_robot()
         self.diff_ik_controller.reset()
         wp0 = np.asarray(trajectory[0][0], dtype=np.float64)
         wp_last = np.asarray(trajectory[-1][0], dtype=np.float64)
         print(
-            f"[INFO] Close phase (ArticuBot T_rel, live θ): up to {max_close_steps} steps "
-            f"({joint_init:.1f}°->{joint_target:.1f}°USD @ {step_deg:.1f}°/step), "
-            f"max_steps/step={max_steps_per_wp}, reach_tol={pos_tol_m:.4f}m, "
-            f"close_clamp_joints={close_clamp}, "
-            f"open-loop plan arc {float(np.linalg.norm(wp_last - wp0)):.3f}m (reference only)",
+            f"[INFO] Close phase (open-loop T_rel): {len(close_poses)} waypoints, "
+            f"{joint_init:.1f}°->{joint_target:.1f}°USD, "
+            f"ee_step={close_step_m * 1000:.1f}mm/substep, pos_tol={pos_tol_m * 1000:.1f}mm, "
+            f"max_substeps/wp={max_steps_per_wp}, close_clamp_joints={close_clamp}, "
+            f"planned EE arc {float(np.linalg.norm(wp_last - wp0)):.3f}m",
             flush=True,
         )
 
-        for step_i in range(1, max_close_steps + 1):
-            joint_now = self.env_module.read_scene_joint_angle_deg(joint_prim)
-            if joint_now is None:
-                joint_now = joint_init
-
-            if on_control_step is not None:
-                success_now, joint_degs = evaluate_rollout_success(
-                    self.env_module, self.success_specs
-                )
-                if on_control_step(success_now, joint_degs):
-                    return True
-            else:
-                success_now, _ = evaluate_rollout_success(self.env_module, self.success_specs)
-                if success_now:
-                    return True
-
-            if float(joint_now) >= joint_target - 0.25:
-                break
-
-            theta_cmd = min(max(theta_cmd, float(joint_now)) + step_deg, joint_target)
-            target_pos, target_quat = self._compute_close_pose_at_joint_deg(theta_cmd)
+        for wp_i, (target_pos, target_quat) in enumerate(close_poses, start=1):
             target_pos_np = np.asarray(target_pos, dtype=np.float64)
-
-            handle_trl_physx, _ = self._read_handle_trl_physx()
-            handle_trl_physx = np.asarray(handle_trl_physx, dtype=np.float64)
-            physx_wp_gap_m = float(np.linalg.norm(handle_trl_physx - target_pos_np))
+            substeps_used = 0
             wp_err = self._ee_to_pose_err_m(target_pos_np)
-            slip_err = self._close_live_anchor_err_m()
-            j_msg = (
-                f"joint={float(joint_now):.2f}°USD(real≈"
-                f"{usd_joint_to_real_lid_deg(float(joint_now)):.0f}°)"
-            )
-            dj = float(joint_now) - joint_init
-            print(
-                f"[INFO] Close step {step_i}/{max_close_steps}: {j_msg} "
-                f"Δjoint={dj:+.2f}°USD θ_cmd={theta_cmd:.1f}°USD "
-                f"handle_trl_physx↔wp_target={physx_wp_gap_m:.4f}m "
-                f"ee↔wp={wp_err:.4f}m slip(ee↔trl@joint)={slip_err:.4f}m",
-                flush=True,
-            )
-            print(
-                f"[INFO]   handle_trl_physx={np.round(handle_trl_physx, 4).tolist()} "
-                f"wp_target={np.round(target_pos_np, 4).tolist()}",
-                flush=True,
-            )
 
-            if self._move_to_pose(
-                collector,
-                target_pos_np,
-                target_quat,
-                max_steps_per_wp,
-                on_control_step,
-                clamp_joints=close_clamp,
-                pos_tol_m=pos_tol_m,
-                rot_tol_rad=rot_tol_rad,
-            ):
-                return True
+            while wp_err > pos_tol_m and substeps_used < max_steps_per_wp:
+                if self._servo_toward_close_pose(
+                    collector,
+                    target_pos_np,
+                    target_quat,
+                    on_control_step,
+                    substeps=1,
+                    max_pos_step_m=close_step_m,
+                    clamp_joints=close_clamp,
+                ):
+                    return True
+
+                substeps_used += 1
+                wp_err = self._ee_to_pose_err_m(target_pos_np)
+
+                if on_control_step is not None:
+                    success_now, joint_degs = evaluate_rollout_success(
+                        self.env_module, self.success_specs
+                    )
+                    if on_control_step(success_now, joint_degs):
+                        return True
+                else:
+                    success_now, _ = evaluate_rollout_success(
+                        self.env_module, self.success_specs
+                    )
+                    if success_now:
+                        return True
+
+            if wp_i == 1 or wp_i % log_stride == 0 or wp_i == len(close_poses):
+                status = "reached" if wp_err <= pos_tol_m else "timeout"
+                print(
+                    f"[INFO] Close wp {wp_i}/{len(close_poses)} ({status}): "
+                    f"ee↔wp={wp_err:.4f}m, substeps={substeps_used}",
+                    flush=True,
+                )
+            if wp_err > pos_tol_m:
+                print(
+                    f"[WARN] Close wp {wp_i}/{len(close_poses)}: ee↔wp={wp_err:.4f}m "
+                    f"> tol {pos_tol_m:.4f}m after {substeps_used} substeps (cap); advancing",
+                    flush=True,
+                )
 
         return False
 

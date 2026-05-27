@@ -49,14 +49,6 @@ class JointInitialPrimSpec:
 
 
 @dataclass
-class PhysicsMaterialPrimSpec:
-	root_prim_prefix: str
-	static_friction: float = 1.5
-	dynamic_friction: float = 1.2
-	restitution: float = 0.0
-
-
-@dataclass
 class EnvironmentModuleConfig:
 	usd_path: str
 	camera_width: int = 400
@@ -68,7 +60,6 @@ class EnvironmentModuleConfig:
 	joint_drive_specs: list[JointDrivePrimSpec] = field(default_factory=list)
 	joint_limit_specs: list[JointLimitPrimSpec] = field(default_factory=list)
 	joint_initial_specs: list[JointInitialPrimSpec] = field(default_factory=list)
-	physics_material_specs: list[PhysicsMaterialPrimSpec] = field(default_factory=list)
 
 
 def apply_camera_launch_workarounds(args_cli: Any) -> Any:
@@ -188,43 +179,6 @@ class IsaacLabEnvironmentModule:
 				if not attr.IsValid():
 					attr = prim.CreateAttribute(attr_name, Sdf.ValueTypeNames.Float)
 				attr.Set(float(value))
-
-	def apply_physics_material_overrides(self) -> int:
-		"""Set friction/restitution on USD physics material prims under configured roots."""
-		if not self.cfg.physics_material_specs:
-			return 0
-
-		import omni.usd
-		from pxr import UsdPhysics
-
-		stage = omni.usd.get_context().get_stage()
-		if stage is None:
-			raise RuntimeError("USD stage is unavailable for physics material overrides.")
-
-		updated = 0
-		for mat_spec in self.cfg.physics_material_specs:
-			prefix = str(mat_spec.root_prim_prefix).rstrip("/")
-			for prim in stage.Traverse():
-				path = prim.GetPath().pathString
-				if not path.startswith(prefix):
-					continue
-				if not UsdPhysics.MaterialAPI(prim):
-					continue
-				api = UsdPhysics.MaterialAPI(prim)
-				api.CreateStaticFrictionAttr().Set(float(mat_spec.static_friction))
-				api.CreateDynamicFrictionAttr().Set(float(mat_spec.dynamic_friction))
-				api.CreateRestitutionAttr().Set(float(mat_spec.restitution))
-				updated += 1
-
-		if updated:
-			first = self.cfg.physics_material_specs[0]
-			print(
-				f"[INFO] Physics material overrides: {updated} prim(s) "
-				f"(μs={first.static_friction:.2f}, μd={first.dynamic_friction:.2f}, "
-				f"restitution={first.restitution:.2f})",
-				flush=True,
-			)
-		return updated
 
 	def apply_joint_initial_overrides(self):
 		if not self.cfg.joint_initial_specs:
@@ -395,7 +349,6 @@ class IsaacLabEnvironmentModule:
 		import isaaclab.sim as sim_utils
 
 		omni.usd.get_context().open_stage(self.cfg.usd_path)
-		self.apply_physics_material_overrides()
 		self.apply_joint_drive_overrides()
 		self.apply_joint_limit_overrides()
 		self.apply_joint_initial_overrides()

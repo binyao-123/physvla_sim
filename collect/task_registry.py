@@ -58,16 +58,6 @@ class TaskJointInitialSpec:
 
 
 @dataclass(frozen=True)
-class TaskPhysicsMaterialSpec:
-    """Override USD physics material friction/restitution under root_prefix (physics:physicsMaterial)."""
-
-    root_prim_prefix: str
-    static_friction: float = 1.5
-    dynamic_friction: float = 1.2
-    restitution: float = 0.0
-
-
-@dataclass(frozen=True)
 class TaskRolloutSuccessSpec:
     """仿真 Rollout 单关节成功条件：角度（度）大于 angle_gt_deg。"""
     joint_prim: str
@@ -191,7 +181,6 @@ class TaskPreset:
     joint_drive_specs: tuple[TaskJointDriveSpec, ...] = field(default_factory=tuple)
     joint_limit_specs: tuple[TaskJointLimitSpec, ...] = field(default_factory=tuple)
     joint_initial_specs: tuple[TaskJointInitialSpec, ...] = field(default_factory=tuple)
-    physics_material_specs: tuple[TaskPhysicsMaterialSpec, ...] = field(default_factory=tuple)
     # 每任务单独定义；多 joint 时列多条，全部满足才算 success（AND）
     rollout_success_specs: tuple[TaskRolloutSuccessSpec, ...] = field(default_factory=tuple)
     randomization: TaskRandomizationSpec = field(default_factory=TaskRandomizationSpec)
@@ -250,15 +239,6 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         ),
         randomization=TaskRandomizationSpec(
             joint_initial_delta_deg=5.0,
-        ),
-        # 提高笔记本场景（/World/generated）碰撞材质摩擦。
-        physics_material_specs=(
-            TaskPhysicsMaterialSpec(
-                root_prim_prefix="/World/generated",
-                static_friction=1.5,
-                dynamic_friction=1.2,
-                restitution=0.0,
-            ),
         ),
         **_shared_teleop_kwargs(),
     ),

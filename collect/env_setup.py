@@ -11,7 +11,6 @@ from isaaclab_env_module import (
     JointDrivePrimSpec,
     JointInitialPrimSpec,
     JointLimitPrimSpec,
-    PhysicsMaterialPrimSpec,
 )
 from task_registry import SCENE_ARTICULATION_PRIM_PATH, TaskPreset
 
@@ -119,15 +118,6 @@ def build_environment_module_config(task_preset: TaskPreset) -> EnvironmentModul
         joint_initial_specs=[
             JointInitialPrimSpec(prim_path=spec.prim_path, position=spec.position)
             for spec in task_preset.joint_initial_specs
-        ],
-        physics_material_specs=[
-            PhysicsMaterialPrimSpec(
-                root_prim_prefix=spec.root_prim_prefix,
-                static_friction=spec.static_friction,
-                dynamic_friction=spec.dynamic_friction,
-                restitution=spec.restitution,
-            )
-            for spec in task_preset.physics_material_specs
         ],
     )
 

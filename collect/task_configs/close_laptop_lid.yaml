@@ -53,8 +53,8 @@ push:
   close_recovery_substeps: 6
   close_clamp_joints: false
   close_pose_reach_tol_m: 0.005
-  close_max_steps_per_waypoint: 48
-  close_push_ee_step_m: 0.012
+  close_max_steps_per_waypoint: 500
+  close_push_ee_step_m: 0.003
   num_close_steps: 80
   close_ik_substeps: 8
   close_max_iters: 960
