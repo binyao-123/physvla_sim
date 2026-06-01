@@ -21,6 +21,7 @@ from isaaclab_env_module import (
     JointDrivePrimSpec,
     JointInitialPrimSpec,
     JointLimitPrimSpec,
+    SceneRootPrimSpec,
     apply_camera_launch_workarounds,
 )
 from task_registry import get_task_preset, list_task_presets, PHYSVLA_ASSETS_DIR
@@ -149,6 +150,15 @@ env_cfg = EnvironmentModuleConfig(
     joint_initial_specs=[
         JointInitialPrimSpec(prim_path=spec.prim_path, position=spec.position)
         for spec in task_preset.joint_initial_specs
+    ],
+    scene_root_specs=[
+        SceneRootPrimSpec(
+            prim_path=spec.prim_path,
+            translation=spec.translation,
+            rotation_xyz=spec.rotation_xyz,
+            scale=spec.scale,
+        )
+        for spec in task_preset.scene_root_specs
     ],
 )
 

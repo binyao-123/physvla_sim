@@ -22,17 +22,15 @@ if str(_COLLECT_DIR) not in sys.path:
 import torch
 from isaaclab.app import AppLauncher
 
-from domain_randomization import (
+from domain_randomization_robotwin2 import (
     add_randomization_cli_args,
     apply_randomization_sample,
-    attach_joint_initial_baseline,
-    format_randomization_sample,
     randomization_config_from_args,
     sample_randomization,
 )
 from isaaclab_env_module import apply_camera_launch_workarounds
 from task_config import load_task_interaction_config
-from task_registry import get_task_preset, list_task_presets, PHYSVLA_ASSETS_DIR
+from task_registry import get_task_preset, list_task_presets
 
 parser = argparse.ArgumentParser(description="Auto trajectory collection (Isaac Lab + Piper).")
 parser.add_argument("--task_id", type=str, default=None, help="Task preset from task_registry.")
@@ -68,6 +66,12 @@ parser.add_argument(
     default=40,
     help="Control steps for arm home reset segment after success.",
 )
+parser.add_argument(
+    "--debug-logs",
+    action="store_true",
+    dest="debug_logs",
+    help="Print per-step planning/close debug logs (default: quiet).",
+)
 add_randomization_cli_args(parser)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
@@ -83,7 +87,7 @@ if not args_cli.task_id:
 
 max_attempts = args_cli.max_attempts
 if max_attempts is None:
-    max_attempts = max(50, int(args_cli.num_demos) * 10)
+    max_attempts = int(args_cli.num_demos) + 200
 
 task_preset = get_task_preset(args_cli.task_id)
 if args_cli.usd_path:
@@ -101,57 +105,38 @@ rollout_success_specs = task_preset.rollout_success_specs
 push_strategy = (
     task_interaction.push.push_strategy
     if task_interaction.push
-    else "articubot"
+    else "yaml_handle"
 )
 
 # Auto collection: no runtime reference HDF5 (no replay, no live touch-HDF5 load).
 _AUTO_COLLECT_PUSH_STRATEGIES = frozenset({"yaml_handle"})
-if task_interaction.push and task_interaction.push.debug_hardcoded_push:
-    raise ValueError(
-        "auto_trajectory_collection forbids push.debug_hardcoded_push "
-        "(reference HDF5 replay). Calibrate handle offline via "
-        "scripts/inspect_touch_hdf5.py → task yaml."
-    )
 if push_strategy not in _AUTO_COLLECT_PUSH_STRATEGIES:
     raise ValueError(
         f"auto_trajectory_collection only supports push_strategy in "
         f"{sorted(_AUTO_COLLECT_PUSH_STRATEGIES)}; got '{push_strategy}'. "
-        "keyboard_aligned / articulation_calibrated / articubot replay reference HDF5 "
-        "at runtime — use debug_link_contact_probe for those legacy paths."
+        "Use debug_link_contact_probe for articulation_calibrated / mesh sampling."
     )
-if task_interaction.push and (
-    task_interaction.push.keyboard_reference_hdf5
-    or task_interaction.push.debug_reference_hdf5
-):
+if task_interaction.push and task_interaction.push.keyboard_reference_hdf5:
     raise ValueError(
-        "auto_trajectory_collection: remove push.keyboard_reference_hdf5 and "
-        "push.debug_reference_hdf5 from task yaml. Touch handle is calibrated offline "
-        "only; runtime uses push_contact_offset_link / contact_quat_link."
+        "auto_trajectory_collection: remove push.keyboard_reference_hdf5 from task yaml. "
+        "Touch handle is calibrated offline only; runtime uses "
+        "push_contact_offset_link / contact_quat_link."
     )
 
-rand_config = attach_joint_initial_baseline(
-    randomization_config_from_args(args_cli, task_preset),
-    task_preset,
-    joint_prim=task_interaction.joint_prim or None,
-)
+rand_config = randomization_config_from_args(args_cli, task_preset)
 rng = random.Random(rand_config.seed)
 
 _scene_usd = Path(task_preset.usd_path)
 if not _scene_usd.is_file():
     raise FileNotFoundError(f"Scene USD missing: {_scene_usd}")
 
-print(f"[INFO] Task: {task_preset.task_id}")
-print(f"[INFO] Interaction mode: {task_interaction.interaction_mode}")
-print(f"[INFO] Target successful demos: {args_cli.num_demos}, max attempts: {max_attempts}")
-print(f"[INFO] Save failed attempts: {args_cli.save_failed}")
 print(
-    "[INFO] Push mode: yaml_handle (link-local yaml only; no reference HDF5 at runtime)"
+    f"[INFO] Auto collect: task={task_preset.task_id} "
+    f"target={args_cli.num_demos} max_attempts={max_attempts} "
+    f"save_failed={args_cli.save_failed}"
 )
-print(f"[INFO] Assets root: {PHYSVLA_ASSETS_DIR.resolve()}")
 
 args_cli = apply_camera_launch_workarounds(args_cli)
-if not getattr(args_cli, "headless", False):
-    print("[WARN] Recommend --headless for batch auto collection.")
 
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -171,14 +156,15 @@ from episode_collector import OfficialEpisodeCollector
 from interaction_executor import PushInteractionExecutor
 from isaaclab_env_module import IsaacLabEnvironmentModule, SCENE_JOINT_PHYSICS_WARMUP_STEPS
 
-env_module = IsaacLabEnvironmentModule(build_environment_module_config(task_preset))
+env_module = IsaacLabEnvironmentModule(
+    build_environment_module_config(task_preset, quiet_logging=not args_cli.debug_logs)
+)
 sim = env_module.create_simulation(dt=1 / 60.0, render_interval=4)
 
 robot = env_module.create_robot(build_piper_robot_cfg(task_preset))
 scene_hinge_cfg = build_scene_hinge_cfg(task_preset)
 if scene_hinge_cfg is not None:
     env_module.create_scene_articulation(scene_hinge_cfg)
-    print("[INFO] Scene articulation enabled for live hinge readback (same as pi05 rollout).")
 env_module.initialize_robot_home_pose()
 
 device = sim.device
@@ -190,9 +176,6 @@ gripper_close_target = torch.zeros((1, 2), dtype=torch.float32, device=device)
 
 env_module.define_camera_prims()
 sensor_cameras = env_module.create_sensor_cameras()
-for cam_name in ("main", "wrist"):
-    if cam_name in sensor_cameras:
-        print(f"[INFO] Sensor camera ready: {cam_name}")
 
 instruction_text = (task_preset.language_instruction or "").strip()
 if not instruction_text:
@@ -250,6 +233,7 @@ if task_interaction.interaction_mode == "push":
         joint_upper_limit_deg=joint_upper_limit_deg,
         rng=np_rng,
         home_steps=args_cli.home_reset_steps,
+        verbose=bool(args_cli.debug_logs),
     )
 else:
     raise NotImplementedError(
@@ -268,31 +252,40 @@ def capture_initial_state() -> None:
 
 
 def reset_episode_scene() -> None:
+    print("[TRACE] reset_episode_scene: begin", flush=True)
+    episode_preset = get_task_preset(args_cli.task_id)
+    print("[TRACE] reset_episode_scene: apply scene root", flush=True)
+    env_module.apply_task_preset_scene_root(episode_preset)
+    print("[TRACE] reset_episode_scene: apply joint initial USD", flush=True)
+    env_module.apply_task_preset_joint_initial(episode_preset)
+
+    print("[TRACE] reset_episode_scene: before sim.reset", flush=True)
     sim.reset()
+    print("[TRACE] reset_episode_scene: after sim.reset; before robot.reset", flush=True)
     robot.reset()
-    if env_module.scene_articulation is not None:
-        env_module.scene_articulation.reset()
+    print("[TRACE] reset_episode_scene: after robot.reset", flush=True)
     if sensor_cameras:
+        print("[TRACE] reset_episode_scene: reset sensor cameras", flush=True)
         for sensor in sensor_cameras.values():
             sensor.reset()
 
-    env_module.capture_scene_root_baseline()
-    sample = sample_randomization(rand_config, rng)
-    apply_randomization_sample(
-        env_module,
-        rand_config,
-        sample,
-        joint_prim=task_interaction.joint_prim or None,
-    )
-    print(f"[INFO] Randomization: {format_randomization_sample(sample)}")
+    env_module.ensure_scene_root_baseline()
 
+    print("[TRACE] reset_episode_scene: define default camera prims", flush=True)
+    env_module.define_camera_prims()
+
+    print("[TRACE] reset_episode_scene: sample/apply RobotWin2 DR", flush=True)
+    sample = sample_randomization(rand_config, rng)
+    apply_randomization_sample(env_module, rand_config, sample)
+
+    print("[TRACE] reset_episode_scene: sync scene joints after reset", flush=True)
     env_module.sync_scene_joints_after_sim_reset(warmup_steps=SCENE_JOINT_PHYSICS_WARMUP_STEPS)
+    print("[TRACE] reset_episode_scene: reset robot pose via targets", flush=True)
     env_module.reset_robot_pose_via_targets(
         gripper_targets=gripper_close_target,
         gripper_joint_ids=handles.gripper_joint_ids,
     )
-
-    env_module.define_camera_prims()
+    print("[TRACE] reset_episode_scene: end", flush=True)
 
 
 def export_episode_final_step(success: bool) -> tuple[bool, str | None, int]:
@@ -329,13 +322,12 @@ try:
             )
 
             if success:
-                print(f"[INFO] Push success: {final_joint_degs}")
-                executor.run_home_reset(collector)
                 saved, demo_key, num_steps = export_episode_final_step(success=True)
                 if saved:
                     successful_demos += 1
                     print(
-                        f"[INFO] Saved {demo_key}: T={num_steps}, success=True "
+                        f"[INFO] Attempt {total_attempts}: saved {demo_key} "
+                        f"T={num_steps} joints={final_joint_degs} "
                         f"({successful_demos}/{args_cli.num_demos})"
                     )
                 else:
@@ -346,14 +338,15 @@ try:
                 if saved:
                     failed_exports += 1
                     print(
-                        f"[INFO] Saved {demo_key}: T={num_steps}, success=False "
-                        f"(joint={final_joint_degs}, failed_exports={failed_exports})"
+                        f"[INFO] Attempt {total_attempts}: saved {demo_key} "
+                        f"T={num_steps} success=False joints={final_joint_degs}"
                     )
                 else:
-                    print(f"[WARN] Push failed with no recorded steps: {final_joint_degs}")
+                    print(f"[WARN] Failed with no recorded steps: {final_joint_degs}")
                     collector.reset_episode()
             else:
-                print(f"[INFO] Push failed: {final_joint_degs} (discard, --no-save_failed).")
+                if args_cli.debug_logs:
+                    print(f"[INFO] Attempt {total_attempts} failed: {final_joint_degs}")
                 collector.reset_episode()
         except Exception as exc:
             import traceback

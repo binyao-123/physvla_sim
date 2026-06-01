@@ -66,6 +66,15 @@ class SamplingConfig:
     # Optional demo contact — tie-break only, not a hard filter.
     reference_contact_world: tuple[float, float, float] | None = None
     reference_contact_max_dist_m: float | None = None
+    # Optional two-point hinge-arc fit for yaml_handle when joint_1 starts away from
+    # the reference calibration angle. Missing values keep the legacy link-local path.
+    push_contact_reference_joint_deg: float = 15.0
+    push_contact_joint_fit_deg: float | None = None
+    push_contact_joint_fit_world: tuple[float, float, float] | None = None
+    push_contact_joint_fit_range_deg: tuple[float, float] | None = None
+    push_contact_joint_arc_points: tuple[tuple[float, float, float, float], ...] = ()
+    # Optional yaw anchors [yaw_deg, x, y, z, qw, qx, qy, qz] for calibrated EE/handle contact.
+    yaw_contact_anchors: tuple[tuple[float, float, float, float, float, float, float, float], ...] = ()
 
 
 @dataclass(frozen=True)

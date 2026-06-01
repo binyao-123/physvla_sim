@@ -11,6 +11,7 @@ from isaaclab_env_module import (
     JointDrivePrimSpec,
     JointInitialPrimSpec,
     JointLimitPrimSpec,
+    SceneRootPrimSpec,
 )
 from task_registry import SCENE_ARTICULATION_PRIM_PATH, TaskPreset
 
@@ -78,8 +79,13 @@ class RobotHandles:
     ee_body_id: int
 
 
-def build_environment_module_config(task_preset: TaskPreset) -> EnvironmentModuleConfig:
+def build_environment_module_config(
+    task_preset: TaskPreset,
+    *,
+    quiet_logging: bool = False,
+) -> EnvironmentModuleConfig:
     return EnvironmentModuleConfig(
+        quiet_logging=quiet_logging,
         usd_path=task_preset.usd_path,
         camera_width=max(32, int(task_preset.camera_width)),
         camera_height=max(32, int(task_preset.camera_height)),
@@ -118,6 +124,15 @@ def build_environment_module_config(task_preset: TaskPreset) -> EnvironmentModul
         joint_initial_specs=[
             JointInitialPrimSpec(prim_path=spec.prim_path, position=spec.position)
             for spec in task_preset.joint_initial_specs
+        ],
+        scene_root_specs=[
+            SceneRootPrimSpec(
+                prim_path=spec.prim_path,
+                translation=spec.translation,
+                rotation_xyz=spec.rotation_xyz,
+                scale=spec.scale,
+            )
+            for spec in task_preset.scene_root_specs
         ],
     )
 

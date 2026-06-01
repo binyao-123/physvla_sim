@@ -17,11 +17,9 @@ if str(_COLLECT_DIR) not in sys.path:
 
 from isaaclab.app import AppLauncher
 
-from domain_randomization import (
+from domain_randomization_robotwin2 import (
     add_randomization_cli_args,
     apply_randomization_sample,
-    attach_joint_initial_baseline,
-    format_randomization_sample,
     randomization_config_from_args,
     sample_randomization,
 )
@@ -39,6 +37,26 @@ parser.add_argument("--max_draw_contacts", type=int, default=24)
 parser.add_argument("--no_filter", action="store_true", help="Skip workspace filter (rank raw only).")
 parser.add_argument("--no_move", action="store_true", help="Only print/draw; skip arm motion.")
 parser.add_argument(
+    "--repeat",
+    action=argparse.BooleanOptionalAction,
+    default=True,
+    help="After one probe run finishes, reset the scene and run again (default: on).",
+)
+parser.add_argument(
+    "--repeat-delay",
+    type=float,
+    default=1.0,
+    help="Seconds to keep the final frame visible before the next repeated run.",
+)
+parser.add_argument(
+    "--max-attempts",
+    "--max-runs",
+    type=int,
+    default=50,
+    dest="max_attempts",
+    help="Stop after N probe runs (like auto collect max_attempts). Default 50.",
+)
+parser.add_argument(
     "--mode",
     choices=("top_contact", "link_axis", "yaml_handle_contact", "yaml_handle_push", "articulation_push"),
     default="yaml_handle_contact",
@@ -51,6 +69,24 @@ parser.add_argument(
     ),
 )
 parser.add_argument("--local_offset", type=float, nargs=3, default=(0.0, 0.0, 0.2))
+parser.add_argument(
+    "--debug-logs",
+    action="store_true",
+    dest="debug_logs",
+    help="Print detailed handle/close debug logs (default: exit summary only).",
+)
+parser.add_argument(
+    "--trace-ee-handle",
+    action=argparse.BooleanOptionalAction,
+    default=True,
+    help="Print live EE vs yaml handle world position during motion (default: on).",
+)
+parser.add_argument(
+    "--trace-interval",
+    type=int,
+    default=30,
+    help="Control steps between trace lines (~1s at 30 Hz when 30).",
+)
 add_randomization_cli_args(parser)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
@@ -66,11 +102,7 @@ task_interaction = load_task_interaction_config(task_preset.task_id, task_config
 if not task_interaction.sampling or not task_interaction.push:
     raise ValueError("Task yaml must define sampling and push sections.")
 
-rand_config = attach_joint_initial_baseline(
-    randomization_config_from_args(args_cli, task_preset),
-    task_preset,
-    joint_prim=task_interaction.joint_prim or None,
-)
+rand_config = randomization_config_from_args(args_cli, task_preset)
 
 args_cli = apply_camera_launch_workarounds(args_cli)
 if getattr(args_cli, "headless", False):
@@ -90,7 +122,7 @@ from env_setup import (
     compute_control_loop_timing,
     resolve_robot_handles,
 )
-from episode_collector import OfficialEpisodeCollector
+from episode_collector import NoOpEpisodeCollector
 from grasp_sampler import (
     candidate_world_geometry,
     compute_link_local_probe_point,
@@ -101,13 +133,14 @@ from reference.contact_reference import approach_from_contact
 from interaction_executor import PushInteractionExecutor
 from isaaclab_env_module import IsaacLabEnvironmentModule
 
-env_module = IsaacLabEnvironmentModule(build_environment_module_config(task_preset))
+env_module = IsaacLabEnvironmentModule(
+    build_environment_module_config(task_preset, quiet_logging=not args_cli.debug_logs)
+)
 sim = env_module.create_simulation(dt=1 / 60.0, render_interval=4)
 robot = env_module.create_robot(build_piper_robot_cfg(task_preset))
 scene_hinge_cfg = build_scene_hinge_cfg(task_preset)
 if scene_hinge_cfg is not None:
     env_module.create_scene_articulation(scene_hinge_cfg)
-    print("[INFO] Scene articulation enabled for live hinge readback (same as pi05 rollout).")
 env_module.initialize_robot_home_pose()
 
 device = sim.device
@@ -118,13 +151,8 @@ gripper_close_target = torch.zeros((1, 2), dtype=torch.float32, device=device)
 gripper_open_target = torch.tensor([[0.035, -0.035]], dtype=torch.float32, device=device)
 
 env_module.define_camera_prims()
-env_module.create_sensor_cameras()
 
-collector = OfficialEpisodeCollector(
-    dataset_file=task_preset.dataset_file,
-    env_name=task_preset.env_name,
-    num_demos=1,
-)
+collector = NoOpEpisodeCollector()
 
 diff_ik_controller = DifferentialIKController(
     DifferentialIKControllerCfg(command_type="pose", ik_method="dls", ik_params={"lambda_val": 0.1}),
@@ -151,7 +179,11 @@ executor = PushInteractionExecutor(
     diff_ik_pos_controller=diff_ik_pos_controller,
     gripper_open_target=gripper_open_target,
     gripper_close_target=gripper_close_target,
+    verbose=bool(args_cli.debug_logs),
+    trace_ee_handle=bool(args_cli.trace_ee_handle),
+    trace_ee_handle_interval=int(args_cli.trace_interval),
 )
+executor._skip_recording = True
 
 draw_interface = None
 if not getattr(args_cli, "headless", False):
@@ -159,30 +191,34 @@ if not getattr(args_cli, "headless", False):
         import isaacsim.util.debug_draw._debug_draw as omni_debug_draw
 
         draw_interface = omni_debug_draw.acquire_debug_draw_interface()
-        print("[INFO] Debug draw enabled.")
     except Exception as exc:
         print(f"[WARN] Debug draw unavailable: {exc}")
 
 
 def reset_scene() -> None:
+    print("[TRACE] reset_scene: begin", flush=True)
+    episode_preset = get_task_preset(args_cli.task_id)
+    print("[TRACE] reset_scene: apply scene root", flush=True)
+    env_module.apply_task_preset_scene_root(episode_preset)
+    print("[TRACE] reset_scene: apply joint initial USD", flush=True)
+    env_module.apply_task_preset_joint_initial(episode_preset)
+    print("[TRACE] reset_scene: before sim.reset", flush=True)
     sim.reset()
+    print("[TRACE] reset_scene: after sim.reset; before robot.reset", flush=True)
     robot.reset()
-    if env_module.scene_articulation is not None:
-        env_module.scene_articulation.reset()
-    env_module.capture_scene_root_baseline()
+    print("[TRACE] reset_scene: after robot.reset", flush=True)
+    env_module.ensure_scene_root_baseline()
+    print("[TRACE] reset_scene: sample/apply RobotWin2 DR", flush=True)
     sample = sample_randomization(rand_config, np.random.default_rng(rand_config.seed))
-    apply_randomization_sample(
-        env_module,
-        rand_config,
-        sample,
-        joint_prim=task_interaction.joint_prim or None,
-    )
-    print(f"[INFO] Randomization: {format_randomization_sample(sample)}")
+    apply_randomization_sample(env_module, rand_config, sample)
+    print("[TRACE] reset_scene: sync scene joints after reset", flush=True)
     env_module.sync_scene_joints_after_sim_reset()
+    print("[TRACE] reset_scene: reset robot pose via targets", flush=True)
     env_module.reset_robot_pose_via_targets(
         gripper_targets=gripper_close_target,
         gripper_joint_ids=handles.gripper_joint_ids,
     )
+    print("[TRACE] reset_scene: end", flush=True)
 
 
 def _draw_segment(start: np.ndarray, end: np.ndarray, color: list[float], thickness: float = 4.0) -> None:
@@ -309,8 +345,8 @@ def main_loop() -> bool:
             )
             LAST_HANDLE_CONTACT_REPORT = probe_result
             draw_articulation_debug(probe_result)
-        print("[INFO] Yellow: planned contact. Red: actual EE. Cyan: approach retreat.")
-        print("[INFO] Handle reach report printed. Press Ctrl+C to exit.", flush=True)
+        if args_cli.debug_logs:
+            print("[INFO] Press Ctrl+C to exit.", flush=True)
         return False
 
     if args_cli.mode in ("yaml_handle_push", "articulation_push"):
@@ -327,56 +363,51 @@ def main_loop() -> bool:
             quat_w,
             float(task_interaction.push.approach_backoff_m),
         )
-        print(f"[INFO] Handle reference: hinge_lever={hinge_lever_m:.4f}m")
-
         if not args_cli.no_move:
             if args_cli.mode == "articulation_push":
                 probe_result = executor.run_articulation_calibrated_probe(
                     collector,
                     max_servo_steps=int(args_cli.probe_steps),
-                    hold_control_steps=int(args_cli.hold_steps),
                 )
             else:
                 probe_result = executor.run_yaml_handle_probe(
                     collector,
                     max_servo_steps=int(args_cli.probe_steps),
-                    hold_control_steps=int(args_cli.hold_steps),
                 )
             LAST_PROBE_RESULT = probe_result
             LAST_PROBE_MODE = args_cli.mode
             draw_articulation_debug(probe_result)
-            joint_deg = (probe_result.get("joint_degs") or {}).get(task_interaction.joint_prim)
-            drift = probe_result.get("contact_drift_m")
-            drift_s = f"{float(drift):.4f}m" if drift is not None else "n/a"
-            print(
-                f"[INFO] Push+close result: success={probe_result.get('success')} "
-                f"contact_drift={drift_s} "
-                f"joint_1={joint_deg}deg close_wps={len(probe_result.get('close_poses') or [])}",
-                flush=True,
-            )
         else:
-            hinge_origin_w, hinge_axis_w = env_module.get_hinge_world_frame(
-                link_prim,
-                task_interaction.sampling.hinge.origin,
-                task_interaction.sampling.hinge.axis,
+            executor._close_hinge_lever_m = float(hinge_lever_m)
+            executor._reset_close_phase_tracking()
+            executor._init_close_anchor(
+                np.asarray(contact_w, dtype=np.float64),
+                quat_w,
             )
+            close_poses = executor._build_close_trajectory_from_anchor()
+            anchor = executor._close_anchor
+            if anchor is not None:
+                hinge_origin_w = np.asarray(anchor["hinge_origin_w"], dtype=np.float64)
+                hinge_axis_w = np.asarray(anchor["hinge_axis_w"], dtype=np.float64)
+            else:
+                hinge_origin_w, hinge_axis_w = env_module.get_hinge_world_frame(
+                    link_prim,
+                    task_interaction.sampling.hinge.origin,
+                    task_interaction.sampling.hinge.axis,
+                )
             draw_articulation_debug(
                 {
                     "planned_contact_w": contact_w,
                     "actual_contact_w": contact_w,
                     "approach_w": approach_w,
-                    "close_poses": executor._build_hinge_close_poses(contact_w, quat_w),
+                    "close_poses": close_poses,
                     "hinge_origin_w": hinge_origin_w,
                     "hinge_axis_w": hinge_axis_w,
                 }
             )
 
-        print("[INFO] Yellow: planned contact. Red: actual contact drift. Green: close trajectory.")
-        print(
-            "[INFO] Motion phases finished (approach + contact + close). "
-            "Process stays alive until Ctrl+C (close ended ≠ program exit).",
-            flush=True,
-        )
+        if args_cli.debug_logs:
+            print("[INFO] Motion finished. Press Ctrl+C to exit.", flush=True)
         return False
 
     else:
@@ -411,8 +442,8 @@ def main_loop() -> bool:
                 )
             draw_link_debug(link_pos_np, link_quat, probe_w, candidates, top_candidate=top)
 
-        print("[INFO] Magenta: top contact -> approach. Yellow/cyan: other ranked contacts.")
-        print("[INFO] Hold scene open for visual check.")
+        if args_cli.debug_logs:
+            print("[INFO] Hold scene open for visual check. Press Ctrl+C to exit.")
 
     return False
 
@@ -420,26 +451,53 @@ def main_loop() -> bool:
 LAST_HANDLE_CONTACT_REPORT: dict[str, object] | None = None
 
 
-try:
-    main_loop()
-    print(
-        "[INFO] Motion complete. Simulation idle — press Ctrl+C to exit (no auto-quit).",
-        flush=True,
-    )
-    while True:
+def print_latest_summary() -> None:
+    global LAST_HANDLE_CONTACT_REPORT, LAST_PROBE_RESULT, LAST_PROBE_MODE
+    if LAST_PROBE_RESULT is not None and LAST_PROBE_MODE in ("yaml_handle_push", "articulation_push"):
+        executor.print_push_probe_exit_summary(LAST_PROBE_RESULT)
+    elif LAST_HANDLE_CONTACT_REPORT is not None:
+        executor.print_handle_contact_exit_summary(LAST_HANDLE_CONTACT_REPORT)
+    LAST_HANDLE_CONTACT_REPORT = None
+    LAST_PROBE_RESULT = None
+    LAST_PROBE_MODE = None
+
+
+def step_idle_for(seconds: float) -> None:
+    deadline = time.perf_counter() + max(0.0, float(seconds))
+    while simulation_app.is_running() and time.perf_counter() < deadline:
         render = bool(simulation_app.is_running())
         sim.step(render=render)
         robot.update(sim.cfg.dt)
         if env_module.scene_articulation is not None:
             env_module.scene_articulation.update(sim.cfg.dt)
+
+
+max_attempts = max(1, int(args_cli.max_attempts))
+print(
+    f"[INFO] Probe loop: repeat={args_cli.repeat} max_attempts={max_attempts} "
+    f"delay={args_cli.repeat_delay}s",
+    flush=True,
+)
+
+try:
+    run_idx = 0
+    while simulation_app.is_running() and run_idx < max_attempts:
+        run_idx += 1
+        print(f"\n[INFO] ===== Probe run {run_idx}/{max_attempts} =====", flush=True)
+        main_loop()
+        print_latest_summary()
+        if not args_cli.repeat:
+            break
+        if run_idx >= max_attempts:
+            break
+        step_idle_for(float(args_cli.repeat_delay))
+    if run_idx >= max_attempts and args_cli.repeat:
+        print(f"[INFO] Reached max_attempts={max_attempts}. Stopping.", flush=True)
 except KeyboardInterrupt:
     print("\n[INFO] Ctrl+C received.", flush=True)
 except Exception as exc:
-    print(f"\n[ERROR] Idle loop exited: {exc}", flush=True)
+    print(f"\n[ERROR] Probe loop exited: {exc}", flush=True)
     raise
 finally:
-    if LAST_PROBE_RESULT is not None and LAST_PROBE_MODE in ("yaml_handle_push", "articulation_push"):
-        executor.print_push_probe_exit_summary(LAST_PROBE_RESULT)
-    elif LAST_HANDLE_CONTACT_REPORT is not None:
-        executor.print_handle_contact_exit_summary(LAST_HANDLE_CONTACT_REPORT)
+    print_latest_summary()
     simulation_app.close()

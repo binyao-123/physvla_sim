@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import random
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -17,9 +18,8 @@ def _tasks_scene_usd(*parts: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 任务级配置片段（相机、场景关节等）
+# 任务配置片段（相机、场景关节等）
 # ---------------------------------------------------------------------------
-
 
 @dataclass(frozen=True)
 class TaskCameraSpec:
@@ -58,6 +58,15 @@ class TaskJointInitialSpec:
 
 
 @dataclass(frozen=True)
+class TaskSceneRootSpec:
+    """场景根节点位姿；旋转与相机一致，用 Isaac Transform → Orient 欧拉角 XYZ（度）。"""
+    prim_path: str
+    translation: tuple[float, float, float]
+    rotation_xyz: tuple[float, float, float]
+    scale: tuple[float, float, float]
+
+
+@dataclass(frozen=True)
 class TaskRolloutSuccessSpec:
     """仿真 Rollout 单关节成功条件：角度（度）大于 angle_gt_deg。"""
     joint_prim: str
@@ -66,24 +75,44 @@ class TaskRolloutSuccessSpec:
 
 @dataclass(frozen=True)
 class TaskRandomizationSpec:
-    """Domain randomization defaults (ArticuBot paper-style). CLI may override enable flags."""
+    """Visual / environment domain randomization (see domain_randomization_robotwin2.py).
 
-    obj_xy_enable: bool = False
-    obj_x_range: tuple[float, float] = (-0.04, 0.04)
-    obj_y_range: tuple[float, float] = (-0.03, 0.03)
-
-    obj_yaw_enable: bool = False
-    obj_yaw_range_deg: tuple[float, float] = (-12.0, 12.0)
-
-    obj_scale_enable: bool = False
-    obj_scale_delta: float = 0.3
-
-    joint_initial_enable: bool = False
-    joint_initial_delta_deg: float = 5.0
+    Object pose (joint, scene root XY/yaw/scale) is registered per task in this file
+    (e.g. CLOSE_LAPTOP_JOINT_INITIAL_* / CLOSE_LAPTOP_SCENE_ROOT_*), not here.
+    RobotWin2-style visual fields below are shared defaults for all collection tasks.
+    """
 
     camera_main_enable: bool = False
     camera_translation_std: float = 0.02
     camera_rotation_std_deg: float = 3.0
+    camera_main_translation_ranges: tuple[tuple[float, float], tuple[float, float], tuple[float, float]] | None = None
+    camera_main_focal_length_range: tuple[float, float] | None = None
+    lighting_enable: bool = False
+    # Isaac viewport lighting menu: stage | off | camera | rig
+    lighting_mode: str = "stage"
+    # Empty means use lighting_mode; otherwise sample one mode per episode.
+    lighting_mode_candidates: tuple[str, ...] = ()
+    # Used when lighting_mode == "rig"; Isaac built-ins include:
+    # "Colored Lights", "Default", "Grey Studio".
+    lighting_rig_name: str = "Default"
+    # Empty means use lighting_rig_name; otherwise sample one rig when mode == "rig".
+    lighting_rig_candidates: tuple[str, ...] = ()
+    lighting_auto_light_rig_on_startup: bool = True
+    lighting_import_rig_to_stage: bool = False
+    # Empty means all UsdLux lights on the stage.
+    lighting_prim_paths: tuple[str, ...] = ()
+    lighting_intensity_scale_range: tuple[float, float] = (0.7, 1.3)
+    lighting_exposure_delta_range: tuple[float, float] = (-0.5, 0.5)
+    lighting_color_temperature_range: tuple[float, float] = (4500.0, 7500.0)
+    lighting_enable_color_temperature: bool = True
+    # Environment scene DR. Disabled -> use environment_default_asset.
+    environment_enable: bool = False
+    environment_prim_path: str = "/World/RobotWin2Environment"
+    environment_ground_plane_prim_paths: tuple[str, ...] = ()
+    # Uniform scale for referenced Grid/Terrain USD scenes (not ground_plane).
+    environment_usd_scale: float = 1.0
+    environment_default_asset: tuple[str, str | None] | None = None
+    environment_asset_candidates: tuple[tuple[str, str | None], ...] = ()
 
 
 SCENE_ARTICULATION_PRIM_PATH = "/World/generated"
@@ -92,7 +121,6 @@ SCENE_ARTICULATION_PRIM_PATH = "/World/generated"
 # ---------------------------------------------------------------------------
 # 共享：Piper 键盘遥操作（机器人 + 双相机）
 # ---------------------------------------------------------------------------
-
 
 @dataclass(frozen=True)
 class SharedTeleopPiperCfg:
@@ -157,7 +185,6 @@ def _shared_teleop_kwargs() -> dict:
 # 任务场景预设（TaskPreset）字段定义
 # ---------------------------------------------------------------------------
 
-
 @dataclass(frozen=True)
 class TaskPreset:
     task_id: str
@@ -181,20 +208,124 @@ class TaskPreset:
     joint_drive_specs: tuple[TaskJointDriveSpec, ...] = field(default_factory=tuple)
     joint_limit_specs: tuple[TaskJointLimitSpec, ...] = field(default_factory=tuple)
     joint_initial_specs: tuple[TaskJointInitialSpec, ...] = field(default_factory=tuple)
+    scene_root_specs: tuple[TaskSceneRootSpec, ...] = field(default_factory=tuple)
     # 每任务单独定义；多 joint 时列多条，全部满足才算 success（AND）
     rollout_success_specs: tuple[TaskRolloutSuccessSpec, ...] = field(default_factory=tuple)
     randomization: TaskRandomizationSpec = field(default_factory=TaskRandomizationSpec)
 
 
+
 # ---------------------------------------------------------------------------
 # 任务 ID 与 喂给 VLM 的提示词（须与 convert_hdf5_to_lerobot.py --task 一致）
 # ---------------------------------------------------------------------------
-
 CLOSE_LAPTOP_TASK_ID = "close_laptop_lid"
 CLOSE_LAPTOP_LANGUAGE_INSTRUCTION = "Close the laptop lid until it is fully closed."
 
 ADJUST_MONITOR_TASK_ID = "adjust_the_monitor"
 ADJUST_MONITOR_LANGUAGE_INSTRUCTION = "adjust the display."
+
+# ---------------------------------------------------------------------------
+# *******************************随机初始化参数*******************************
+# ---------------------------------------------------------------------------
+
+'''RoboTwin2 场景随机化'''
+# 视觉 DR：主俯视相机Translate、Focal Length随机化（腕部相机不动，rotation 不随机）
+ROBOTWIN2_CAMERA_MAIN_RANDOMIZATION_ENABLE = True
+ROBOTWIN2_CAMERA_MAIN_TRANSLATION_RANGES = (
+    (0.0, 0.3),
+    (-0.7, -0.2),
+    (0.8, 1.0),
+)
+ROBOTWIN2_CAMERA_MAIN_FOCAL_LENGTH_RANGE = (6.5, 7.5)
+
+# 视觉 DR：Isaac UsdLux 光照随机化  
+ROBOTWIN2_LIGHTING_RANDOMIZATION_ENABLE = True  # ENABLE总开关
+ROBOTWIN2_LIGHTING_MODE = "stage"   
+ROBOTWIN2_LIGHTING_MODE_CANDIDATES = ("stage", "camera", "rig")
+ROBOTWIN2_LIGHTING_RIG_NAME = "Default"
+ROBOTWIN2_LIGHTING_RIG_CANDIDATES = ("Colored Lights", "Default", "Grey Studio")
+ROBOTWIN2_LIGHTING_AUTO_RIG_ON_STARTUP = True   # 对应 “Use auto light rig on startup
+ROBOTWIN2_LIGHTING_IMPORT_RIG_TO_STAGE = False  # 对应 “Add Current Light Rig to Stage (+)”
+
+# 场景纹理DR：ground plane（无场景贴图） 也作为一个候选项参与随机
+ROBOTWIN2_ENVIRONMENT_RANDOMIZATION_ENABLE = True     # ENABLE总开关
+ROBOTWIN2_ENVIRONMENT_PRIM_PATH = "/World/RobotWin2Environment"
+ROBOTWIN2_ENVIRONMENT_GROUND_PLANE_PRIM_PATHS = (
+    "/World/defaultGroundPlane",
+    "/World/GroundPlane",
+    "/World/groundPlane",
+    "/World/ground_plane",
+    "/World/Ground",
+)
+ROBOTWIN2_ENVIRONMENT_ASSETS_DIR = PHYSVLA_ASSETS_DIR / "robotwin2_environments"
+ROBOTWIN2_ENVIRONMENT_USD_SCALE = 0.35  # 背景缩放系数
+ROBOTWIN2_ENVIRONMENT_SCENE_CANDIDATES = (
+    ("ground_plane", None),
+    ("grid_default", str((ROBOTWIN2_ENVIRONMENT_ASSETS_DIR / "grid_default.usd").resolve())),
+    ("gridroom_black", str((ROBOTWIN2_ENVIRONMENT_ASSETS_DIR / "gridroom_black.usd").resolve())),
+    # ("gridroom_curved", str((ROBOTWIN2_ENVIRONMENT_ASSETS_DIR / "gridroom_curved.usd").resolve())),
+    ("terrain_flat_plane", str((ROBOTWIN2_ENVIRONMENT_ASSETS_DIR / "terrain_flat_plane.usd").resolve())),
+)
+ROBOTWIN2_ENVIRONMENT_DEFAULT_SCENE = ("ground_plane", None)
+
+ROBOTWIN2_COMMON_RANDOMIZATION = TaskRandomizationSpec(
+    camera_main_enable=ROBOTWIN2_CAMERA_MAIN_RANDOMIZATION_ENABLE,
+    camera_rotation_std_deg=0.0,
+    camera_main_translation_ranges=ROBOTWIN2_CAMERA_MAIN_TRANSLATION_RANGES,
+    camera_main_focal_length_range=ROBOTWIN2_CAMERA_MAIN_FOCAL_LENGTH_RANGE,
+    lighting_enable=ROBOTWIN2_LIGHTING_RANDOMIZATION_ENABLE,
+    lighting_mode=ROBOTWIN2_LIGHTING_MODE,
+    lighting_mode_candidates=ROBOTWIN2_LIGHTING_MODE_CANDIDATES,
+    lighting_rig_name=ROBOTWIN2_LIGHTING_RIG_NAME,
+    lighting_rig_candidates=ROBOTWIN2_LIGHTING_RIG_CANDIDATES,
+    lighting_auto_light_rig_on_startup=ROBOTWIN2_LIGHTING_AUTO_RIG_ON_STARTUP,
+    lighting_import_rig_to_stage=ROBOTWIN2_LIGHTING_IMPORT_RIG_TO_STAGE,
+    environment_enable=ROBOTWIN2_ENVIRONMENT_RANDOMIZATION_ENABLE,
+    environment_prim_path=ROBOTWIN2_ENVIRONMENT_PRIM_PATH,
+    environment_ground_plane_prim_paths=ROBOTWIN2_ENVIRONMENT_GROUND_PLANE_PRIM_PATHS,
+    environment_usd_scale=ROBOTWIN2_ENVIRONMENT_USD_SCALE,
+    environment_default_asset=ROBOTWIN2_ENVIRONMENT_DEFAULT_SCENE,
+    environment_asset_candidates=ROBOTWIN2_ENVIRONMENT_SCENE_CANDIDATES,
+)
+
+
+'''笔记本采集任务'''
+# 基准初始化角度：可配置自由度为5-40度（对应真实65～100度）
+CLOSE_LAPTOP_JOINT_INITIAL_BASE_DEG = 22.5
+CLOSE_LAPTOP_JOINT_INITIAL_RANDOM_RANGE_DEG = 16.5  # position = base + x
+
+# 基准初始化坐标： X、Y轴偏移量±10 cm
+CLOSE_LAPTOP_SCENE_ROOT_BASE_TRANSLATION = (
+    0.4423939426468149,
+    0.0,
+    0.10850162732369013,
+)
+CLOSE_LAPTOP_SCENE_ROOT_RANDOM_X_RANGE_M = 0.10
+CLOSE_LAPTOP_SCENE_ROOT_RANDOM_Y_RANGE_M = 0.10
+
+# 基准初始化yaw角：Z轴偏移量±20度
+CLOSE_LAPTOP_SCENE_ROOT_ROTATION_XYZ = (0.0, -10.0, 180.0)
+CLOSE_LAPTOP_SCENE_ROOT_RANDOM_YAW_RANGE_DEG = 20.0
+
+# 基准初始化尺寸：
+CLOSE_LAPTOP_SCENE_ROOT_SCALE = (0.15, 0.15, 0.15)
+
+# 标定笔记本模型基于该坐标平移
+CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION = (
+    0.4423939426468149,
+    0.0,
+    0.10850162732369013,
+)
+CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ = CLOSE_LAPTOP_SCENE_ROOT_ROTATION_XYZ
+
+def scene_root_translation_delta(
+    current: tuple[float, float, float],
+    calibration: tuple[float, float, float],
+) -> tuple[float, float, float]:
+    #当前 scene root 相对标定平移的 Δ，用于把 yaml 世界坐标轨迹映射到新桌面位置。
+    return tuple(float(c) - float(b) for c, b in zip(current, calibration))
+
+'''调节显示器采集任务'''
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +344,7 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         joint_drive_specs=(
             TaskJointDriveSpec(
                 prim_path="/World/generated/joints/joint_1",
-                damping=60.0,
+                damping=80.0,
                 stiffness=0.0,
                 max_force=10.0,
             ),
@@ -221,25 +352,32 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         joint_limit_specs=(
             TaskJointLimitSpec(
                 prim_path="/World/generated/joints/joint_1",
-                upper_limit=104.0,
+                upper_limit=105.0,
             ),
         ),
         joint_initial_specs=(
             TaskJointInitialSpec(
                 prim_path="/World/generated/joints/joint_1",
-                # 笔记本盖初始开合角，由于数字资产初始化配置有偏差，position为15度对应真实世界90度,104度对应完全关闭笔记本盖
-                position=15.0,
+                # 笔记本盖初始开合角，由于数字资产初始化配置有偏差，position为15度对应真实世界90度,105度对应完全关闭笔记本盖
+                position=CLOSE_LAPTOP_JOINT_INITIAL_BASE_DEG,
+            ),
+        ),
+        scene_root_specs=(
+            TaskSceneRootSpec(
+                # 定义笔记本场景中的默认位姿、尺寸大小
+                prim_path=SCENE_ARTICULATION_PRIM_PATH,
+                translation=CLOSE_LAPTOP_SCENE_ROOT_BASE_TRANSLATION,
+                rotation_xyz=CLOSE_LAPTOP_SCENE_ROOT_ROTATION_XYZ,
+                scale=CLOSE_LAPTOP_SCENE_ROOT_SCALE,
             ),
         ),
         rollout_success_specs=(
             TaskRolloutSuccessSpec(
                 joint_prim="/World/generated/joints/joint_1",
-                angle_gt_deg=98.0,  # 当笔记本闭合角度大于98时，判定任务成功
+                angle_gt_deg=100.0,  # 当笔记本闭合角度大于angle_gt_deg时，判定任务成功
             ),
         ),
-        randomization=TaskRandomizationSpec(
-            joint_initial_delta_deg=5.0,
-        ),
+        randomization=ROBOTWIN2_COMMON_RANDOMIZATION,
         **_shared_teleop_kwargs(),
     ),
     ADJUST_MONITOR_TASK_ID: TaskPreset(
@@ -271,17 +409,194 @@ TASK_PRESETS: dict[str, TaskPreset] = {
                 angle_gt_deg=0.0,   # 显示器角度大于0度时，判定任务成功
             ),
         ),
+        randomization=ROBOTWIN2_COMMON_RANDOMIZATION,
         **_shared_teleop_kwargs(),
     ),
 }
+
+# ---------------------------------------------------------------------------
+# 计算函数
+# ---------------------------------------------------------------------------
+def sample_close_laptop_joint_initial_deg() -> float:
+    """Each call: x ~ U[-range, +range], return base + x (default 5°..40°)."""
+    x = random.uniform(
+        -CLOSE_LAPTOP_JOINT_INITIAL_RANDOM_RANGE_DEG,
+        CLOSE_LAPTOP_JOINT_INITIAL_RANDOM_RANGE_DEG,
+    )
+    return CLOSE_LAPTOP_JOINT_INITIAL_BASE_DEG + x
+
+
+def sample_close_laptop_scene_root_translation() -> tuple[float, float, float]:
+    """Each call: scene root translation = base + (dx, dy, 0)."""
+    base_x, base_y, base_z = CLOSE_LAPTOP_SCENE_ROOT_BASE_TRANSLATION
+    dx = random.uniform(
+        -CLOSE_LAPTOP_SCENE_ROOT_RANDOM_X_RANGE_M,
+        CLOSE_LAPTOP_SCENE_ROOT_RANDOM_X_RANGE_M,
+    )
+    dy = random.uniform(
+        -CLOSE_LAPTOP_SCENE_ROOT_RANDOM_Y_RANGE_M,
+        CLOSE_LAPTOP_SCENE_ROOT_RANDOM_Y_RANGE_M,
+    )
+    return (base_x + dx, base_y + dy, base_z)
+
+
+def sample_close_laptop_scene_root_rotation_xyz() -> tuple[float, float, float]:
+    """Each call: scene root rotation = base + (0, 0, yaw_delta)."""
+    rx, ry, rz = CLOSE_LAPTOP_SCENE_ROOT_ROTATION_XYZ
+    yaw_delta = random.uniform(
+        -CLOSE_LAPTOP_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
+        CLOSE_LAPTOP_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
+    )
+    return (rx, ry, rz + yaw_delta)
 
 
 def get_task_preset(task_id: str) -> TaskPreset:
     if task_id not in TASK_PRESETS:
         known = ", ".join(sorted(TASK_PRESETS.keys()))
         raise KeyError(f"Unknown task_id '{task_id}'. Available: {known}")
-    return TASK_PRESETS[task_id]
+    preset = TASK_PRESETS[task_id]
+    if task_id != CLOSE_LAPTOP_TASK_ID:
+        return preset
+
+    angle_deg = sample_close_laptop_joint_initial_deg()
+    joint_initial_specs = tuple(
+        replace(spec, position=angle_deg) for spec in preset.joint_initial_specs
+    )
+    scene_translation = sample_close_laptop_scene_root_translation()
+    scene_rotation_xyz = sample_close_laptop_scene_root_rotation_xyz()
+    scene_root_specs = tuple(
+        replace(spec, translation=scene_translation, rotation_xyz=scene_rotation_xyz)
+        for spec in preset.scene_root_specs
+    )
+    return replace(
+        preset,
+        joint_initial_specs=joint_initial_specs,
+        scene_root_specs=scene_root_specs,
+    )
 
 
 def list_task_presets() -> list[TaskPreset]:
     return [TASK_PRESETS[k] for k in sorted(TASK_PRESETS.keys())]
+
+
+def rotation_xyz_deg_to_wxyz(
+    rotation_xyz: tuple[float, float, float],
+) -> tuple[float, float, float, float]:
+    """与 isaaclab_env_module._editor_orient_xyz_to_quatd 相同：依次绕 X、Y、Z（度）。"""
+    import math
+
+    def _axis_quat(axis: str, degrees: float) -> tuple[float, float, float, float]:
+        half_angle = math.radians(float(degrees)) * 0.5
+        cos_v = math.cos(half_angle)
+        sin_v = math.sin(half_angle)
+        if axis == "x":
+            return (cos_v, sin_v, 0.0, 0.0)
+        if axis == "y":
+            return (cos_v, 0.0, sin_v, 0.0)
+        return (cos_v, 0.0, 0.0, sin_v)
+
+    def _quat_mul(
+        left: tuple[float, float, float, float],
+        right: tuple[float, float, float, float],
+    ) -> tuple[float, float, float, float]:
+        w0, x0, y0, z0 = left
+        w1, x1, y1, z1 = right
+        return (
+            w0 * w1 - x0 * x1 - y0 * y1 - z0 * z1,
+            w0 * x1 + x0 * w1 + y0 * z1 - z0 * y1,
+            w0 * y1 - x0 * z1 + y0 * w1 + z0 * x1,
+            w0 * z1 + x0 * y1 - y0 * x1 + z0 * w1,
+        )
+
+    quat = (1.0, 0.0, 0.0, 0.0)
+    for axis, degrees in zip(("x", "y", "z"), rotation_xyz):
+        quat = _quat_mul(quat, _axis_quat(axis, degrees))
+    return quat
+
+
+def orient_wxyz_to_rotation_xyz_deg(
+    orient_wxyz: tuple[float, float, float, float],
+    hint_rotation_xyz: tuple[float, float, float] = (0.0, -10.0, 180.0),
+) -> tuple[float, float, float]:
+    """从四元数反解欧拉 XYZ（度），与 rotation_xyz_deg_to_wxyz 同约定（离线读 USD 用）。"""
+    hx, hy, hz = hint_rotation_xyz
+    best = hint_rotation_xyz
+    best_err = float("inf")
+    for rx in (hx, 0.0, hx - 10.0, hx + 10.0):
+        for ry in range(int(hy) - 30, int(hy) + 31):
+            for rz in (hz, 0.0, 180.0, -180.0):
+                cand = (float(rx), float(ry), float(rz))
+                err = sum(
+                    (a - b) ** 2
+                    for a, b in zip(rotation_xyz_deg_to_wxyz(cand), orient_wxyz)
+                )
+                if err < best_err:
+                    best_err, best = err, cand
+    return best
+
+
+def read_scene_root_from_usd(usd_path: str, prim_path: str = SCENE_ARTICULATION_PRIM_PATH) -> TaskSceneRootSpec:
+    """离线读取 scene.usd 中场景根节点的 translate / orient→rotation_xyz / scale。"""
+    from pxr import Usd, UsdGeom
+
+    stage = Usd.Stage.Open(usd_path)
+    if stage is None:
+        raise FileNotFoundError(f"Cannot open USD: {usd_path}")
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim or not prim.IsValid():
+        raise RuntimeError(f"Prim '{prim_path}' not found in {usd_path}")
+
+    translate = (0.0, 0.0, 0.0)
+    scale = (1.0, 1.0, 1.0)
+    orient_wxyz = (1.0, 0.0, 0.0, 0.0)
+    for op in UsdGeom.Xformable(prim).GetOrderedXformOps():
+        value = op.Get()
+        if value is None:
+            continue
+        op_type = op.GetOpType()
+        if op_type == UsdGeom.XformOp.TypeTranslate:
+            translate = tuple(float(v) for v in value)
+        elif op_type == UsdGeom.XformOp.TypeScale:
+            scale = tuple(float(v) for v in value)
+        elif op_type == UsdGeom.XformOp.TypeOrient and hasattr(value, "GetImaginary"):
+            im = value.GetImaginary()
+            orient_wxyz = (
+                float(im[2]),
+                float(value.GetReal()),
+                float(im[0]),
+                float(im[1]),
+            )
+    rotation_xyz = orient_wxyz_to_rotation_xyz_deg(orient_wxyz)
+    return TaskSceneRootSpec(
+        prim_path=prim_path,
+        translation=translate,
+        rotation_xyz=rotation_xyz,
+        scale=scale,
+    )
+
+
+def print_registered_scene_root_specs(task_id: str = CLOSE_LAPTOP_TASK_ID) -> None:
+    preset = TASK_PRESETS[task_id]
+    if not preset.scene_root_specs:
+        print(f"[task_registry] task '{task_id}': no scene_root_specs registered.")
+        return
+    for spec in preset.scene_root_specs:
+        print(f"[task_registry] task '{task_id}' scene_root registered:")
+        print(f"  prim_path={spec.prim_path}")
+        print(f"  translation={spec.translation}")
+        print(f"  rotation_xyz_deg={spec.rotation_xyz}")
+        print(f"  scale={spec.scale}")
+
+
+if __name__ == "__main__":
+    print_registered_scene_root_specs(CLOSE_LAPTOP_TASK_ID)
+    preset = TASK_PRESETS[CLOSE_LAPTOP_TASK_ID]
+    from_usd = read_scene_root_from_usd(preset.usd_path)
+    registered = preset.scene_root_specs[0]
+    print(
+        f"[task_registry] scene.usd on disk: translation={from_usd.translation} "
+        f"euler_hint≈{from_usd.rotation_xyz} scale={from_usd.scale}"
+    )
+    print(
+        f"[task_registry] registry uses Isaac panel euler (deg): {registered.rotation_xyz}"
+    )

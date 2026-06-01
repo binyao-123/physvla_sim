@@ -1,5 +1,6 @@
 #!/bin/bash
 # Reach yaml handle contact only — print diagnostic report and hold scene open.
+# 只接触到handle点就停下来。
 cd ~/workspace/physvla_sim/collect
 
 ~/isaacsim/python.sh debug_link_contact_probe.py \

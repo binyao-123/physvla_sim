@@ -7,4 +7,9 @@ cd ~/workspace/physvla_sim/collect
   --livestream 2 \
   --mode yaml_handle_push \
   --probe_steps 400 \
-  --hold_steps 180
+  --hold_steps 180 \
+  --trace-ee-handle \
+  --trace-interval 30 \
+  --repeat \
+  --max-attempts 50 \
+  --repeat-delay 1.0

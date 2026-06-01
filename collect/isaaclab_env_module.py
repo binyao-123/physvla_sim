@@ -10,7 +10,7 @@ from task_registry import SCENE_ARTICULATION_PRIM_PATH
 DEFAULT_SCENE_ROOT_PRIM = SCENE_ARTICULATION_PRIM_PATH
 
 # After sim.reset(), scene hinge state may lag until physics steps catch up USD physics:position.
-SCENE_JOINT_PHYSICS_WARMUP_STEPS = 12
+SCENE_JOINT_PHYSICS_WARMUP_STEPS = 24
 
 
 @dataclass
@@ -49,6 +49,15 @@ class JointInitialPrimSpec:
 
 
 @dataclass
+class SceneRootPrimSpec:
+	prim_path: str
+	translation: tuple[float, float, float]
+	# Isaac Transform → Orient 欧拉角 XYZ（度），与相机 rotation_xyz 一致
+	rotation_xyz: tuple[float, float, float]
+	scale: tuple[float, float, float]
+
+
+@dataclass
 class EnvironmentModuleConfig:
 	usd_path: str
 	camera_width: int = 400
@@ -60,6 +69,8 @@ class EnvironmentModuleConfig:
 	joint_drive_specs: list[JointDrivePrimSpec] = field(default_factory=list)
 	joint_limit_specs: list[JointLimitPrimSpec] = field(default_factory=list)
 	joint_initial_specs: list[JointInitialPrimSpec] = field(default_factory=list)
+	scene_root_specs: list[SceneRootPrimSpec] = field(default_factory=list)
+	quiet_logging: bool = False
 
 
 def apply_camera_launch_workarounds(args_cli: Any) -> Any:
@@ -203,18 +214,12 @@ class IsaacLabEnvironmentModule:
 				auth_attr = prim.CreateAttribute("physics:position", Sdf.ValueTypeNames.Float)
 			auth_attr.Set(value)
 
-			# physics:position alone does not move the lid after sim.reset(); sync PhysX state too.
-			state_attr = prim.GetAttribute("state:angular:physics:position")
-			if not state_attr.IsValid():
-				state_attr = prim.CreateAttribute("state:angular:physics:position", Sdf.ValueTypeNames.Float)
-			state_attr.Set(value)
-
-			target_attr = prim.GetAttribute("drive:angular:physics:targetPosition")
-			if not target_attr.IsValid():
-				target_attr = prim.CreateAttribute(
-					"drive:angular:physics:targetPosition", Sdf.ValueTypeNames.Float
-				)
-			target_attr.Set(value)
+			# Do not write state:angular:physics:position on a live stage. With PhysX
+			# Direct GPU API enabled, that live state sync can call illegal
+			# setJointPosition/updateKinematic paths. Let reset/warmup consume the
+			# authored physics:position instead.
+			# Do not set drive:angular:physics:targetPosition here: on GPU direct API it
+			# triggers illegal PhysX setDriveTarget errors. Warmup steps apply physics:position.
 
 	def _read_usd_authored_joint_angle_deg(self, prim_path: str) -> float | None:
 		"""USD physics:position (authoring default), not guaranteed to match live PhysX state."""
@@ -265,29 +270,23 @@ class IsaacLabEnvironmentModule:
 			else:
 				auth_val = val
 
-		# Prefer live PhysX state over authored default (physics:position can stay 15 while sim is 0).
+		# This is a USD fallback only. Live articulation state should come from
+		# scene_articulation.data.joint_pos and is converted from radians above.
+		# Prefer authored defaults over stale state:* attributes when possible.
+		if auth_val is not None:
+			return auth_val
 		if state_val is not None:
 			return state_val
 		if drive_val is not None:
 			return drive_val
-		if auth_val is not None:
-			return auth_val
 		return None
 
 	def _articulation_joint_pos_to_deg(self, joint_prim_path: str, raw: float) -> float:
-		mode = self._scene_joint_pos_units.get(joint_prim_path)
-		if mode == "deg":
-			return float(raw)
-		if mode == "rad":
-			return math.degrees(float(raw))
-		usd_deg = self._read_scene_joint_angle_deg_usd(joint_prim_path)
-		if usd_deg is not None:
-			if abs(raw - usd_deg) <= abs(math.degrees(raw) - usd_deg) + 0.5:
-				mode = "deg"
-			else:
-				mode = "rad"
-			self._scene_joint_pos_units[joint_prim_path] = mode
-			return float(raw) if mode == "deg" else math.degrees(float(raw))
+		# IsaacLab/PhysX articulation buffers store angular DOFs in radians.
+		# Do not infer units from USD state:* attributes: those can be stale after
+		# Direct-GPU-safe tensor resets and caused raw radians to be reported as
+		# USD degrees (e.g. 0.30 rad being printed as 0.30°).
+		self._scene_joint_pos_units[joint_prim_path] = "rad"
 		return math.degrees(float(raw))
 
 	def read_scene_joint_angle_deg(self, prim_path: str) -> float | None:
@@ -318,32 +317,6 @@ class IsaacLabEnvironmentModule:
 			return float(usd_deg)
 		return None
 
-	def _push_scene_joint_initials_to_sim(self) -> None:
-		"""Write task_registry hinge angles into scene Articulation (if present)."""
-		if self.scene_articulation is None or not self.cfg.joint_initial_specs:
-			return
-
-		import torch
-
-		joint_names: list[str] = []
-		joint_positions: list[float] = []
-		for spec in self.cfg.joint_initial_specs:
-			joint_names.append(spec.prim_path.rsplit("/", 1)[-1])
-			joint_positions.append(math.radians(float(spec.position)))
-
-		joint_ids, _ = self.scene_articulation.find_joints(joint_names)
-		if not joint_ids:
-			return
-
-		try:
-			pos = torch.tensor([joint_positions], dtype=torch.float32, device=self.device)
-			vel = torch.zeros_like(pos)
-			self.scene_articulation.write_joint_state_to_sim(pos, vel, joint_ids)
-			self.scene_articulation.set_joint_position_target(pos, joint_ids=joint_ids)
-			self.scene_articulation.write_data_to_sim()
-		except Exception as exc:
-			print(f"[WARN] scene_articulation joint initial write failed: {exc}")
-
 	def create_simulation(self, dt: float = 1.0 / 60.0, render_interval: int = 4, use_fabric: bool = True):
 		import omni.usd
 		import isaaclab.sim as sim_utils
@@ -351,7 +324,11 @@ class IsaacLabEnvironmentModule:
 		omni.usd.get_context().open_stage(self.cfg.usd_path)
 		self.apply_joint_drive_overrides()
 		self.apply_joint_limit_overrides()
-		self.apply_joint_initial_overrides()
+		if self.sim is None:
+			self.apply_joint_initial_overrides()
+		self.apply_scene_root_overrides()
+		if self.cfg.scene_root_specs:
+			self.seed_scene_root_baseline_from_config()
 
 		try:
 			physx_cfg = sim_utils.PhysxCfg(enable_stabilization=True)
@@ -396,20 +373,105 @@ class IsaacLabEnvironmentModule:
 		self._scene_joint_articulation_ids.clear()
 		return self.scene_articulation
 
-	def sync_scene_joint_initials_to_sim(self) -> None:
-		"""Apply scene hinge initials via USD (GPU-safe).
+	def apply_task_preset_joint_initial(self, task_preset: Any) -> None:
+		"""Set hinge default joint angle before sim.reset() (per-episode randomization).
 
-		Do not call Articulation.write_joint_state_to_sim when the PhysX direct GPU
-		API is enabled — that path raises setJointPosition errors. Keyboard
-		collection relies on USD drive/position attributes instead.
+		Updates env cfg + USD authored defaults, and patches IsaacLab's scene
+		Articulation default buffer before sim.reset(). Do not write live
+		state:angular:physics:position; that path triggers illegal PhysX Direct GPU
+		API setJointPosition / updateKinematic calls.
 		"""
-		self.apply_joint_initial_overrides()
+		new_specs = [
+			JointInitialPrimSpec(prim_path=spec.prim_path, position=float(spec.position))
+			for spec in task_preset.joint_initial_specs
+		]
+		self.cfg.joint_initial_specs = new_specs
 
-	def refresh_scene_joint_physics_from_usd(self) -> None:
-		"""Re-apply joint drive, limits, and initials from cfg to USD (after sim.reset)."""
+		if self.scene_articulation is not None:
+			for spec in new_specs:
+				joint_name = spec.prim_path.rsplit("/", 1)[-1]
+				joint_ids, _ = self.scene_articulation.find_joints(joint_name)
+				if not joint_ids:
+					continue
+				jid = int(joint_ids[0])
+				self.scene_articulation.data.default_joint_pos[0, jid] = math.radians(float(spec.position))
+				if hasattr(self.scene_articulation.data, "default_joint_vel"):
+					self.scene_articulation.data.default_joint_vel[0, jid] = 0.0
+
+		self._scene_joint_pos_units.clear()
+		self._scene_joint_articulation_ids.clear()
+
+		if self.sim is None:
+			self.apply_joint_initial_overrides()
+
+	def apply_task_preset_scene_root(self, task_preset: Any) -> None:
+		"""Set scene root pose from per-episode TaskPreset randomization."""
+		self.cfg.scene_root_specs = [
+			SceneRootPrimSpec(
+				prim_path=spec.prim_path,
+				translation=tuple(float(v) for v in spec.translation),
+				rotation_xyz=tuple(float(v) for v in spec.rotation_xyz),
+				scale=tuple(float(v) for v in spec.scale),
+			)
+			for spec in task_preset.scene_root_specs
+		]
+		self.apply_scene_root_overrides()
+		self.seed_scene_root_baseline_from_config()
+
+	def sync_scene_joint_initials_to_sim(self) -> None:
+		"""Apply scene hinge initials through the GPU-compatible tensor path."""
+		if self.sim is None:
+			self.apply_joint_initial_overrides()
+			return
+		self.reset_scene_joint_initials_via_tensor()
+
+	def refresh_scene_joint_physics_from_usd(self, *, include_initials: bool = True) -> None:
+		"""Re-apply joint drive / limits from cfg to USD.
+
+		Live joint initials are not written through USD after the simulation starts;
+		use reset_scene_joint_initials_via_tensor() instead.
+		"""
 		self.apply_joint_drive_overrides()
 		self.apply_joint_limit_overrides()
-		self.apply_joint_initial_overrides()
+		if include_initials:
+			self.apply_joint_initial_overrides()
+
+	def reset_scene_joint_initials_via_tensor(self) -> None:
+		"""Set scene articulation joint state with IsaacLab tensor API after sim.reset().
+
+		This is the GPU-compatible reset path recommended by IsaacLab for articulation
+		state. It avoids live USD state writes that call CPU PhysX APIs such as
+		PxArticulationJointReducedCoordinate::setJointPosition().
+		"""
+		if self.scene_articulation is None or not self.cfg.joint_initial_specs:
+			return
+
+		import torch
+
+		device = self.scene_articulation.data.joint_pos.device
+		for spec in self.cfg.joint_initial_specs:
+			joint_name = spec.prim_path.rsplit("/", 1)[-1]
+			joint_ids, _ = self.scene_articulation.find_joints(joint_name)
+			if not joint_ids:
+				print(f"[WARN] Scene joint tensor reset skipped: joint '{joint_name}' not found", flush=True)
+				continue
+			joint_ids = [int(joint_ids[0])]
+			target_deg = float(spec.position)
+			pos = torch.tensor(
+				[[math.radians(target_deg)]],
+				dtype=self.scene_articulation.data.joint_pos.dtype,
+				device=device,
+			)
+			vel = torch.zeros_like(pos)
+			self.scene_articulation.write_joint_state_to_sim(pos, vel, joint_ids=joint_ids)
+			self.scene_articulation.set_joint_position_target(pos, joint_ids=joint_ids)
+			if not self.cfg.quiet_logging:
+				print(
+					f"[TRACE] Scene joint tensor reset: {joint_name} "
+					f"target={target_deg:.2f}° raw={float(pos.item()):.4f}rad joint_id={joint_ids[0]}",
+					flush=True,
+				)
+		self.scene_articulation.write_data_to_sim()
 
 	def sync_scene_joints_after_sim_reset(
 		self,
@@ -418,20 +480,25 @@ class IsaacLabEnvironmentModule:
 		render: bool = True,
 		log_angles: bool = True,
 	) -> None:
-		"""Re-apply task_registry joint initials and warm up PhysX (call after every sim.reset())."""
-		if self.scene_articulation is not None:
-			self.scene_articulation.reset()
-		self.refresh_scene_joint_physics_from_usd()
-		self._push_scene_joint_initials_to_sim()
+		"""Re-apply task_registry joint initials via tensor API and warm up PhysX."""
+		print(
+			f"[TRACE] sync_scene_joints_after_sim_reset: refresh USD, warmup_steps={warmup_steps}",
+			flush=True,
+		)
+		self.refresh_scene_joint_physics_from_usd(include_initials=False)
 		if self.sim is None:
 			return
+		print("[TRACE] sync_scene_joints_after_sim_reset: tensor joint state reset", flush=True)
+		self.reset_scene_joint_initials_via_tensor()
+		print("[TRACE] sync_scene_joints_after_sim_reset: begin warmup", flush=True)
 		for _ in range(max(0, int(warmup_steps))):
 			self.sim.step(render=render)
 			if self.robot is not None:
 				self.robot.update(self.sim.cfg.dt)
 			if self.scene_articulation is not None:
 				self.scene_articulation.update(self.sim.cfg.dt)
-		if not log_angles or not self.cfg.joint_initial_specs:
+		print("[TRACE] sync_scene_joints_after_sim_reset: end warmup", flush=True)
+		if self.cfg.quiet_logging or not log_angles or not self.cfg.joint_initial_specs:
 			return
 		for spec in self.cfg.joint_initial_specs:
 			sim_deg = self.read_scene_joint_angle_deg(spec.prim_path)
@@ -462,12 +529,15 @@ class IsaacLabEnvironmentModule:
 		if self.robot is None:
 			return
 
+		print("[TRACE] reset_robot_pose_via_targets: begin", flush=True)
 		if self._should_reset_root_pose():
+			print("[TRACE] reset_robot_pose_via_targets: write root pose", flush=True)
 			self.robot.write_root_pose_to_sim(self.robot.data.default_root_state[:, :7])
 		self.robot.set_joint_position_target(self.robot.data.default_joint_pos)
 		if gripper_targets is not None and gripper_joint_ids is not None:
 			self.robot.set_joint_position_target(gripper_targets, joint_ids=gripper_joint_ids)
 		self.robot.write_data_to_sim()
+		print("[TRACE] reset_robot_pose_via_targets: end", flush=True)
 
 	def initialize_robot_home_pose(self):
 		if self.sim is None or self.robot is None:
@@ -476,9 +546,9 @@ class IsaacLabEnvironmentModule:
 		self.sim.reset()
 		self.robot.update(self.sim.cfg.dt)
 		if self.scene_articulation is not None:
-			self.scene_articulation.reset()
 			self.scene_articulation.update(self.sim.cfg.dt)
-		self.refresh_scene_joint_physics_from_usd()
+		self.refresh_scene_joint_physics_from_usd(include_initials=False)
+		self.reset_scene_joint_initials_via_tensor()
 
 		self.reset_robot_pose_via_targets()
 
@@ -556,6 +626,8 @@ class IsaacLabEnvironmentModule:
 		self,
 		camera_name: str,
 		translation_offset: tuple[float, float, float] | None = None,
+		translation_override: tuple[float, float, float] | None = None,
+		focal_length_override: float | None = None,
 	):
 		if self.sim is None:
 			raise RuntimeError("Simulation must be created before camera prim refresh.")
@@ -568,23 +640,24 @@ class IsaacLabEnvironmentModule:
 
 		for spec in self.cfg.camera_specs:
 			if spec.name == camera_name:
-				translation = spec.translation
+				translation = translation_override if translation_override is not None else spec.translation
 				if translation_offset is not None:
-					if spec.translation is None:
+					if translation is None:
 						raise ValueError(
 							"Camera translation_offset cannot be applied when translation is None."
 						)
 					if len(translation_offset) != 3:
 						raise ValueError("Camera translation_offset must contain exactly 3 values.")
 					translation = tuple(
-						float(spec.translation[index]) + float(translation_offset[index])
+						float(translation[index]) + float(translation_offset[index])
 						for index in range(3)
 					)
 
 				cam = UsdGeom.Camera.Define(stage, spec.prim_path)
 				self._set_camera_transform(cam, translation, spec.rotation_xyz)
-				if spec.focal_length is not None:
-					cam.GetFocalLengthAttr().Set(spec.focal_length)
+				focal_length = focal_length_override if focal_length_override is not None else spec.focal_length
+				if focal_length is not None:
+					cam.GetFocalLengthAttr().Set(float(focal_length))
 
 				cam_prim = cam.GetPrim()
 				if not sim_utils.standardize_xform_ops(cam_prim):
@@ -668,7 +741,6 @@ class IsaacLabEnvironmentModule:
 			self.robot.update(self.sim.cfg.dt)
 			self.reset_robot_pose_via_targets()
 		if self.scene_articulation is not None:
-			self.scene_articulation.reset()
 			self.scene_articulation.update(self.sim.cfg.dt)
 		self.sync_scene_joints_after_sim_reset()
 
@@ -701,6 +773,121 @@ class IsaacLabEnvironmentModule:
 	def camera_paths(self) -> dict[str, str]:
 		return dict(self._camera_paths)
 
+	def _scene_root_spec_for_prim(self, prim_path: str) -> SceneRootPrimSpec | None:
+		for spec in self.cfg.scene_root_specs:
+			if spec.prim_path == prim_path:
+				return spec
+		if self.cfg.scene_root_specs:
+			return self.cfg.scene_root_specs[0]
+		return None
+
+	def apply_scene_root_overrides(self) -> None:
+		"""Write task_registry scene_root_specs to USD xform ops."""
+		if not self.cfg.scene_root_specs:
+			return
+
+		import omni.usd
+		import isaaclab.sim as sim_utils
+		from pxr import Gf, UsdGeom
+
+		stage = omni.usd.get_context().get_stage()
+		if stage is None:
+			raise RuntimeError("USD stage is unavailable for scene root overrides.")
+
+		for spec in self.cfg.scene_root_specs:
+			prim = stage.GetPrimAtPath(spec.prim_path)
+			if not prim or not prim.IsValid():
+				raise RuntimeError(f"Scene root prim '{spec.prim_path}' does not exist on stage.")
+			if not sim_utils.standardize_xform_ops(prim):
+				raise RuntimeError(f"Failed to standardize xform ops at '{spec.prim_path}'.")
+
+			xformable = UsdGeom.Xformable(prim)
+			translate_op = self._find_xform_op(xformable, UsdGeom.XformOp.TypeTranslate)
+			orient_op = self._find_xform_op(xformable, UsdGeom.XformOp.TypeOrient)
+			scale_op = self._find_xform_op(xformable, UsdGeom.XformOp.TypeScale)
+			if translate_op is None or orient_op is None:
+				raise RuntimeError(
+					f"Scene root '{spec.prim_path}' missing translate/orient xform ops."
+				)
+
+			translate_op.Set(Gf.Vec3d(*spec.translation))
+			orient_op.Set(self._editor_orient_xyz_to_quatd(spec.rotation_xyz))
+			if scale_op is None:
+				scale_op = xformable.AddScaleOp()
+			scale_op.Set(Gf.Vec3d(*spec.scale))
+			if not self.cfg.quiet_logging:
+				print(
+					f"[INFO] Scene root override applied: {spec.prim_path} "
+					f"xyz={tuple(spec.translation)} orient_xyz_deg={tuple(spec.rotation_xyz)} "
+					f"scale={tuple(spec.scale)}",
+					flush=True,
+				)
+
+	def seed_scene_root_baseline_from_config(
+		self, prim_path: str = DEFAULT_SCENE_ROOT_PRIM
+	) -> None:
+		"""Use task_registry scene_root_specs as DR baseline (no stage read)."""
+		spec = self._scene_root_spec_for_prim(prim_path)
+		if spec is None:
+			return
+		orient_quat = self._editor_orient_xyz_to_quatd(spec.rotation_xyz)
+		self._scene_root_baseline = {
+			"translate": tuple(spec.translation),
+			"orient_wxyz": (
+				float(orient_quat.GetReal()),
+				float(orient_quat.GetImaginary()[0]),
+				float(orient_quat.GetImaginary()[1]),
+				float(orient_quat.GetImaginary()[2]),
+			),
+			"scale": tuple(spec.scale),
+		}
+
+	def ensure_scene_root_baseline(self, prim_path: str = DEFAULT_SCENE_ROOT_PRIM) -> None:
+		"""Registry baseline when configured; otherwise read from live USD."""
+		if self._scene_root_spec_for_prim(prim_path) is not None:
+			self.seed_scene_root_baseline_from_config(prim_path)
+		else:
+			self.capture_scene_root_baseline(prim_path)
+
+	def get_scene_root_translation(self, prim_path: str = DEFAULT_SCENE_ROOT_PRIM) -> tuple[float, float, float]:
+		"""Current scene root translate (registry baseline or live capture)."""
+		baseline = self._scene_root_baseline.get("translate")
+		if baseline is not None:
+			return tuple(float(v) for v in baseline)
+		spec = self._scene_root_spec_for_prim(prim_path)
+		if spec is not None:
+			return tuple(spec.translation)
+		self.capture_scene_root_baseline(prim_path)
+		assert self._scene_root_baseline["translate"] is not None
+		return tuple(float(v) for v in self._scene_root_baseline["translate"])
+
+	def get_scene_root_translation_delta(
+		self,
+		calibration_translation: tuple[float, float, float],
+		prim_path: str = DEFAULT_SCENE_ROOT_PRIM,
+	) -> tuple[float, float, float]:
+		"""Δt = current scene root translation − calibration translation."""
+		current = self.get_scene_root_translation(prim_path)
+		return tuple(
+			float(c) - float(b) for c, b in zip(current, calibration_translation)
+		)
+
+	def get_scene_root_rotation_xyz(self, prim_path: str = DEFAULT_SCENE_ROOT_PRIM) -> tuple[float, float, float]:
+		"""Current scene root editor rotation_xyz from registry config."""
+		spec = self._scene_root_spec_for_prim(prim_path)
+		if spec is not None:
+			return tuple(float(v) for v in spec.rotation_xyz)
+		raise RuntimeError("Scene root rotation_xyz is unavailable without registry scene_root_specs.")
+
+	def get_scene_root_yaw_delta_deg(
+		self,
+		calibration_rotation_xyz: tuple[float, float, float],
+		prim_path: str = DEFAULT_SCENE_ROOT_PRIM,
+	) -> float:
+		"""Δyaw = current rotation_z − calibration rotation_z (degrees)."""
+		current = self.get_scene_root_rotation_xyz(prim_path)
+		return float(current[2]) - float(calibration_rotation_xyz[2])
+
 	def capture_scene_root_baseline(self, prim_path: str = DEFAULT_SCENE_ROOT_PRIM) -> None:
 		"""Store USD default translate/orient/scale for scene root (Z baseline preserved on apply)."""
 		import omni.usd
@@ -727,14 +914,14 @@ class IsaacLabEnvironmentModule:
 				translate = tuple(float(v) for v in value)
 			elif op_type == UsdGeom.XformOp.TypeScale:
 				scale = tuple(float(v) for v in value)
-			elif op_type == UsdGeom.XformOp.TypeOrient:
-				if hasattr(value, "GetReal"):
-					orient_wxyz = (
-						float(value.GetReal()),
-						float(value.GetImaginary()[0]),
-						float(value.GetImaginary()[1]),
-						float(value.GetImaginary()[2]),
-					)
+			elif op_type == UsdGeom.XformOp.TypeOrient and hasattr(value, "GetImaginary"):
+				im = value.GetImaginary()
+				orient_wxyz = (
+					float(im[2]),
+					float(value.GetReal()),
+					float(im[0]),
+					float(im[1]),
+				)
 
 		self._scene_root_baseline = {
 			"translate": translate,
@@ -756,7 +943,7 @@ class IsaacLabEnvironmentModule:
 
 		baseline = self._scene_root_baseline
 		if baseline["translate"] is None:
-			self.capture_scene_root_baseline(prim_path)
+			self.ensure_scene_root_baseline(prim_path)
 
 		base_t = baseline["translate"]
 		base_q = baseline["orient_wxyz"]
@@ -797,7 +984,7 @@ class IsaacLabEnvironmentModule:
 		from pxr import Gf, UsdGeom
 
 		if self._scene_root_baseline["scale"] is None:
-			self.capture_scene_root_baseline(prim_path)
+			self.ensure_scene_root_baseline(prim_path)
 
 		base_s = self._scene_root_baseline["scale"]
 		assert base_s is not None
@@ -818,14 +1005,17 @@ class IsaacLabEnvironmentModule:
 		scale_op.Set(Gf.Vec3d(*new_scale))
 
 	def set_scene_joint_initial_deg(self, joint_prim: str, angle_deg: float) -> None:
-		"""Override one scene hinge initial angle (deg) in USD + cfg."""
+		"""Override one scene hinge initial angle (deg) in cfg, then push safely."""
 		for spec in self.cfg.joint_initial_specs:
 			if spec.prim_path == joint_prim:
 				object.__setattr__(spec, "position", float(angle_deg))
 				break
 		else:
 			raise KeyError(f"joint_prim '{joint_prim}' not in joint_initial_specs.")
-		self.apply_joint_initial_overrides()
+		if self.sim is None:
+			self.apply_joint_initial_overrides()
+			return
+		self.reset_scene_joint_initials_via_tensor()
 
 	def apply_camera_main_jitter(
 		self,

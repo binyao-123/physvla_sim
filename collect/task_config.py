@@ -16,53 +16,30 @@ TASK_CONFIGS_DIR = _COLLECT_DIR / "task_configs"
 
 @dataclass
 class PushConfig:
-    push_strategy: str = "articubot"  # yaml_handle | articubot | keyboard_aligned | articulation_calibrated (legacy)
+    push_strategy: str = "yaml_handle"  # yaml_handle | articulation_calibrated (debug probe only)
     close_ratio: float = 0.85
     num_close_steps: int = 80
     # ArticuBot demo gen: θ from init→target at this USD interval (paper ~1°). >0 overrides num_close_steps.
     close_step_deg_usd: float = 1.0
-    close_anchor_err_max_m: float = 0.03
+    close_sampled_waypoints: int = 12
+    close_final_hold_steps: int = 120
+    close_auto_flip_hinge_axis: bool = False
+    close_expected_delta_dir_world: tuple[float, float, float] | None = None
     close_ik_substeps: int = 4
-    close_recovery_substeps: int = 6
     close_clamp_joints: bool = False
-    close_pose_reach_tol_m: float = 0.005
-    close_pose_reach_rot_rad: float = 0.12
-    close_max_steps_per_waypoint: int = 48
-    close_max_iters: int | None = None
     close_push_ee_step_m: float = 0.012
-    max_candidates_to_try: int = 10
     approach_steps: int = 30
     contact_hold_steps: int = 4
     max_approach_distance_m: float = 0.85
     max_ee_pos_step_m: float = 0.005
     max_joint_step_rad: float = 0.02
+    # articulation_calibrated debug probe: touch HDF5 for live contact pose (not used by yaml_handle auto-collect).
     keyboard_reference_hdf5: str | None = None
     keyboard_reference_demo: int = 0
-    keyboard_control_mode: str = "joint_replay"  # joint_replay | ee_servo
     approach_backoff_m: float = 0.04
-    close_push_distance_m: float = 0.10
     max_servo_steps_per_phase: int = 250
     close_steps_per_waypoint: int | None = None
     approach_clearance_z_m: float = 0.14
-    debug_hardcoded_push: bool = False
-    debug_steps_per_waypoint: int = 50
-    debug_joint_waypoints: tuple[tuple[float, float, float, float, float, float], ...] = ()
-    debug_reference_hdf5: str | None = None
-    debug_reference_demo: int = 0
-    debug_reference_demos: tuple[int, ...] = ()
-    debug_reference_stride: int = 1
-    debug_reference_max_frames: int | None = None
-
-    def resolve_debug_reference_demo(self, attempt_index: int) -> int:
-        """Pick reference demo index (1-based attempt_index cycles debug_reference_demos)."""
-        if self.debug_reference_demos:
-            return self.debug_reference_demos[(max(1, attempt_index) - 1) % len(self.debug_reference_demos)]
-        return int(self.debug_reference_demo)
-
-    def resolve_keyboard_reference_demo(self, attempt_index: int) -> int:
-        if self.debug_reference_demos:
-            return self.debug_reference_demos[(max(1, attempt_index) - 1) % len(self.debug_reference_demos)]
-        return int(self.keyboard_reference_demo)
 
 
 @dataclass
@@ -88,6 +65,28 @@ def _parse_sampling(raw: dict[str, Any]) -> SamplingConfig:
     assets = raw.get("assets", {})
     hinge_raw = raw.get("hinge", {})
     mesh_origin_raw = assets.get("mesh_origin", [0.0, 0.0, 0.0])
+    fit_range_raw = raw.get("push_contact_joint_fit_range_deg")
+    fit_range: tuple[float, float] | None = None
+    if fit_range_raw is not None:
+        if len(fit_range_raw) != 2:
+            raise ValueError("push_contact_joint_fit_range_deg must be [min_deg, max_deg].")
+        fit_range = (float(fit_range_raw[0]), float(fit_range_raw[1]))
+    arc_points_raw = raw.get("push_contact_joint_arc_points", [])
+    arc_points: tuple[tuple[float, float, float, float], ...] = tuple(
+        tuple(float(v) for v in point) for point in arc_points_raw
+    )
+    for point in arc_points:
+        if len(point) != 4:
+            raise ValueError("push_contact_joint_arc_points entries must be [joint_deg, x, y, z].")
+    yaw_anchors_raw = raw.get("yaw_contact_anchors", [])
+    yaw_anchors: tuple[tuple[float, float, float, float, float, float, float, float], ...] = tuple(
+        tuple(float(v) for v in point) for point in yaw_anchors_raw
+    )
+    for point in yaw_anchors:
+        if len(point) != 8:
+            raise ValueError(
+                "yaw_contact_anchors entries must be [yaw_deg, x, y, z, qw, qx, qy, qz]."
+            )
     return SamplingConfig(
         asset_subdir=str(assets.get("subdir", assets.get("asset_subdir", ""))),
         mesh_filename=str(assets.get("mesh", assets.get("mesh_filename", ""))),
@@ -172,51 +171,48 @@ def _parse_sampling(raw: dict[str, Any]) -> SamplingConfig:
             if raw.get("reference_contact_max_dist_m") is not None
             else None
         ),
+        push_contact_reference_joint_deg=float(raw.get("push_contact_reference_joint_deg", 15.0)),
+        push_contact_joint_fit_deg=(
+            float(raw["push_contact_joint_fit_deg"])
+            if raw.get("push_contact_joint_fit_deg") is not None
+            else None
+        ),
+        push_contact_joint_fit_world=(
+            tuple(float(v) for v in raw["push_contact_joint_fit_world"])
+            if raw.get("push_contact_joint_fit_world") is not None
+            else None
+        ),
+        push_contact_joint_fit_range_deg=fit_range,
+        push_contact_joint_arc_points=arc_points,
+        yaw_contact_anchors=yaw_anchors,
     )
 
 
 def _parse_push(raw: dict[str, Any]) -> PushConfig:
-    waypoints_raw = raw.get("debug_joint_waypoints", [])
-    waypoints: tuple[tuple[float, float, float, float, float, float], ...] = tuple(
-        tuple(float(v) for v in wp) for wp in waypoints_raw
-    )
-    demos_raw = raw.get("debug_reference_demos")
-    debug_reference_demos: tuple[int, ...] = (
-        tuple(int(d) for d in demos_raw) if demos_raw is not None else ()
-    )
     return PushConfig(
-        push_strategy=str(raw.get("push_strategy", "articubot")),
+        push_strategy=str(raw.get("push_strategy", "yaml_handle")),
         close_ratio=float(raw.get("close_ratio", 0.85)),
         num_close_steps=int(raw.get("num_close_steps", 80)),
         close_step_deg_usd=float(raw.get("close_step_deg_usd", 1.0)),
-        close_anchor_err_max_m=float(raw.get("close_anchor_err_max_m", 0.03)),
-        close_ik_substeps=int(raw.get("close_ik_substeps", 4)),
-        close_recovery_substeps=int(raw.get("close_recovery_substeps", 6)),
-        close_clamp_joints=bool(raw.get("close_clamp_joints", False)),
-        close_pose_reach_tol_m=float(raw.get("close_pose_reach_tol_m", 0.005)),
-        close_pose_reach_rot_rad=float(raw.get("close_pose_reach_rot_rad", 0.12)),
-        close_max_steps_per_waypoint=int(raw.get("close_max_steps_per_waypoint", 48)),
-        close_max_iters=(
-            int(raw["close_max_iters"])
-            if raw.get("close_max_iters") is not None
-            else (
-                int(raw["close_max_steps"])
-                if raw.get("close_max_steps") is not None
-                else None
-            )
+        close_sampled_waypoints=int(raw.get("close_sampled_waypoints", 12)),
+        close_final_hold_steps=int(raw.get("close_final_hold_steps", 120)),
+        close_auto_flip_hinge_axis=bool(raw.get("close_auto_flip_hinge_axis", False)),
+        close_expected_delta_dir_world=(
+            tuple(float(v) for v in raw["close_expected_delta_dir_world"])
+            if raw.get("close_expected_delta_dir_world") is not None
+            else None
         ),
+        close_ik_substeps=int(raw.get("close_ik_substeps", 4)),
+        close_clamp_joints=bool(raw.get("close_clamp_joints", False)),
         close_push_ee_step_m=float(raw.get("close_push_ee_step_m", 0.012)),
-        max_candidates_to_try=int(raw.get("max_candidates_to_try", 10)),
         approach_steps=int(raw.get("approach_steps", 30)),
         contact_hold_steps=int(raw.get("contact_hold_steps", 4)),
         max_approach_distance_m=float(raw.get("max_approach_distance_m", 0.85)),
         max_ee_pos_step_m=float(raw.get("max_ee_pos_step_m", 0.005)),
         max_joint_step_rad=float(raw.get("max_joint_step_rad", 0.02)),
-        keyboard_reference_hdf5=raw.get("keyboard_reference_hdf5") or raw.get("debug_reference_hdf5"),
-        keyboard_reference_demo=int(raw.get("keyboard_reference_demo", raw.get("debug_reference_demo", 0))),
-        keyboard_control_mode=str(raw.get("keyboard_control_mode", "joint_replay")),
+        keyboard_reference_hdf5=raw.get("keyboard_reference_hdf5"),
+        keyboard_reference_demo=int(raw.get("keyboard_reference_demo", 0)),
         approach_backoff_m=float(raw.get("approach_backoff_m", 0.04)),
-        close_push_distance_m=float(raw.get("close_push_distance_m", 0.10)),
         max_servo_steps_per_phase=int(raw.get("max_servo_steps_per_phase", 250)),
         close_steps_per_waypoint=(
             int(raw["close_steps_per_waypoint"])
@@ -224,18 +220,6 @@ def _parse_push(raw: dict[str, Any]) -> PushConfig:
             else None
         ),
         approach_clearance_z_m=float(raw.get("approach_clearance_z_m", 0.14)),
-        debug_hardcoded_push=bool(raw.get("debug_hardcoded_push", False)),
-        debug_steps_per_waypoint=int(raw.get("debug_steps_per_waypoint", 50)),
-        debug_joint_waypoints=waypoints,
-        debug_reference_hdf5=raw.get("debug_reference_hdf5"),
-        debug_reference_demo=int(raw.get("debug_reference_demo", 0)),
-        debug_reference_demos=debug_reference_demos,
-        debug_reference_stride=max(1, int(raw.get("debug_reference_stride", 1))),
-        debug_reference_max_frames=(
-            int(raw["debug_reference_max_frames"])
-            if raw.get("debug_reference_max_frames") is not None
-            else None
-        ),
     )
 
 

@@ -41,25 +41,39 @@ sampling:
   # Calibrated from close_laptop_lid_20260525_163747.hdf5 demo_0 peak touch @ USD joint=15°
   push_contact_offset_link: [-0.17, 0.1265, 0.1534]
   contact_quat_link: [-0.8007, -0.0113, -0.5585, 0.2163]
-  # 仅 mesh debug 排名 tie-break，非 yaml_handle 主路径硬约束。
+  # Reference handle at the successful 15° planning pose.
   reference_contact_world: [0.2268, 0.0001, 0.2199]
+  push_contact_reference_joint_deg: 15.0
+  # EE hold mean from close_laptop_lid_20260527_162257.hdf5 demo_0, frames 212:242
+  # with task_registry joint_1 initial position=40.0. Used only when joint_1 != 15°.
+  push_contact_joint_fit_deg: 40.0
+  push_contact_joint_fit_world: [0.3078, 0.0, 0.1986]
+  push_contact_joint_fit_range_deg: [5.0, 40.0]
+  # Circle arc samples [joint_deg, x, y, z]. 6° point is from
+  # close_laptop_lid_20260527_171533.hdf5 demo_0, frames 244:304.
+  push_contact_joint_arc_points:
+    - [6.0, 0.1787, 0.0, 0.2098]
+    - [15.0, 0.2268, 0.0, 0.2199]
+    - [40.0, 0.3078, 0.0, 0.1986]
+  # Optional yaw anchors [yaw_deg, contact_world_xyz, contact_quat_world_wxyz].
+  # 150/210 are manual keyboard anchors; 180 keeps the original successful trajectory.
+  yaw_contact_anchors:
+    - [150.0, 0.23017, 0.03735, 0.20914, -0.73201, 0.00419, -0.68128, -0.00152]
+    - [180.0, 0.2268, 0.0001, 0.2199, -0.73678, 0.00017, -0.67613, 0.00019]
+    - [210.0, 0.24962, -0.07401, 0.21403, -0.72859, -0.00742, -0.68490, 0.00134]
 
 push:
   push_strategy: yaml_handle
   close_ratio: 0.93
-  # ArticuBot: ~1°USD per waypoint (15→99 ≈ 85 steps). num_close_steps only if close_step_deg_usd=0.
+  close_sampled_waypoints: 12
+  close_auto_flip_hinge_axis: true
+  close_expected_delta_dir_world: [1.0, 0.0, -1.0]
   close_step_deg_usd: 1.0
-  close_anchor_err_max_m: 0.03
-  close_recovery_substeps: 6
-  close_clamp_joints: false
-  close_pose_reach_tol_m: 0.005
-  close_max_steps_per_waypoint: 500
+  close_clamp_joints: true
   close_push_ee_step_m: 0.003
-  num_close_steps: 80
   close_ik_substeps: 8
-  close_max_iters: 960
-  max_servo_steps_per_phase: 960
-  close_steps_per_waypoint: 12
+  close_steps_per_waypoint: 48
+  close_final_hold_steps: 180
   max_approach_distance_m: 1.5
   approach_steps: 80
   contact_hold_steps: 24

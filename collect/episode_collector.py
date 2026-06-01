@@ -154,3 +154,42 @@ class OfficialEpisodeCollector:
 
     def close(self):
         self._dataset_handler.close()
+
+
+class NoOpEpisodeCollector:
+    """Probe/debug stub: same call surface as OfficialEpisodeCollector, no HDF5 I/O."""
+
+    def __init__(self, dataset_file: str = "", env_name: str = "", num_demos: int = 0):
+        self.dataset_file = dataset_file
+        self.env_name = env_name
+        self.num_demos = num_demos
+        self.existing_episode_count = 0
+        self.exported_successful_episode_count = 0
+        self.exported_failed_episode_count = 0
+        print("[INFO] Probe mode: HDF5 recording disabled.")
+
+    def reset_episode(self) -> None:
+        pass
+
+    def has_data(self) -> bool:
+        return False
+
+    def set_initial_state(self, initial_state: dict[str, torch.Tensor]) -> None:
+        del initial_state
+
+    def add_step(
+        self,
+        obs_dict: dict[str, torch.Tensor],
+        actions: torch.Tensor,
+        reward: torch.Tensor,
+        done: torch.Tensor,
+        state_dict: dict[str, torch.Tensor] | None = None,
+    ) -> None:
+        del obs_dict, actions, reward, done, state_dict
+
+    def export_episode(self, success: bool) -> tuple[bool, Optional[str], int]:
+        del success
+        return False, None, 0
+
+    def close(self) -> None:
+        pass
