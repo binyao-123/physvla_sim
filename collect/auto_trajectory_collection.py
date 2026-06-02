@@ -25,6 +25,7 @@ from isaaclab.app import AppLauncher
 from domain_randomization_robotwin2 import (
     add_randomization_cli_args,
     apply_randomization_sample,
+    format_randomization_sample,
     randomization_config_from_args,
     sample_randomization,
 )
@@ -40,7 +41,7 @@ parser.add_argument(
     "--max_attempts",
     type=int,
     default=None,
-    help="Max total attempts (including failures). Default: max(50, num_demos * 10).",
+    help="Max total attempts (including failures). Default: num_demos + 200.",
 )
 parser.add_argument(
     "--task_config",
@@ -57,14 +58,20 @@ parser.add_argument(
 parser.add_argument(
     "--save_failed",
     action=argparse.BooleanOptionalAction,
-    default=True,
-    help="Write failed attempts to HDF5 (success=False) for offline video review.",
+    default=False,
+    help="Write failed attempts to HDF5 (success=False) for offline video review. Default: discard.",
 )
 parser.add_argument(
     "--home_reset_steps",
     type=int,
     default=40,
     help="Control steps for arm home reset segment after success.",
+)
+parser.add_argument(
+    "--episode_step_limit",
+    type=int,
+    default=600,
+    help="Hard per-attempt control-step limit. Reaching it marks the attempt failed.",
 )
 parser.add_argument(
     "--debug-logs",
@@ -134,6 +141,10 @@ print(
     f"[INFO] Auto collect: task={task_preset.task_id} "
     f"target={args_cli.num_demos} max_attempts={max_attempts} "
     f"save_failed={args_cli.save_failed}"
+)
+print(
+    f"[INFO] Episode step limit: control_steps<={int(args_cli.episode_step_limit)} "
+    "(timeout => failed attempt)"
 )
 
 args_cli = apply_camera_launch_workarounds(args_cli)
@@ -252,40 +263,74 @@ def capture_initial_state() -> None:
 
 
 def reset_episode_scene() -> None:
-    print("[TRACE] reset_episode_scene: begin", flush=True)
+    if args_cli.debug_logs:
+        print("[TRACE] reset_episode_scene: begin", flush=True)
     episode_preset = get_task_preset(args_cli.task_id)
-    print("[TRACE] reset_episode_scene: apply scene root", flush=True)
+    if args_cli.debug_logs:
+        print("[TRACE] reset_episode_scene: apply scene root", flush=True)
     env_module.apply_task_preset_scene_root(episode_preset)
-    print("[TRACE] reset_episode_scene: apply joint initial USD", flush=True)
+    if args_cli.debug_logs:
+        print("[TRACE] reset_episode_scene: apply joint initial USD", flush=True)
     env_module.apply_task_preset_joint_initial(episode_preset)
 
-    print("[TRACE] reset_episode_scene: before sim.reset", flush=True)
+    if args_cli.debug_logs:
+        print("[TRACE] reset_episode_scene: before sim.reset", flush=True)
     sim.reset()
-    print("[TRACE] reset_episode_scene: after sim.reset; before robot.reset", flush=True)
+    if args_cli.debug_logs:
+        print("[TRACE] reset_episode_scene: after sim.reset; before robot.reset", flush=True)
     robot.reset()
-    print("[TRACE] reset_episode_scene: after robot.reset", flush=True)
+    if args_cli.debug_logs:
+        print("[TRACE] reset_episode_scene: after robot.reset", flush=True)
     if sensor_cameras:
-        print("[TRACE] reset_episode_scene: reset sensor cameras", flush=True)
+        if args_cli.debug_logs:
+            print("[TRACE] reset_episode_scene: reset sensor cameras", flush=True)
         for sensor in sensor_cameras.values():
             sensor.reset()
 
     env_module.ensure_scene_root_baseline()
 
-    print("[TRACE] reset_episode_scene: define default camera prims", flush=True)
+    if args_cli.debug_logs:
+        print("[TRACE] reset_episode_scene: define default camera prims", flush=True)
     env_module.define_camera_prims()
 
-    print("[TRACE] reset_episode_scene: sample/apply RobotWin2 DR", flush=True)
+    if args_cli.debug_logs:
+        print("[TRACE] reset_episode_scene: sample/apply RobotWin2 DR", flush=True)
     sample = sample_randomization(rand_config, rng)
-    apply_randomization_sample(env_module, rand_config, sample)
+    apply_randomization_sample(
+        env_module,
+        rand_config,
+        sample,
+        verbose=bool(args_cli.debug_logs),
+    )
 
-    print("[TRACE] reset_episode_scene: sync scene joints after reset", flush=True)
+    if args_cli.debug_logs:
+        print("[TRACE] reset_episode_scene: sync scene joints after reset", flush=True)
     env_module.sync_scene_joints_after_sim_reset(warmup_steps=SCENE_JOINT_PHYSICS_WARMUP_STEPS)
-    print("[TRACE] reset_episode_scene: reset robot pose via targets", flush=True)
+    if args_cli.debug_logs:
+        print("[TRACE] reset_episode_scene: reset robot pose via targets", flush=True)
     env_module.reset_robot_pose_via_targets(
         gripper_targets=gripper_close_target,
         gripper_joint_ids=handles.gripper_joint_ids,
     )
-    print("[TRACE] reset_episode_scene: end", flush=True)
+    scene_spec = episode_preset.scene_root_specs[0] if episode_preset.scene_root_specs else None
+    joint_spec = episode_preset.joint_initial_specs[0] if episode_preset.joint_initial_specs else None
+    scene_xyz = tuple(round(float(v), 4) for v in scene_spec.translation) if scene_spec else None
+    joint_target = float(joint_spec.position) if joint_spec else float("nan")
+    joint_sim = (
+        env_module.read_scene_joint_angle_deg(joint_spec.prim_path)
+        if joint_spec is not None
+        else None
+    )
+    joint_sim_s = f"{float(joint_sim):.2f}°" if joint_sim is not None else "n/a"
+    print(
+        "[INFO] Attempt init: "
+        f"episode_step_limit={int(args_cli.episode_step_limit)} "
+        f"scene_xyz={scene_xyz} joint_target={joint_target:.2f}° "
+        f"joint_sim={joint_sim_s} DR=({format_randomization_sample(sample)})",
+        flush=True,
+    )
+    if args_cli.debug_logs:
+        print("[TRACE] reset_episode_scene: end", flush=True)
 
 
 def export_episode_final_step(success: bool) -> tuple[bool, str | None, int]:
@@ -319,6 +364,7 @@ try:
             success, final_joint_degs = executor.run_yaml_handle_push(
                 collector,
                 episode_start_wall_time=t0,
+                episode_step_limit=int(args_cli.episode_step_limit),
             )
 
             if success:
@@ -327,7 +373,8 @@ try:
                     successful_demos += 1
                     print(
                         f"[INFO] Attempt {total_attempts}: saved {demo_key} "
-                        f"T={num_steps} joints={final_joint_degs} "
+                        f"T={num_steps} control_steps={executor.control_step_count}/"
+                        f"{int(args_cli.episode_step_limit)} joints={final_joint_degs} "
                         f"({successful_demos}/{args_cli.num_demos})"
                     )
                 else:
@@ -339,10 +386,17 @@ try:
                     failed_exports += 1
                     print(
                         f"[INFO] Attempt {total_attempts}: saved {demo_key} "
-                        f"T={num_steps} success=False joints={final_joint_degs}"
+                        f"T={num_steps} control_steps={executor.control_step_count}/"
+                        f"{int(args_cli.episode_step_limit)} timeout={executor.episode_step_limit_hit} "
+                        f"success=False joints={final_joint_degs}"
                     )
                 else:
-                    print(f"[WARN] Failed with no recorded steps: {final_joint_degs}")
+                    print(
+                        f"[WARN] Failed with no recorded steps: "
+                        f"control_steps={executor.control_step_count}/"
+                        f"{int(args_cli.episode_step_limit)} "
+                        f"timeout={executor.episode_step_limit_hit} joints={final_joint_degs}"
+                    )
                     collector.reset_episode()
             else:
                 if args_cli.debug_logs:

@@ -10,6 +10,7 @@ environment USD scene selection (RobotWin2-style DR).
 from __future__ import annotations
 
 import argparse
+import os
 import random
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
@@ -39,8 +40,8 @@ class RobotWin2RandomizationConfig:
     lighting_auto_light_rig_on_startup: bool = True
     lighting_import_rig_to_stage: bool = False
     lighting_prim_paths: tuple[str, ...] = ()
-    lighting_intensity_scale_range: tuple[float, float] = (0.7, 1.3)
-    lighting_exposure_delta_range: tuple[float, float] = (-0.5, 0.5)
+    lighting_intensity_scale_range: tuple[float, float] = (0.65, 1.05)
+    lighting_exposure_delta_range: tuple[float, float] = (-0.6, 0.15)
     lighting_color_temperature_range: tuple[float, float] = (4500.0, 7500.0)
     lighting_enable_color_temperature: bool = True
     environment_enable: bool = False
@@ -49,6 +50,24 @@ class RobotWin2RandomizationConfig:
     environment_usd_scale: float = 1.0
     environment_default_asset: tuple[str, str | None] | None = None
     environment_asset_candidates: tuple[tuple[str, str | None], ...] = ()
+    clutter_enable: bool = False
+    clutter_prim_path: str = "/World/RobotWin2Clutter"
+    clutter_asset_candidates: tuple[tuple[str, str] | tuple[str, str, float], ...] = ()
+    clutter_slot_specs: tuple[
+        tuple[str, int, tuple[float, float], tuple[float, float], float],
+        ...,
+    ] = ()
+    clutter_yaw_range_deg: tuple[float, float] = (-180.0, 180.0)
+
+
+@dataclass
+class RobotWin2ClutterPlacement:
+    name: str
+    usd_path: str
+    zone: str
+    offset_xyz: tuple[float, float, float]
+    yaw_deg: float
+    scale: float
 
 
 @dataclass
@@ -64,6 +83,7 @@ class RobotWin2RandomizationSample:
     lighting_rig_name: str | None = None
     environment_name: str | None = None
     environment_usd_path: str | None = None
+    clutter_placements: tuple[RobotWin2ClutterPlacement, ...] = ()
 
 
 # Backward-compatible aliases for existing imports.
@@ -97,6 +117,11 @@ def randomization_config_from_registry(task_preset: TaskPreset) -> RobotWin2Rand
         environment_usd_scale=float(spec.environment_usd_scale),
         environment_default_asset=spec.environment_default_asset,
         environment_asset_candidates=tuple(spec.environment_asset_candidates),
+        clutter_enable=bool(spec.clutter_enable),
+        clutter_prim_path=str(spec.clutter_prim_path),
+        clutter_asset_candidates=tuple(spec.clutter_asset_candidates),
+        clutter_slot_specs=tuple(spec.clutter_slot_specs),
+        clutter_yaw_range_deg=tuple(spec.clutter_yaw_range_deg),
     )
 
 
@@ -138,6 +163,12 @@ def add_randomization_cli_args(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="Override registry: randomize Isaac environment USD scene reference.",
     )
+    group.add_argument(
+        "--rand_clutter",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Override registry: randomize RobotWin2 foreground clutter objects.",
+    )
 
 
 def randomization_config_from_args(
@@ -157,6 +188,8 @@ def randomization_config_from_args(
         config = replace(config, lighting_rig_name=str(args.lighting_rig))
     if getattr(args, "rand_environment_scene", None) is not None:
         config = replace(config, environment_enable=bool(args.rand_environment_scene))
+    if getattr(args, "rand_clutter", None) is not None:
+        config = replace(config, clutter_enable=bool(args.rand_clutter))
     return config
 
 
@@ -190,6 +223,36 @@ def _choice_any(rng: Any, values: tuple[Any, ...]) -> Any:
     if hasattr(rng, "randrange"):
         return values[int(rng.randrange(len(values)))]
     return random.choice(values)
+
+
+def _sample_without_replacement(rng: Any, values: tuple[Any, ...], count: int) -> list[Any]:
+    if count <= 0 or not values:
+        return []
+    n = min(int(count), len(values))
+    if hasattr(rng, "sample"):
+        return list(rng.sample(list(values), n))
+    if hasattr(rng, "choice"):
+        indices = rng.choice(len(values), size=n, replace=False)
+        return [values[int(i)] for i in indices]
+    values_list = list(values)
+    random.shuffle(values_list)
+    return values_list[:n]
+
+
+def _expanded_clutter_slots(
+    slot_specs: tuple[tuple[str, int, tuple[float, float], tuple[float, float], float], ...],
+) -> list[tuple[str, tuple[float, float], tuple[float, float], float]]:
+    slots: list[tuple[str, tuple[float, float], tuple[float, float], float]] = []
+    for zone, count, x_range, y_range, z_world in slot_specs:
+        for _ in range(max(0, int(count))):
+            slots.append((str(zone), tuple(x_range), tuple(y_range), float(z_world)))
+    return slots
+
+
+def _clutter_asset_parts(asset: tuple[str, str] | tuple[str, str, float]) -> tuple[str, str, float]:
+    name, usd_path, *rest = asset
+    base_scale = float(rest[0]) if rest else 1.0
+    return str(name), str(usd_path), base_scale
 
 
 def sample_randomization(
@@ -242,6 +305,32 @@ def sample_randomization(
             env_name, env_path = config.environment_default_asset or config.environment_asset_candidates[0]
         sample.environment_name = str(env_name)
         sample.environment_usd_path = str(env_path) if env_path is not None else None
+    if config.clutter_enable and config.clutter_asset_candidates and config.clutter_slot_specs:
+        slots = _expanded_clutter_slots(config.clutter_slot_specs)
+        assets = _sample_without_replacement(
+            rng,
+            config.clutter_asset_candidates,
+            min(len(slots), len(config.clutter_asset_candidates)),
+        )
+        yaw_min, yaw_max = config.clutter_yaw_range_deg
+        placements: list[RobotWin2ClutterPlacement] = []
+        for asset, (zone, x_range, y_range, z_world) in zip(assets, slots):
+            name, usd_path, base_scale = _clutter_asset_parts(asset)
+            placements.append(
+                RobotWin2ClutterPlacement(
+                    name=name,
+                    usd_path=usd_path,
+                    zone=zone,
+                    offset_xyz=(
+                        _uniform(rng, float(x_range[0]), float(x_range[1])),
+                        _uniform(rng, float(y_range[0]), float(y_range[1])),
+                        float(z_world),
+                    ),
+                    yaw_deg=_uniform(rng, float(yaw_min), float(yaw_max)),
+                    scale=base_scale,
+                )
+            )
+        sample.clutter_placements = tuple(placements)
     return sample
 
 
@@ -335,9 +424,147 @@ def _menu_lighting_mode(mode_value: str | None) -> str:
     return mode
 
 
+_LIGHTING_MENU_EXTENSION = "omni.kit.viewport.menubar.lighting"
+_LIGHTING_MENU_EXTENSION_READY = False
+
+
+def _lighting_extension_root() -> str | None:
+    """Resolve omni.kit.viewport.menubar.lighting without enabling it at Kit startup."""
+    try:
+        from isaacsim.core.utils.extensions import get_extension_path_from_name
+
+        path = get_extension_path_from_name(_LIGHTING_MENU_EXTENSION)
+        if path:
+            return str(path)
+    except Exception:
+        pass
+
+    import glob
+    from pathlib import Path
+
+    isaac_root = Path(os.environ.get("ISAACSIM_PATH", "/home/ubuntu/isaacsim"))
+    candidates = sorted(
+        glob.glob(str(isaac_root / "extscache" / "omni.kit.viewport.menubar.lighting-*"))
+    )
+    return candidates[-1] if candidates else None
+
+
+def _register_viewport_lighting_headless_settings(*, verbose: bool = True) -> bool:
+    """Register carb settings normally loaded from extension.toml when the ext is enabled."""
+    try:
+        import carb.settings
+        import carb.tokens
+        from pathlib import Path
+
+        settings = carb.settings.get_settings()
+        rigs_key = f"/exts/{_LIGHTING_MENU_EXTENSION}/rigs"
+        existing = settings.get(rigs_key)
+        if existing:
+            resolved = carb.tokens.get_tokens_interface().resolve(str(existing))
+            if resolved:
+                rig_files = list(Path(resolved).rglob("*.usd*"))
+                if rig_files:
+                    return True
+
+        ext_root = _lighting_extension_root()
+        if not ext_root:
+            if verbose:
+                print(
+                    f"[WARN] Could not register {_LIGHTING_MENU_EXTENSION} rig settings: extension root missing.",
+                    flush=True,
+                )
+            return False
+
+        rigs_dir = (Path(ext_root) / "data" / "usd").resolve()
+        if not rigs_dir.is_dir() or not list(rigs_dir.rglob("*.usd*")):
+            if verbose:
+                print(f"[WARN] Lighting rig USD dir missing or empty: {rigs_dir}", flush=True)
+            return False
+
+        settings.set(rigs_key, str(rigs_dir))
+
+        default_rig_key = f"/exts/{_LIGHTING_MENU_EXTENSION}/defaultRig"
+        if settings.get(default_rig_key) is None:
+            settings.set(default_rig_key, "Default")
+
+        if verbose:
+            print(
+                f"[INFO] Registered {_LIGHTING_MENU_EXTENSION} rig dir for headless DR: {rigs_dir}",
+                flush=True,
+            )
+        return True
+    except Exception as exc:
+        if verbose:
+            print(
+                f"[WARN] Could not register {_LIGHTING_MENU_EXTENSION} rig settings: {exc}",
+                flush=True,
+            )
+        return False
+
+
+def _ensure_viewport_lighting_extension(*, verbose: bool = True) -> bool:
+    """Load Isaac viewport lighting actions in headless/offscreen runs.
+
+    We import the extension Python package directly instead of ``--enable`` at
+    startup, because enabling viewport menubar extensions in headless mode can
+    break unrelated UI extensions (e.g. omni.usd.metrics.assembler.ui).
+    """
+    global _LIGHTING_MENU_EXTENSION_READY
+    if _LIGHTING_MENU_EXTENSION_READY:
+        return True
+
+    try:
+        import omni.kit.viewport.menubar.lighting.actions  # noqa: F401
+
+        if not _register_viewport_lighting_headless_settings(verbose=verbose):
+            return False
+
+        _LIGHTING_MENU_EXTENSION_READY = True
+        return True
+    except ModuleNotFoundError:
+        pass
+
+    ext_root = _lighting_extension_root()
+    if not ext_root:
+        if verbose:
+            print(
+                f"[WARN] Could not locate {_LIGHTING_MENU_EXTENSION} for lighting mode/rig DR.",
+                flush=True,
+            )
+        return False
+
+    import sys
+
+    if ext_root not in sys.path:
+        sys.path.insert(0, ext_root)
+
+    try:
+        import omni.kit.viewport.menubar.lighting.actions  # noqa: F401
+
+        if not _register_viewport_lighting_headless_settings(verbose=verbose):
+            return False
+
+        _LIGHTING_MENU_EXTENSION_READY = True
+        if verbose:
+            print(
+                f"[INFO] Loaded {_LIGHTING_MENU_EXTENSION} from extscache for lighting mode/rig DR.",
+                flush=True,
+            )
+        return True
+    except Exception as exc:
+        if verbose:
+            print(
+                f"[WARN] Could not import {_LIGHTING_MENU_EXTENSION} for lighting mode/rig DR: {exc}",
+                flush=True,
+            )
+        return False
+
+
 def _apply_viewport_lighting_menu(
     config: RobotWin2RandomizationConfig,
     sample: RobotWin2RandomizationSample,
+    *,
+    verbose: bool = True,
 ) -> None:
     """Apply Isaac viewport Stage Lights menu settings when available.
 
@@ -359,6 +586,14 @@ def _apply_viewport_lighting_menu(
     except Exception as exc:
         print(f"[WARN] RobotWin2 lighting menu settings unavailable: {exc}", flush=True)
 
+    if not _ensure_viewport_lighting_extension(verbose=verbose):
+        print(
+            "[WARN] RobotWin2 lighting menu mode not applied "
+            f"(mode={mode}, rig={rig_name!r}): extension unavailable in headless run.",
+            flush=True,
+        )
+        return
+
     try:
         import omni.usd
         from omni.kit.viewport.menubar.lighting.actions import _import_light_rig, _set_lighting_mode
@@ -372,14 +607,15 @@ def _apply_viewport_lighting_menu(
             _import_light_rig(usd_context_name=usd_context.get_name())
             _set_lighting_mode("stage", usd_context=usd_context)
             applied_mode = "stage(imported rig)"
-        print(
-            "[INFO] RobotWin2 lighting menu: "
-            f"mode={mode} rig={rig_name!r} "
-            f"auto_startup={config.lighting_auto_light_rig_on_startup} "
-            f"import_rig={config.lighting_import_rig_to_stage} "
-            f"success={success} previous={previous_mode!r} applied={applied_mode!r}",
-            flush=True,
-        )
+        if verbose:
+            print(
+                "[INFO] RobotWin2 lighting menu: "
+                f"mode={mode} rig={rig_name!r} "
+                f"auto_startup={config.lighting_auto_light_rig_on_startup} "
+                f"import_rig={config.lighting_import_rig_to_stage} "
+                f"success={success} previous={previous_mode!r} applied={applied_mode!r}",
+                flush=True,
+            )
     except Exception as exc:
         print(
             "[WARN] RobotWin2 lighting menu mode not applied "
@@ -391,11 +627,13 @@ def _apply_viewport_lighting_menu(
 def _apply_lighting_sample(
     config: RobotWin2RandomizationConfig,
     sample: RobotWin2RandomizationSample,
+    *,
+    verbose: bool = True,
 ) -> None:
     if not config.lighting_enable:
         return
 
-    _apply_viewport_lighting_menu(config, sample)
+    _apply_viewport_lighting_menu(config, sample, verbose=verbose)
 
     import omni.usd
 
@@ -431,15 +669,16 @@ def _apply_lighting_sample(
             f"{sample.lighting_color_temperature if sample.lighting_color_temperature is not None else 'unchanged'}"
         )
 
-    print(
-        "[INFO] RobotWin2 lighting DR: "
-        f"lights={applied} intensity_scale={sample.lighting_intensity_scale:.3f} "
-        f"exposure_delta={sample.lighting_exposure_delta:.3f} "
-        f"color_temp={sample.lighting_color_temperature}",
-        flush=True,
-    )
-    for detail in details:
-        print(f"[INFO] RobotWin2 lighting DR detail: {detail}", flush=True)
+    if verbose:
+        print(
+            "[INFO] RobotWin2 lighting DR: "
+            f"lights={applied} intensity_scale={sample.lighting_intensity_scale:.3f} "
+            f"exposure_delta={sample.lighting_exposure_delta:.3f} "
+            f"color_temp={sample.lighting_color_temperature}",
+            flush=True,
+        )
+        for detail in details:
+            print(f"[INFO] RobotWin2 lighting DR detail: {detail}", flush=True)
 
 
 def _environment_asset_prim_key(prim_path: str, env_root_path: str | None = None) -> str:
@@ -544,6 +783,8 @@ def _apply_environment_visual_scale(
 def _apply_environment_scene_sample(
     config: RobotWin2RandomizationConfig,
     sample: RobotWin2RandomizationSample,
+    *,
+    verbose: bool = True,
 ) -> None:
     import omni.usd
     from pxr import Sdf, UsdGeom
@@ -588,21 +829,137 @@ def _apply_environment_scene_sample(
             flush=True,
         )
 
-    print(
-        "[INFO] RobotWin2 environment scene DR: "
-        f"enabled={config.environment_enable} name={sample.environment_name!r} "
-        f"prim={config.environment_prim_path} usd={sample.environment_usd_path} "
-        f"ground_plane_visible={ground_plane_visible} ground_planes={touched_ground_planes} "
-        f"usd_scale={env_scale} texture_overrides={texture_count} "
-        f"grid_cube_overrides={cube_count}",
-        flush=True,
+    if verbose:
+        print(
+            "[INFO] RobotWin2 environment scene DR: "
+            f"enabled={config.environment_enable} name={sample.environment_name!r} "
+            f"prim={config.environment_prim_path} usd={sample.environment_usd_path} "
+            f"ground_plane_visible={ground_plane_visible} ground_planes={touched_ground_planes} "
+            f"usd_scale={env_scale} texture_overrides={texture_count} "
+            f"grid_cube_overrides={cube_count}",
+            flush=True,
+        )
+
+
+def _set_xform_ops_xyz_yaw_scale(
+    prim: Any,
+    xyz: tuple[float, float, float],
+    yaw_deg: float,
+    scale: float,
+) -> None:
+    """Set local wrapper xform on an empty prim (never on the referenced asset prim)."""
+    from pxr import Gf, UsdGeom
+
+    xformable = UsdGeom.Xformable(prim)
+    xformable.ClearXformOpOrder()
+    xformable.AddTranslateOp().Set(Gf.Vec3d(*xyz))
+    xformable.AddRotateXYZOp().Set(Gf.Vec3f(0.0, 0.0, float(yaw_deg)))
+    uniform_scale = float(scale)
+    xformable.AddScaleOp().Set(Gf.Vec3f(uniform_scale, uniform_scale, uniform_scale))
+
+
+def _disable_clutter_physics(root_prim: Any) -> tuple[int, int]:
+    """Visual-only clutter: disable rigid body and collision under one wrapper subtree."""
+    from pxr import Usd, UsdPhysics
+
+    disabled_rigid_bodies = 0
+    disabled_collisions = 0
+    for prim in Usd.PrimRange(root_prim):
+        if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            rb_api = UsdPhysics.RigidBodyAPI(prim)
+            enabled_attr = rb_api.GetRigidBodyEnabledAttr()
+            if enabled_attr.IsValid():
+                enabled_attr.Set(False)
+            else:
+                rb_api.CreateRigidBodyEnabledAttr(False)
+            disabled_rigid_bodies += 1
+        if prim.HasAPI(UsdPhysics.CollisionAPI):
+            col_api = UsdPhysics.CollisionAPI(prim)
+            enabled_attr = col_api.GetCollisionEnabledAttr()
+            if enabled_attr.IsValid():
+                enabled_attr.Set(False)
+            else:
+                col_api.CreateCollisionEnabledAttr(False)
+            disabled_collisions += 1
+    return disabled_rigid_bodies, disabled_collisions
+
+
+def _apply_clutter_sample(
+    env_module: IsaacLabEnvironmentModule,
+    config: RobotWin2RandomizationConfig,
+    sample: RobotWin2RandomizationSample,
+    *,
+    verbose: bool = True,
+) -> None:
+    import omni.usd
+    from pxr import Sdf, UsdGeom
+
+    stage = omni.usd.get_context().get_stage()
+    if stage is None:
+        raise RuntimeError("USD stage is unavailable for RobotWin2 clutter DR.")
+
+    root = UsdGeom.Xform.Define(stage, config.clutter_prim_path).GetPrim()
+    root_imageable = UsdGeom.Imageable(root)
+    root_imageable.GetVisibilityAttr().Set(
+        UsdGeom.Tokens.inherited if sample.clutter_placements else UsdGeom.Tokens.invisible
     )
+
+    center_x, center_y, _center_z = env_module.get_scene_root_translation()
+    active_wrapper_paths: set[str] = set()
+    details: list[str] = []
+    total_disabled_rigid_bodies = 0
+    total_disabled_collisions = 0
+    for index, placement in enumerate(sample.clutter_placements):
+        wrapper_path = f"{config.clutter_prim_path}/clutter_{index:02d}"
+        asset_path = f"{wrapper_path}/asset"
+        if stage.GetPrimAtPath(wrapper_path).IsValid():
+            stage.RemovePrim(wrapper_path)
+
+        wrapper_prim = UsdGeom.Xform.Define(stage, wrapper_path).GetPrim()
+        asset_prim = UsdGeom.Xform.Define(stage, asset_path).GetPrim()
+        asset_prim.GetReferences().SetReferences([Sdf.Reference(placement.usd_path)])
+        world_xyz = (
+            float(center_x) + float(placement.offset_xyz[0]),
+            float(center_y) + float(placement.offset_xyz[1]),
+            float(placement.offset_xyz[2]),
+        )
+        _set_xform_ops_xyz_yaw_scale(wrapper_prim, world_xyz, placement.yaw_deg, placement.scale)
+        disabled_rb, disabled_col = _disable_clutter_physics(wrapper_prim)
+        total_disabled_rigid_bodies += disabled_rb
+        total_disabled_collisions += disabled_col
+        UsdGeom.Imageable(wrapper_prim).GetVisibilityAttr().Set(UsdGeom.Tokens.inherited)
+        UsdGeom.Imageable(asset_prim).GetVisibilityAttr().Set(UsdGeom.Tokens.inherited)
+        active_wrapper_paths.add(wrapper_path)
+        details.append(
+            f"{placement.zone}:{placement.name}@"
+            f"({world_xyz[0]:.3f},{world_xyz[1]:.3f},{world_xyz[2]:.3f})"
+            f" scale={placement.scale:.4g}"
+        )
+
+    for child in root.GetChildren():
+        child_path = str(child.GetPath())
+        if child_path in active_wrapper_paths:
+            continue
+        stage.RemovePrim(child_path)
+
+    if verbose:
+        print(
+            "[INFO] RobotWin2 clutter DR: "
+            f"enabled={config.clutter_enable} root={config.clutter_prim_path} "
+            f"count={len(sample.clutter_placements)} "
+            f"visual_only_disabled_rb={total_disabled_rigid_bodies} "
+            f"visual_only_disabled_col={total_disabled_collisions} "
+            f"objects={details}",
+            flush=True,
+        )
 
 
 def apply_randomization_sample(
     env_module: IsaacLabEnvironmentModule,
     config: RobotWin2RandomizationConfig,
     sample: RobotWin2RandomizationSample,
+    *,
+    verbose: bool = True,
 ) -> None:
     if config.camera_main_enable:
         if sample.camera_translation is not None or sample.camera_focal_length is not None:
@@ -622,8 +979,9 @@ def apply_randomization_sample(
                 f"(offset_deg={sample.camera_rotation_offset_deg}).",
                 flush=True,
             )
-    _apply_lighting_sample(config, sample)
-    _apply_environment_scene_sample(config, sample)
+    _apply_lighting_sample(config, sample, verbose=verbose)
+    _apply_environment_scene_sample(config, sample, verbose=verbose)
+    _apply_clutter_sample(env_module, config, sample, verbose=verbose)
 
 
 def format_randomization_sample(sample: RobotWin2RandomizationSample) -> str:
@@ -648,4 +1006,13 @@ def format_randomization_sample(sample: RobotWin2RandomizationSample) -> str:
         parts.append(f"light_rig={sample.lighting_rig_name}")
     if sample.environment_name is not None:
         parts.append(f"env_scene={sample.environment_name}")
+    if sample.clutter_placements:
+        counts: dict[str, int] = {}
+        names: list[str] = []
+        for placement in sample.clutter_placements:
+            counts[placement.zone] = counts.get(placement.zone, 0) + 1
+            names.append(placement.name)
+        zone_s = ",".join(f"{zone}:{count}" for zone, count in sorted(counts.items()))
+        parts.append(f"clutter={len(sample.clutter_placements)}[{zone_s}]")
+        parts.append(f"clutter_objs={names}")
     return ", ".join(parts) if parts else "none"

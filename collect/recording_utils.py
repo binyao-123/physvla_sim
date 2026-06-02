@@ -7,6 +7,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import torch
+import torch.nn.functional as F
+
+POLICY_IMAGE_HEIGHT = 224
+POLICY_IMAGE_WIDTH = 224
 
 if TYPE_CHECKING:
     from episode_collector import OfficialEpisodeCollector
@@ -47,6 +51,41 @@ def capture_rgb_if_due(
     return ctx.last_rgb_main, ctx.last_rgb_wrist
 
 
+def resize_rgb_for_policy_storage(rgb: torch.Tensor | None) -> torch.Tensor | None:
+    """Directly stretch sensor RGB to the Pi0.5/real-robot 224x224 storage shape."""
+
+    if rgb is None:
+        return None
+
+    x = rgb.detach()
+    input_was_uint8 = x.dtype == torch.uint8
+    if x.dim() != 3:
+        raise ValueError(f"Expected RGB tensor with 3 dims, got shape {tuple(x.shape)}.")
+
+    channels_last = x.shape[-1] == 3
+    if channels_last:
+        x = x.permute(2, 0, 1)
+    if x.shape[0] != 3:
+        raise ValueError(f"Expected RGB tensor with 3 channels, got shape {tuple(rgb.shape)}.")
+
+    x = x.unsqueeze(0).float()
+    x = F.interpolate(
+        x,
+        size=(POLICY_IMAGE_HEIGHT, POLICY_IMAGE_WIDTH),
+        mode="bilinear",
+        align_corners=False,
+    ).squeeze(0)
+
+    if input_was_uint8:
+        x = x.round().clamp(0, 255).to(torch.uint8)
+    else:
+        x = x.to(dtype=rgb.dtype)
+
+    if channels_last:
+        x = x.permute(1, 2, 0)
+    return x.contiguous()
+
+
 def build_step_tensors(
     robot,
     ctx: RecordingContext,
@@ -82,10 +121,14 @@ def build_step_tensors(
         "timestamp_sim_sec": timestamp_sim_sec.clone(),
         "timestamp_wall_sec": timestamp_wall_sec.clone(),
         "rgb_wrist": (
-            rgb_wrist.detach().to(device="cpu", dtype=torch.uint8).clone() if rgb_wrist is not None else None
+            resize_rgb_for_policy_storage(rgb_wrist).to(device="cpu", dtype=torch.uint8).clone()
+            if rgb_wrist is not None
+            else None
         ),
         "rgb_main": (
-            rgb_main.detach().to(device="cpu", dtype=torch.uint8).clone() if rgb_main is not None else None
+            resize_rgb_for_policy_storage(rgb_main).to(device="cpu", dtype=torch.uint8).clone()
+            if rgb_main is not None
+            else None
         ),
         "vision_is_fresh": torch.tensor([vision_is_fresh], dtype=torch.bool, device=device),
         "vision_age_steps": torch.tensor([vision_age_steps], dtype=torch.int32, device=device),

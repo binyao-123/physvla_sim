@@ -77,6 +77,7 @@ from isaaclab.controllers import DifferentialIKController, DifferentialIKControl
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 
 from episode_collector import OfficialEpisodeCollector
+from recording_utils import resize_rgb_for_policy_storage
 from env_setup import PIPER_CFG
 
 # 配置参数
@@ -544,8 +545,16 @@ try:
                     "timestamp_sim_sec": timestamp_sim_sec.clone(),
                     "timestamp_wall_sec": timestamp_wall_sec.clone(),
                     # 图像以 CPU uint8 存储，对齐 π0.5 双相机输入（腕部 + 前向）
-                    "rgb_wrist": rgb_wrist.detach().to(device="cpu", dtype=torch.uint8).clone() if rgb_wrist is not None else None,
-                    "rgb_main": rgb_main.detach().to(device="cpu", dtype=torch.uint8).clone() if rgb_main is not None else None,
+                    "rgb_wrist": (
+                        resize_rgb_for_policy_storage(rgb_wrist).to(device="cpu", dtype=torch.uint8).clone()
+                        if rgb_wrist is not None
+                        else None
+                    ),
+                    "rgb_main": (
+                        resize_rgb_for_policy_storage(rgb_main).to(device="cpu", dtype=torch.uint8).clone()
+                        if rgb_main is not None
+                        else None
+                    ),
                     "vision_is_fresh": torch.tensor([vision_is_fresh], dtype=torch.bool, device=device),
                     "vision_age_steps": torch.tensor([vision_age_steps], dtype=torch.int32, device=device),
                     "vision_frame_counter": torch.tensor([vision_frame_counter], dtype=torch.int32, device=device),

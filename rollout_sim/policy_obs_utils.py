@@ -8,6 +8,10 @@ from typing import Any
 
 import numpy as np
 import torch
+import torch.nn.functional as F
+
+POLICY_IMAGE_HEIGHT = 224
+POLICY_IMAGE_WIDTH = 224
 
 
 def expand_arm7_to_dual14(arm7: torch.Tensor) -> torch.Tensor:
@@ -22,7 +26,7 @@ def expand_arm7_to_dual14(arm7: torch.Tensor) -> torch.Tensor:
 
 
 def rgb_to_policy_image(rgb: torch.Tensor, device: torch.device | str) -> torch.Tensor:
-    """Sensor RGB → float CHW [0, 1], shape (1, 3, H, W)."""
+    """Sensor RGB → float CHW [0, 1], directly stretched to 224x224."""
 
     if rgb is None:
         raise RuntimeError("RGB frame is None")
@@ -37,7 +41,15 @@ def rgb_to_policy_image(rgb: torch.Tensor, device: torch.device | str) -> torch.
         if x.shape[-1] == 3:
             x = x.permute(2, 0, 1)
         x = x.unsqueeze(0)
-    return x.to(device=device, dtype=torch.float32)
+    x = x.to(device=device, dtype=torch.float32)
+    if x.shape[-2:] != (POLICY_IMAGE_HEIGHT, POLICY_IMAGE_WIDTH):
+        x = F.interpolate(
+            x,
+            size=(POLICY_IMAGE_HEIGHT, POLICY_IMAGE_WIDTH),
+            mode="bilinear",
+            align_corners=False,
+        )
+    return x
 
 
 def black_image_like(ref: torch.Tensor, device: torch.device | str) -> torch.Tensor:

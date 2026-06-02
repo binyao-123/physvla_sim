@@ -101,8 +101,8 @@ class TaskRandomizationSpec:
     lighting_import_rig_to_stage: bool = False
     # Empty means all UsdLux lights on the stage.
     lighting_prim_paths: tuple[str, ...] = ()
-    lighting_intensity_scale_range: tuple[float, float] = (0.7, 1.3)
-    lighting_exposure_delta_range: tuple[float, float] = (-0.5, 0.5)
+    lighting_intensity_scale_range: tuple[float, float] = (0.65, 1.05)
+    lighting_exposure_delta_range: tuple[float, float] = (-0.6, 0.15)
     lighting_color_temperature_range: tuple[float, float] = (4500.0, 7500.0)
     lighting_enable_color_temperature: bool = True
     # Environment scene DR. Disabled -> use environment_default_asset.
@@ -113,6 +113,16 @@ class TaskRandomizationSpec:
     environment_usd_scale: float = 1.0
     environment_default_asset: tuple[str, str | None] | None = None
     environment_asset_candidates: tuple[tuple[str, str | None], ...] = ()
+    # Foreground clutter DR: randomly reference small USD props around the task object.
+    clutter_enable: bool = False
+    clutter_prim_path: str = "/World/RobotWin2Clutter"
+    clutter_asset_candidates: tuple[tuple[str, str] | tuple[str, str, float], ...] = ()
+    # (zone_name, count, x_offset_range, y_offset_range, z_world)
+    clutter_slot_specs: tuple[
+        tuple[str, int, tuple[float, float], tuple[float, float], float],
+        ...,
+    ] = ()
+    clutter_yaw_range_deg: tuple[float, float] = (-180.0, 180.0)
 
 
 SCENE_ARTICULATION_PRIM_PATH = "/World/generated"
@@ -197,8 +207,8 @@ class TaskPreset:
     # action频率和视觉频率
     control_hz: int = 30
     vision_hz: int = 30
-    camera_width: int = 400
-    camera_height: int = 400
+    camera_width: int = 640
+    camera_height: int = 480
     camera_sensor_type: str = "camera"
     robot_prim_path: str = "/World/piper_description/root_joint"
     robot_init_root_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
@@ -230,13 +240,13 @@ ADJUST_MONITOR_LANGUAGE_INSTRUCTION = "adjust the display."
 
 '''RoboTwin2 场景随机化'''
 # 视觉 DR：主俯视相机Translate、Focal Length随机化（腕部相机不动，rotation 不随机）
-ROBOTWIN2_CAMERA_MAIN_RANDOMIZATION_ENABLE = True
+ROBOTWIN2_CAMERA_MAIN_RANDOMIZATION_ENABLE = True  # ENABLE总开关
 ROBOTWIN2_CAMERA_MAIN_TRANSLATION_RANGES = (
-    (0.0, 0.3),
-    (-0.7, -0.2),
-    (0.8, 1.0),
+    (0.0, 0.5),
+    (-0.6, -0.2),
+    (0.7, 0.9),
 )
-ROBOTWIN2_CAMERA_MAIN_FOCAL_LENGTH_RANGE = (6.5, 7.5)
+ROBOTWIN2_CAMERA_MAIN_FOCAL_LENGTH_RANGE = (6.9, 8.9)
 
 # 视觉 DR：Isaac UsdLux 光照随机化  
 ROBOTWIN2_LIGHTING_RANDOMIZATION_ENABLE = True  # ENABLE总开关
@@ -246,6 +256,9 @@ ROBOTWIN2_LIGHTING_RIG_NAME = "Default"
 ROBOTWIN2_LIGHTING_RIG_CANDIDATES = ("Colored Lights", "Default", "Grey Studio")
 ROBOTWIN2_LIGHTING_AUTO_RIG_ON_STARTUP = True   # 对应 “Use auto light rig on startup
 ROBOTWIN2_LIGHTING_IMPORT_RIG_TO_STAGE = False  # 对应 “Add Current Light Rig to Stage (+)”
+# UsdLux: final exposure = baseline + delta; lower delta upper bound reduces overexposure.
+ROBOTWIN2_LIGHTING_INTENSITY_SCALE_RANGE = (0.65, 1.05)
+ROBOTWIN2_LIGHTING_EXPOSURE_DELTA_RANGE = (-0.6, 0.15)
 
 # 场景纹理DR：ground plane（无场景贴图） 也作为一个候选项参与随机
 ROBOTWIN2_ENVIRONMENT_RANDOMIZATION_ENABLE = True     # ENABLE总开关
@@ -268,6 +281,39 @@ ROBOTWIN2_ENVIRONMENT_SCENE_CANDIDATES = (
 )
 ROBOTWIN2_ENVIRONMENT_DEFAULT_SCENE = ("ground_plane", None)
 
+# 场景物品DR：每次从15个资产中随机选5个，围绕任务物体放置
+ROBOTWIN2_CLUTTER_RANDOMIZATION_ENABLE = True  # ENABLE总开关
+ROBOTWIN2_CLUTTER_PRIM_PATH = "/World/RobotWin2Clutter"
+ROBOTWIN2_CLUTTER_ASSETS_DIR = PHYSVLA_ASSETS_DIR / "robotwin2_clutter"
+ROBOTWIN2_CLUTTER_ASSET_CANDIDATES = (
+    # Assets exported with metersPerUnit=0.01 need a 0.01 wrapper scale in the meter scene.
+    ("apple", str((ROBOTWIN2_CLUTTER_ASSETS_DIR / "Apple.usd").resolve()), 0.01),
+    ("alarm_clock_retro", str((ROBOTWIN2_CLUTTER_ASSETS_DIR / "AlarmClock_Retro.usd").resolve()), 0.01),
+    ("lemon_01", str((ROBOTWIN2_CLUTTER_ASSETS_DIR / "Lemon_01.usd").resolve()), 0.01),
+    ("utility_jug_a02", str((ROBOTWIN2_CLUTTER_ASSETS_DIR / "UtilityJug_A02_PR_V_NVD_01.usd").resolve()), 0.01),
+    ("plant_succulent_02", str((ROBOTWIN2_CLUTTER_ASSETS_DIR / "Plant_Succulent_02.usd").resolve()), 0.01),
+    ("sorting_bowl_yellow", str((ROBOTWIN2_CLUTTER_ASSETS_DIR / "sorting_bowl_yellow.usd").resolve())),
+    ("sorting_beaker_red", str((ROBOTWIN2_CLUTTER_ASSETS_DIR / "sorting_beaker_red.usd").resolve())),
+    ("tomato_soup_can", str((ROBOTWIN2_CLUTTER_ASSETS_DIR / "005_tomato_soup_can.usd").resolve())),
+    ("banana", str((ROBOTWIN2_CLUTTER_ASSETS_DIR / "011_banana.usd").resolve())),
+    ("bleach_cleanser", str((ROBOTWIN2_CLUTTER_ASSETS_DIR / "021_bleach_cleanser.usd").resolve())),
+    ("mug_d1", str((ROBOTWIN2_CLUTTER_ASSETS_DIR / "SM_Mug_D1.usd").resolve())),
+    ("nvidia_cube", str((ROBOTWIN2_CLUTTER_ASSETS_DIR / "nvidia_cube.usd").resolve())),
+    ("natural_boston_round_bottle", str((ROBOTWIN2_CLUTTER_ASSETS_DIR / "NaturalBostonRoundBottle_A01_PR_NVD_01.usd").resolve()), 0.01),
+    ("block", str((ROBOTWIN2_CLUTTER_ASSETS_DIR / "block.usd").resolve())),
+    ("mug_a2", str((ROBOTWIN2_CLUTTER_ASSETS_DIR / "SM_Mug_A2.usd").resolve())),
+)
+# 坐标以当前任务物体 scene root 的XY为中心；右侧=主俯视相机近侧（Y负方向）
+ROBOTWIN2_CLUTTER_SLOT_SPECS = (
+    # Split the right side into three non-overlapping bands to avoid clutter overlap.
+    ("right", 1, (-0.36, -0.12), (-0.64, -0.28), 0.02),
+    ("right", 1, (-0.12, 0.12), (-0.64, -0.28), 0.02),
+    ("right", 1, (0.12, 0.36), (-0.64, -0.28), 0.02),
+    ("front", 1, (0.28, 0.46), (-0.10, 0.10), 0.02),
+    ("left", 1, (-0.18, 0.18), (0.28, 0.46), 0.02),
+)
+ROBOTWIN2_CLUTTER_YAW_RANGE_DEG = (-180.0, 180.0)
+
 ROBOTWIN2_COMMON_RANDOMIZATION = TaskRandomizationSpec(
     camera_main_enable=ROBOTWIN2_CAMERA_MAIN_RANDOMIZATION_ENABLE,
     camera_rotation_std_deg=0.0,
@@ -280,12 +326,19 @@ ROBOTWIN2_COMMON_RANDOMIZATION = TaskRandomizationSpec(
     lighting_rig_candidates=ROBOTWIN2_LIGHTING_RIG_CANDIDATES,
     lighting_auto_light_rig_on_startup=ROBOTWIN2_LIGHTING_AUTO_RIG_ON_STARTUP,
     lighting_import_rig_to_stage=ROBOTWIN2_LIGHTING_IMPORT_RIG_TO_STAGE,
+    lighting_intensity_scale_range=ROBOTWIN2_LIGHTING_INTENSITY_SCALE_RANGE,
+    lighting_exposure_delta_range=ROBOTWIN2_LIGHTING_EXPOSURE_DELTA_RANGE,
     environment_enable=ROBOTWIN2_ENVIRONMENT_RANDOMIZATION_ENABLE,
     environment_prim_path=ROBOTWIN2_ENVIRONMENT_PRIM_PATH,
     environment_ground_plane_prim_paths=ROBOTWIN2_ENVIRONMENT_GROUND_PLANE_PRIM_PATHS,
     environment_usd_scale=ROBOTWIN2_ENVIRONMENT_USD_SCALE,
     environment_default_asset=ROBOTWIN2_ENVIRONMENT_DEFAULT_SCENE,
     environment_asset_candidates=ROBOTWIN2_ENVIRONMENT_SCENE_CANDIDATES,
+    clutter_enable=ROBOTWIN2_CLUTTER_RANDOMIZATION_ENABLE,
+    clutter_prim_path=ROBOTWIN2_CLUTTER_PRIM_PATH,
+    clutter_asset_candidates=ROBOTWIN2_CLUTTER_ASSET_CANDIDATES,
+    clutter_slot_specs=ROBOTWIN2_CLUTTER_SLOT_SPECS,
+    clutter_yaw_range_deg=ROBOTWIN2_CLUTTER_YAW_RANGE_DEG,
 )
 
 
@@ -301,13 +354,13 @@ CLOSE_LAPTOP_SCENE_ROOT_BASE_TRANSLATION = (
     0.10850162732369013,
 )
 CLOSE_LAPTOP_SCENE_ROOT_RANDOM_X_RANGE_M = 0.10
-CLOSE_LAPTOP_SCENE_ROOT_RANDOM_Y_RANGE_M = 0.10
+CLOSE_LAPTOP_SCENE_ROOT_RANDOM_Y_RANGE_M = 0.15
 
 # 基准初始化yaw角：Z轴偏移量±20度
 CLOSE_LAPTOP_SCENE_ROOT_ROTATION_XYZ = (0.0, -10.0, 180.0)
 CLOSE_LAPTOP_SCENE_ROOT_RANDOM_YAW_RANGE_DEG = 20.0
 
-# 基准初始化尺寸：
+# 基准初始化尺寸（暂不随机化）
 CLOSE_LAPTOP_SCENE_ROOT_SCALE = (0.15, 0.15, 0.15)
 
 # 标定笔记本模型基于该坐标平移

@@ -319,6 +319,11 @@ def _first_valid_episode(files: Iterable[Path], *, include_failed: bool, expecte
     raise ValueError("No convertible episodes found. Check success flags or pass --include-failed.")
 
 
+def _episode_image_hw(episode: h5py.Group) -> tuple[int, int]:
+    sample = _to_uint8_rgb(_camera_dataset(episode, HDF5_CAMERA_KEYS[0])[0], key=f"obs/{HDF5_CAMERA_KEYS[0]}")
+    return int(sample.shape[0]), int(sample.shape[1])
+
+
 def _create_dataset(
     repo_id: str,
     *,
@@ -328,6 +333,7 @@ def _create_dataset(
     overwrite: bool,
     video_backend: str | None,
     vector_dim: VectorDim,
+    image_hw: tuple[int, int],
 ):
     try:
         from lerobot.datasets.lerobot_dataset import LeRobotDataset
@@ -353,10 +359,11 @@ def _create_dataset(
             "names": [joint_names],
         },
     }
+    image_h, image_w = image_hw
     for camera_key in LERO_IMAGE_KEYS:
         features[f"observation.images.{camera_key}"] = {
             "dtype": mode,
-            "shape": (3, 400, 400),
+            "shape": (3, image_h, image_w),
             "names": ["channels", "height", "width"],
         }
 
@@ -587,10 +594,12 @@ def main():
     print(f"[INFO] Found {len(files)} HDF5 file(s).")
     print(f"[INFO] frame_filter={args.frame_filter}, fps={args.fps}, gripper_obs_mode={args.gripper_obs_mode}")
 
-    first_h5, _ = _first_valid_episode(
+    first_h5, first_episode = _first_valid_episode(
         files, include_failed=args.include_failed, expected_joint_dim=expected_w
     )
+    image_hw = _episode_image_hw(first_episode)
     first_h5.close()
+    print(f"[INFO] image_hw={image_hw[0]}x{image_hw[1]}")
 
     if args.vector_dim == 14:
         if dual_native:
@@ -611,6 +620,7 @@ def main():
         overwrite=args.overwrite,
         video_backend=args.video_backend,
         vector_dim=args.vector_dim,
+        image_hw=image_hw,
     )
     try:
         converted, skipped_failed, missing_success = _populate_dataset(

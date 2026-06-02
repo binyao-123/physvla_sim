@@ -60,8 +60,8 @@ class SceneRootPrimSpec:
 @dataclass
 class EnvironmentModuleConfig:
 	usd_path: str
-	camera_width: int = 400
-	camera_height: int = 400
+	camera_width: int = 640
+	camera_height: int = 480
 	camera_sensor_type: str = "camera"
 	warmup_render_steps: int = 6
 	reset_robot_root_pose: bool = False
@@ -481,23 +481,27 @@ class IsaacLabEnvironmentModule:
 		log_angles: bool = True,
 	) -> None:
 		"""Re-apply task_registry joint initials via tensor API and warm up PhysX."""
-		print(
-			f"[TRACE] sync_scene_joints_after_sim_reset: refresh USD, warmup_steps={warmup_steps}",
-			flush=True,
-		)
+		if not self.cfg.quiet_logging:
+			print(
+				f"[TRACE] sync_scene_joints_after_sim_reset: refresh USD, warmup_steps={warmup_steps}",
+				flush=True,
+			)
 		self.refresh_scene_joint_physics_from_usd(include_initials=False)
 		if self.sim is None:
 			return
-		print("[TRACE] sync_scene_joints_after_sim_reset: tensor joint state reset", flush=True)
+		if not self.cfg.quiet_logging:
+			print("[TRACE] sync_scene_joints_after_sim_reset: tensor joint state reset", flush=True)
 		self.reset_scene_joint_initials_via_tensor()
-		print("[TRACE] sync_scene_joints_after_sim_reset: begin warmup", flush=True)
+		if not self.cfg.quiet_logging:
+			print("[TRACE] sync_scene_joints_after_sim_reset: begin warmup", flush=True)
 		for _ in range(max(0, int(warmup_steps))):
 			self.sim.step(render=render)
 			if self.robot is not None:
 				self.robot.update(self.sim.cfg.dt)
 			if self.scene_articulation is not None:
 				self.scene_articulation.update(self.sim.cfg.dt)
-		print("[TRACE] sync_scene_joints_after_sim_reset: end warmup", flush=True)
+		if not self.cfg.quiet_logging:
+			print("[TRACE] sync_scene_joints_after_sim_reset: end warmup", flush=True)
 		if self.cfg.quiet_logging or not log_angles or not self.cfg.joint_initial_specs:
 			return
 		for spec in self.cfg.joint_initial_specs:
@@ -529,15 +533,18 @@ class IsaacLabEnvironmentModule:
 		if self.robot is None:
 			return
 
-		print("[TRACE] reset_robot_pose_via_targets: begin", flush=True)
+		if not self.cfg.quiet_logging:
+			print("[TRACE] reset_robot_pose_via_targets: begin", flush=True)
 		if self._should_reset_root_pose():
-			print("[TRACE] reset_robot_pose_via_targets: write root pose", flush=True)
+			if not self.cfg.quiet_logging:
+				print("[TRACE] reset_robot_pose_via_targets: write root pose", flush=True)
 			self.robot.write_root_pose_to_sim(self.robot.data.default_root_state[:, :7])
 		self.robot.set_joint_position_target(self.robot.data.default_joint_pos)
 		if gripper_targets is not None and gripper_joint_ids is not None:
 			self.robot.set_joint_position_target(gripper_targets, joint_ids=gripper_joint_ids)
 		self.robot.write_data_to_sim()
-		print("[TRACE] reset_robot_pose_via_targets: end", flush=True)
+		if not self.cfg.quiet_logging:
+			print("[TRACE] reset_robot_pose_via_targets: end", flush=True)
 
 	def initialize_robot_home_pose(self):
 		if self.sim is None or self.robot is None:

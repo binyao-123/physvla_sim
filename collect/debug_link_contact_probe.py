@@ -20,6 +20,7 @@ from isaaclab.app import AppLauncher
 from domain_randomization_robotwin2 import (
     add_randomization_cli_args,
     apply_randomization_sample,
+    format_randomization_sample,
     randomization_config_from_args,
     sample_randomization,
 )
@@ -32,6 +33,12 @@ parser.add_argument("--task_id", type=str, default="close_laptop_lid")
 parser.add_argument("--list_tasks", action="store_true")
 parser.add_argument("--task_config", type=str, default=None)
 parser.add_argument("--probe_steps", type=int, default=400)
+parser.add_argument(
+    "--episode_step_limit",
+    type=int,
+    default=600,
+    help="Hard per-run control-step limit. Reaching it marks this probe run failed.",
+)
 parser.add_argument("--hold_steps", type=int, default=120)
 parser.add_argument("--max_draw_contacts", type=int, default=24)
 parser.add_argument("--no_filter", action="store_true", help="Skip workspace filter (rank raw only).")
@@ -196,29 +203,67 @@ if not getattr(args_cli, "headless", False):
 
 
 def reset_scene() -> None:
-    print("[TRACE] reset_scene: begin", flush=True)
+    if args_cli.debug_logs:
+        print("[TRACE] reset_scene: begin", flush=True)
     episode_preset = get_task_preset(args_cli.task_id)
-    print("[TRACE] reset_scene: apply scene root", flush=True)
+    if args_cli.debug_logs:
+        print("[TRACE] reset_scene: apply scene root", flush=True)
     env_module.apply_task_preset_scene_root(episode_preset)
-    print("[TRACE] reset_scene: apply joint initial USD", flush=True)
+    if args_cli.debug_logs:
+        print("[TRACE] reset_scene: apply joint initial USD", flush=True)
     env_module.apply_task_preset_joint_initial(episode_preset)
-    print("[TRACE] reset_scene: before sim.reset", flush=True)
+    if args_cli.debug_logs:
+        print("[TRACE] reset_scene: before sim.reset", flush=True)
     sim.reset()
-    print("[TRACE] reset_scene: after sim.reset; before robot.reset", flush=True)
+    if args_cli.debug_logs:
+        print("[TRACE] reset_scene: after sim.reset; before robot.reset", flush=True)
     robot.reset()
-    print("[TRACE] reset_scene: after robot.reset", flush=True)
+    if args_cli.debug_logs:
+        print("[TRACE] reset_scene: after robot.reset", flush=True)
     env_module.ensure_scene_root_baseline()
-    print("[TRACE] reset_scene: sample/apply RobotWin2 DR", flush=True)
+    if args_cli.debug_logs:
+        print("[TRACE] reset_scene: sample/apply RobotWin2 DR", flush=True)
     sample = sample_randomization(rand_config, np.random.default_rng(rand_config.seed))
-    apply_randomization_sample(env_module, rand_config, sample)
-    print("[TRACE] reset_scene: sync scene joints after reset", flush=True)
+    apply_randomization_sample(
+        env_module,
+        rand_config,
+        sample,
+        verbose=bool(args_cli.debug_logs),
+    )
+    if args_cli.debug_logs:
+        print("[TRACE] reset_scene: sync scene joints after reset", flush=True)
     env_module.sync_scene_joints_after_sim_reset()
-    print("[TRACE] reset_scene: reset robot pose via targets", flush=True)
+    if args_cli.debug_logs:
+        print("[TRACE] reset_scene: reset robot pose via targets", flush=True)
     env_module.reset_robot_pose_via_targets(
         gripper_targets=gripper_close_target,
         gripper_joint_ids=handles.gripper_joint_ids,
     )
-    print("[TRACE] reset_scene: end", flush=True)
+    scene_spec = episode_preset.scene_root_specs[0] if episode_preset.scene_root_specs else None
+    joint_spec = episode_preset.joint_initial_specs[0] if episode_preset.joint_initial_specs else None
+    scene_xyz = tuple(round(float(v), 4) for v in scene_spec.translation) if scene_spec else None
+    scene_yaw = (
+        round(float(scene_spec.rotation_xyz[2]), 2)
+        if scene_spec and scene_spec.rotation_xyz is not None
+        else None
+    )
+    joint_target = float(joint_spec.position) if joint_spec else float("nan")
+    joint_sim = (
+        env_module.read_scene_joint_angle_deg(joint_spec.prim_path)
+        if joint_spec is not None
+        else None
+    )
+    joint_sim_s = f"{float(joint_sim):.2f}°" if joint_sim is not None else "n/a"
+    print(
+        "[INFO] Probe init: "
+        f"mode={args_cli.mode} probe_steps={int(args_cli.probe_steps)} "
+        f"episode_step_limit={int(args_cli.episode_step_limit)} "
+        f"scene_xyz={scene_xyz} scene_yaw={scene_yaw}° joint_target={joint_target:.2f}° "
+        f"joint_sim={joint_sim_s} DR=({format_randomization_sample(sample)})",
+        flush=True,
+    )
+    if args_cli.debug_logs:
+        print("[TRACE] reset_scene: end", flush=True)
 
 
 def _draw_segment(start: np.ndarray, end: np.ndarray, color: list[float], thickness: float = 4.0) -> None:
@@ -342,6 +387,7 @@ def main_loop() -> bool:
             probe_result = executor.run_yaml_handle_contact_only_probe(
                 collector,
                 max_servo_steps=int(args_cli.probe_steps),
+                episode_step_limit=int(args_cli.episode_step_limit),
             )
             LAST_HANDLE_CONTACT_REPORT = probe_result
             draw_articulation_debug(probe_result)
@@ -368,11 +414,13 @@ def main_loop() -> bool:
                 probe_result = executor.run_articulation_calibrated_probe(
                     collector,
                     max_servo_steps=int(args_cli.probe_steps),
+                    episode_step_limit=int(args_cli.episode_step_limit),
                 )
             else:
                 probe_result = executor.run_yaml_handle_probe(
                     collector,
                     max_servo_steps=int(args_cli.probe_steps),
+                    episode_step_limit=int(args_cli.episode_step_limit),
                 )
             LAST_PROBE_RESULT = probe_result
             LAST_PROBE_MODE = args_cli.mode
@@ -476,6 +524,11 @@ max_attempts = max(1, int(args_cli.max_attempts))
 print(
     f"[INFO] Probe loop: repeat={args_cli.repeat} max_attempts={max_attempts} "
     f"delay={args_cli.repeat_delay}s",
+    flush=True,
+)
+print(
+    f"[INFO] Episode step limit: control_steps<={int(args_cli.episode_step_limit)} "
+    "(timeout => failed probe run)",
     flush=True,
 )
 

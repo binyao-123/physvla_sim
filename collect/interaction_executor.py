@@ -64,6 +64,10 @@ class StepRecord:
     state_dict: dict
 
 
+class EpisodeStepLimitExceeded(RuntimeError):
+    """Raised when one collection/probe episode exceeds its control-step budget."""
+
+
 # Keyboard teleop matched defaults (150830 demo: EE max step ~0.0067 m).
 KEYBOARD_EE_POS_STEP_M = 0.005
 KEYBOARD_JOINT_STEP_RAD = 0.02
@@ -129,14 +133,9 @@ def _build_safe_approach_path(
     *,
     clearance_z_m: float = 0.14,
 ) -> list[np.ndarray]:
-    """Insert a via-point above the laptop base to avoid diving under the keyboard."""
-    ee_pos = np.asarray(ee_pos, dtype=np.float64)
-    approach_w = np.asarray(approach_w, dtype=np.float64)
-    cruise_z = max(float(ee_pos[2]) - 0.02, clearance_z_m, float(approach_w[2]) + 0.05)
-    via = np.array([float(approach_w[0]), float(approach_w[1]), cruise_z], dtype=np.float64)
-    if float(np.linalg.norm(via - ee_pos)) < 0.02:
-        return [approach_w]
-    return [via, approach_w]
+    """Directly move to the handle approach pose; no extra upward cruise waypoint."""
+    del ee_pos, clearance_z_m
+    return [np.asarray(approach_w, dtype=np.float64)]
 
 
 class PushInteractionExecutor:
@@ -192,6 +191,8 @@ class PushInteractionExecutor:
 
         self.sim_step_count = 0
         self.control_step_count = 0
+        self.episode_step_limit: int | None = None
+        self.episode_step_limit_hit = False
         self.episode_start_wall_time = 0.0
         self.last_record: StepRecord | None = None
         self._last_arm_targets: torch.Tensor | None = None
@@ -204,10 +205,28 @@ class PushInteractionExecutor:
         self.verbose = verbose
         self.trace_ee_handle = trace_ee_handle
         self.trace_ee_handle_interval = max(1, int(trace_ee_handle_interval))
+        self.progress_log_interval = 50
         self._trace_phase = ""
 
     def set_trace_phase(self, phase: str) -> None:
         self._trace_phase = phase
+
+    def set_episode_step_limit(self, limit: int | None) -> None:
+        if limit is None or int(limit) <= 0:
+            self.episode_step_limit = None
+        else:
+            self.episode_step_limit = int(limit)
+        self.episode_step_limit_hit = False
+
+    def _raise_if_episode_step_limit_reached(self) -> None:
+        if self.episode_step_limit is None:
+            return
+        if self.control_step_count >= self.episode_step_limit:
+            self.episode_step_limit_hit = True
+            raise EpisodeStepLimitExceeded(
+                f"episode control-step limit reached: "
+                f"{self.control_step_count}/{self.episode_step_limit}"
+            )
 
     def _maybe_trace_ee_handle(self) -> None:
         """Periodic EE vs handle/contact-anchor world position (probe / debug)."""
@@ -1214,8 +1233,9 @@ class PushInteractionExecutor:
                 flush=True,
             )
         else:
+            fin_print = min(fin, 100.0)
             print(
-                f"[INFO] Close: {joint_prim} {joint_init:.1f}° -> {fin:.1f}°USD",
+                f"[INFO] Close: {joint_prim} {joint_init:.1f}° -> {fin_print:.1f}°USD",
                 flush=True,
             )
         return stopped
@@ -1294,7 +1314,7 @@ class PushInteractionExecutor:
             f"({approach_steps_per} steps/wp approach, {contact_steps_per} steps/wp contact, pose IK)"
         )
         self._log_info(
-            f"[INFO] Safe approach path ({len(approach_path)} via-points): "
+            f"[INFO] Direct approach path ({len(approach_path)} waypoint): "
             + " -> ".join(str(np.round(wp, 3).tolist()) for wp in approach_path)
         )
 
@@ -1584,8 +1604,14 @@ class PushInteractionExecutor:
             f"push_gap={float(report.get('signed_push_gap_m', float('nan'))):+.4f}m",
             f"lateral={float(report.get('lateral_err_m', float('nan'))):.4f}m",
             f"visual={visual}",
-            f"steps={report.get('control_steps', '?')}",
+            f"T={report.get('control_steps', '?')}",
         ]
+        if report.get("probe_steps_limit") is not None:
+            parts.append(f"probe_steps={report.get('probe_steps_limit')}")
+        if report.get("episode_step_limit") is not None:
+            parts.append(f"episode_limit={report.get('episode_step_limit')}")
+        if report.get("episode_step_limit_hit"):
+            parts.append("timeout=True")
         if report.get("joint_deg") is not None:
             parts.append(f"joint_1={report['joint_deg']}deg")
         print("\n" + " | ".join(parts), flush=True)
@@ -1610,8 +1636,14 @@ class PushInteractionExecutor:
             f"[PUSH+CLOSE EXIT] success={success}",
             f"contact_drift={drift:.4f}m",
             f"close_wps={n_close}",
-            f"steps={self.control_step_count}",
+            f"T={self.control_step_count}",
         ]
+        if result.get("probe_steps_limit") is not None:
+            parts.append(f"probe_steps={result.get('probe_steps_limit')}")
+        if result.get("episode_step_limit") is not None:
+            parts.append(f"episode_limit={result.get('episode_step_limit')}")
+        if result.get("episode_step_limit_hit"):
+            parts.append("timeout=True")
         if joint_deg is not None:
             parts.append(f"{joint_prim}={float(joint_deg):.2f}deg")
         print("\n" + " | ".join(parts), flush=True)
@@ -1627,12 +1659,14 @@ class PushInteractionExecutor:
         collector: OfficialEpisodeCollector,
         *,
         max_servo_steps: int = 400,
+        episode_step_limit: int | None = None,
     ) -> dict[str, object]:
         """Move to yaml handle contact only; print report and stop (no close phase)."""
         prev_skip = self._skip_recording
         self._skip_recording = True
         self.sim_step_count = 0
         self.control_step_count = 0
+        self.set_episode_step_limit(episode_step_limit)
         self.episode_start_wall_time = time.perf_counter()
         self._reset_ee_tracking_from_robot()
         self.diff_ik_controller.reset()
@@ -1656,16 +1690,19 @@ class PushInteractionExecutor:
                 int(self.push_cfg.approach_steps),
                 int(max_servo_steps) - contact_steps_per * max(2, int(self.push_cfg.contact_hold_steps)),
             )
-            self.set_trace_phase("approach")
-            self._execute_handle_reach(
-                collector,
-                approach_w,
-                contact_w,
-                quat_w,
-                on_control_step=None,
-                approach_step_budget=approach_budget,
-                contact_steps_per_waypoint=contact_steps_per,
-            )
+            try:
+                self.set_trace_phase("approach")
+                self._execute_handle_reach(
+                    collector,
+                    approach_w,
+                    contact_w,
+                    quat_w,
+                    on_control_step=None,
+                    approach_step_budget=approach_budget,
+                    contact_steps_per_waypoint=contact_steps_per,
+                )
+            except EpisodeStepLimitExceeded as exc:
+                print(f"[WARN] yaml_handle contact-only timeout: {exc}; reporting current pose.", flush=True)
 
             report = self._summarize_handle_contact(
                 contact_w, quat_w, approach_w, hinge_lever_m=lever_m
@@ -1682,6 +1719,9 @@ class PushInteractionExecutor:
             report["hinge_origin_w"] = hinge_origin_w
             report["hinge_axis_w"] = hinge_axis_w
             report["close_poses"] = []
+            report["probe_steps_limit"] = int(max_servo_steps)
+            report["episode_step_limit"] = self.episode_step_limit
+            report["episode_step_limit_hit"] = self.episode_step_limit_hit
             return report
         finally:
             self._skip_recording = prev_skip
@@ -1695,10 +1735,12 @@ class PushInteractionExecutor:
         *,
         label: str,
         hinge_lever_m: float | None = None,
+        episode_step_limit: int | None = None,
     ) -> tuple[bool, dict[str, float | None]]:
         """Approach yaml/HDF5 handle, contact, then hinge-relative close from actual EE anchor."""
         self.sim_step_count = 0
         self.control_step_count = 0
+        self.set_episode_step_limit(episode_step_limit)
         self.episode_start_wall_time = episode_start_wall_time
         self.last_record = None
         self._close_hinge_lever_m = float(hinge_lever_m) if hinge_lever_m is not None else None
@@ -1726,39 +1768,47 @@ class PushInteractionExecutor:
             final_joint_degs = joint_degs
             return success_now
 
-        task_success = False
-        self.set_trace_phase("approach")
-        if self._execute_handle_reach(
-            collector,
-            approach_w,
-            contact_w,
-            quat_w,
-            on_control_step=on_step,
-        ):
-            task_success = True
-        else:
-            self.set_trace_phase("close")
-            actual_contact_pos, actual_contact_quat = self._read_ee_pose()
-            contact_drift = float(np.linalg.norm(actual_contact_pos - contact_w))
-            rot_drift = (
-                _wxyz_to_rot(quat_w) * _wxyz_to_rot(actual_contact_quat).inv()
-            ).magnitude()
-            self._log_info(
-                f"[INFO] Contact anchor: planned={np.round(contact_w, 4).tolist()} "
-                f"actual={np.round(actual_contact_pos, 4).tolist()} "
-                f"drift={contact_drift:.4f}m rot={math.degrees(rot_drift):.1f}deg"
-            )
-
-            self._reset_close_phase_tracking()
-            self._init_close_anchor(actual_contact_pos, actual_contact_quat)
-            if self._execute_hinge_close_anchored(collector, on_step):
+        try:
+            task_success = False
+            self.set_trace_phase("approach")
+            if self._execute_handle_reach(
+                collector,
+                approach_w,
+                contact_w,
+                quat_w,
+                on_control_step=on_step,
+            ):
                 task_success = True
             else:
-                success_now, joint_degs = evaluate_rollout_success(
-                    self.env_module, self.success_specs
+                self.set_trace_phase("close")
+                actual_contact_pos, actual_contact_quat = self._read_ee_pose()
+                contact_drift = float(np.linalg.norm(actual_contact_pos - contact_w))
+                rot_drift = (
+                    _wxyz_to_rot(quat_w) * _wxyz_to_rot(actual_contact_quat).inv()
+                ).magnitude()
+                self._log_info(
+                    f"[INFO] Contact anchor: planned={np.round(contact_w, 4).tolist()} "
+                    f"actual={np.round(actual_contact_pos, 4).tolist()} "
+                    f"drift={contact_drift:.4f}m rot={math.degrees(rot_drift):.1f}deg"
                 )
-                final_joint_degs = joint_degs
-                task_success = success_now
+
+                self._reset_close_phase_tracking()
+                self._init_close_anchor(actual_contact_pos, actual_contact_quat)
+                if self._execute_hinge_close_anchored(collector, on_step):
+                    task_success = True
+                else:
+                    success_now, joint_degs = evaluate_rollout_success(
+                        self.env_module, self.success_specs
+                    )
+                    final_joint_degs = joint_degs
+                    task_success = success_now
+        except EpisodeStepLimitExceeded as exc:
+            _, joint_degs = evaluate_rollout_success(
+                self.env_module, self.success_specs
+            )
+            final_joint_degs = joint_degs
+            task_success = False
+            print(f"[WARN] {label} episode timeout: {exc}; mark attempt failed.", flush=True)
 
         if task_success:
             self.run_home_reset(collector)
@@ -1769,6 +1819,8 @@ class PushInteractionExecutor:
         self,
         collector: OfficialEpisodeCollector,
         episode_start_wall_time: float,
+        *,
+        episode_step_limit: int | None = None,
     ) -> tuple[bool, dict[str, float | None]]:
         """Approach link-local handle from yaml, then hinge-relative close (ArticuBot T_rel held)."""
         contact_w, quat_w, lever_m = self._resolve_yaml_handle_world()
@@ -1779,6 +1831,7 @@ class PushInteractionExecutor:
             quat_w,
             label="yaml_handle",
             hinge_lever_m=lever_m,
+            episode_step_limit=episode_step_limit,
         )
 
     def _run_handle_contact_probe(
@@ -1790,7 +1843,9 @@ class PushInteractionExecutor:
         label: str,
         hinge_lever_m: float | None,
         max_servo_steps: int,
+        episode_step_limit: int | None = None,
     ) -> dict[str, object]:
+        self.set_episode_step_limit(episode_step_limit)
         approach_w = approach_from_contact(
             contact_w,
             quat_w,
@@ -1811,38 +1866,47 @@ class PushInteractionExecutor:
             int(self.push_cfg.approach_steps),
             int(max_servo_steps) - contact_steps_per * max(2, int(self.push_cfg.contact_hold_steps)),
         )
-        self.set_trace_phase("approach")
-        self._execute_handle_reach(
-            collector,
-            approach_w,
-            contact_w,
-            quat_w,
-            on_control_step=None,
-            approach_step_budget=approach_budget,
-            contact_steps_per_waypoint=contact_steps_per,
-        )
-
-        self.set_trace_phase("close")
-        actual_contact_pos, actual_contact_quat = self._read_ee_pose()
-        contact_drift = float(np.linalg.norm(actual_contact_pos - contact_w))
-        rot_drift = (
-            _wxyz_to_rot(quat_w) * _wxyz_to_rot(actual_contact_quat).inv()
-        ).magnitude()
-        self._log_info(
-            f"[INFO] Contact anchor: planned={np.round(contact_w, 4).tolist()} "
-            f"actual={np.round(actual_contact_pos, 4).tolist()} "
-            f"drift={contact_drift:.4f}m rot={math.degrees(rot_drift):.1f}deg"
-        )
-
-        self._reset_close_phase_tracking()
-        self._init_close_anchor(actual_contact_pos, actual_contact_quat)
-        close_poses = self._build_close_trajectory_from_anchor()
-        if close_poses:
-            self._execute_hinge_close_anchored(
+        close_poses: list[tuple[np.ndarray, tuple[float, float, float, float]]] = []
+        try:
+            self.set_trace_phase("approach")
+            self._execute_handle_reach(
                 collector,
+                approach_w,
+                contact_w,
+                quat_w,
                 on_control_step=None,
-                trajectory=close_poses,
+                approach_step_budget=approach_budget,
+                contact_steps_per_waypoint=contact_steps_per,
             )
+
+            self.set_trace_phase("close")
+            actual_contact_pos, actual_contact_quat = self._read_ee_pose()
+            contact_drift = float(np.linalg.norm(actual_contact_pos - contact_w))
+            rot_drift = (
+                _wxyz_to_rot(quat_w) * _wxyz_to_rot(actual_contact_quat).inv()
+            ).magnitude()
+            self._log_info(
+                f"[INFO] Contact anchor: planned={np.round(contact_w, 4).tolist()} "
+                f"actual={np.round(actual_contact_pos, 4).tolist()} "
+                f"drift={contact_drift:.4f}m rot={math.degrees(rot_drift):.1f}deg"
+            )
+
+            self._reset_close_phase_tracking()
+            self._init_close_anchor(actual_contact_pos, actual_contact_quat)
+            close_poses = self._build_close_trajectory_from_anchor()
+            if close_poses:
+                self._execute_hinge_close_anchored(
+                    collector,
+                    on_control_step=None,
+                    trajectory=close_poses,
+                )
+        except EpisodeStepLimitExceeded as exc:
+            actual_contact_pos, actual_contact_quat = self._read_ee_pose()
+            contact_drift = float(np.linalg.norm(actual_contact_pos - contact_w))
+            rot_drift = (
+                _wxyz_to_rot(quat_w) * _wxyz_to_rot(actual_contact_quat).inv()
+            ).magnitude()
+            print(f"[WARN] {label} probe timeout: {exc}; mark run failed.", flush=True)
 
         anchor = self._close_anchor
         if anchor is not None:
@@ -1856,6 +1920,8 @@ class PushInteractionExecutor:
             )
 
         success_now, joint_degs = evaluate_rollout_success(self.env_module, self.success_specs)
+        if self.episode_step_limit_hit:
+            success_now = False
         joint_deg = joint_degs.get(self.task_config.joint_prim)
         # Probe should always leave the arm in a known pose, including timeout/threshold failures.
         self.run_home_reset(collector)
@@ -1885,6 +1951,9 @@ class PushInteractionExecutor:
             "contact_drift_m": contact_drift,
             "contact_rot_drift_deg": math.degrees(rot_drift),
             "control_steps": self.control_step_count,
+            "probe_steps_limit": int(max_servo_steps),
+            "episode_step_limit": self.episode_step_limit,
+            "episode_step_limit_hit": self.episode_step_limit_hit,
         }
 
     def run_yaml_handle_probe(
@@ -1892,6 +1961,7 @@ class PushInteractionExecutor:
         collector: OfficialEpisodeCollector,
         *,
         max_servo_steps: int = 400,
+        episode_step_limit: int | None = None,
     ) -> dict[str, object]:
         """Livestream debug: yaml handle approach + contact + hinge-relative close."""
         prev_skip = self._skip_recording
@@ -1912,6 +1982,7 @@ class PushInteractionExecutor:
                 label="yaml_handle",
                 hinge_lever_m=lever_m,
                 max_servo_steps=max_servo_steps,
+                episode_step_limit=episode_step_limit,
             )
         finally:
             self._skip_recording = prev_skip
@@ -1921,6 +1992,7 @@ class PushInteractionExecutor:
         collector: OfficialEpisodeCollector,
         *,
         max_servo_steps: int = 400,
+        episode_step_limit: int | None = None,
     ) -> dict[str, object]:
         """Legacy livestream debug: touch HDF5 approach + contact + hinge-relative close."""
         if self._touch_contact_ref is None:
@@ -1946,6 +2018,7 @@ class PushInteractionExecutor:
                 label="Articulation (HDF5)",
                 hinge_lever_m=ref.hinge_lever_m,
                 max_servo_steps=max_servo_steps,
+                episode_step_limit=episode_step_limit,
             )
         finally:
             self._skip_recording = prev_skip
@@ -2058,7 +2131,7 @@ class PushInteractionExecutor:
         approach_path = _build_safe_approach_path(ee_pos, target_w, clearance_z_m=clearance_z)
         steps_per_wp = max(4, int(max_servo_steps) // max(1, len(approach_path) + 1))
         print(
-            f"[INFO] Safe approach path ({len(approach_path)} via-points, clearance_z={clearance_z:.2f}m): "
+            f"[INFO] Direct approach path ({len(approach_path)} waypoint): "
             + " -> ".join(str(np.round(wp, 3).tolist()) for wp in approach_path)
         )
         self._follow_position_path(collector, approach_path, steps_per_wp, on_control_step=None)
@@ -2332,9 +2405,21 @@ class PushInteractionExecutor:
         *,
         clamp_joints: bool = False,
     ) -> bool:
+        self._raise_if_episode_step_limit_reached()
         if clamp_joints:
             arm_targets = self._clamp_arm_targets(arm_targets)
         self.control_step_count += 1
+        if self.control_step_count % max(1, int(self.progress_log_interval)) == 0:
+            limit_text = (
+                str(self.episode_step_limit)
+                if self.episode_step_limit is not None
+                else "none"
+            )
+            phase = self._trace_phase or "run"
+            print(
+                f"[STEP] phase={phase} control_steps={self.control_step_count}/{limit_text}",
+                flush=True,
+            )
         self._apply_arm_command(arm_targets, gripper_open)
         self._sim_substeps()
         if not gripper_open:
