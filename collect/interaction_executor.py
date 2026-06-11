@@ -38,6 +38,7 @@ from reference.opening_kinematics import (
     compose_pose,
     invert_pose,
 )
+from collection_health import HealthLimits, RecordingHealthError, check_step_payload
 from recording_utils import RecordingContext, build_step_tensors, capture_rgb_if_due
 from success_utils import evaluate_rollout_success, update_peak_joint_degs
 from task_registry import (
@@ -163,6 +164,8 @@ class PushInteractionExecutor:
         verbose: bool = False,
         trace_ee_handle: bool = False,
         trace_ee_handle_interval: int = 30,
+        health_limits: HealthLimits | None = None,
+        health_checks_enabled: bool = True,
     ):
         if task_config.interaction_mode != "push":
             raise ValueError(f"Expected interaction_mode=push, got {task_config.interaction_mode}")
@@ -202,6 +205,10 @@ class PushInteractionExecutor:
         self._tracking_pos = np.zeros(3, dtype=np.float64)
         self._tracking_quat_wxyz: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
         self._skip_recording = False
+        self.health_limits = health_limits or HealthLimits()
+        self.health_checks_enabled = bool(health_checks_enabled)
+        self.recording_health_failed = False
+        self._recording_health_reason = ""
         self.verbose = verbose
         self.trace_ee_handle = trace_ee_handle
         self.trace_ee_handle_interval = max(1, int(trace_ee_handle_interval))
@@ -210,6 +217,10 @@ class PushInteractionExecutor:
 
     def set_trace_phase(self, phase: str) -> None:
         self._trace_phase = phase
+
+    def reset_recording_health(self) -> None:
+        self.recording_health_failed = False
+        self._recording_health_reason = ""
 
     def set_episode_step_limit(self, limit: int | None) -> None:
         if limit is None or int(limit) <= 0:
@@ -1809,6 +1820,13 @@ class PushInteractionExecutor:
             final_joint_degs = joint_degs
             task_success = False
             print(f"[WARN] {label} episode timeout: {exc}; mark attempt failed.", flush=True)
+        except RecordingHealthError as exc:
+            _, joint_degs = evaluate_rollout_success(
+                self.env_module, self.success_specs
+            )
+            final_joint_degs = joint_degs
+            task_success = False
+            print(f"[WARN] {label} recording health abort: {exc}; mark attempt failed.", flush=True)
 
         if task_success:
             self.run_home_reset(collector)
@@ -2425,6 +2443,8 @@ class PushInteractionExecutor:
         if not gripper_open:
             self._reassert_gripper_closed()
         self._maybe_record(collector, arm_targets, gripper_open)
+        if self.recording_health_failed:
+            raise RecordingHealthError(self._recording_health_reason)
         self._maybe_trace_ee_handle()
         if on_control_step is None:
             return False

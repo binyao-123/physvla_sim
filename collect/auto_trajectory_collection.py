@@ -56,6 +56,17 @@ parser.add_argument(
     help="Override TaskPreset.usd_path.",
 )
 parser.add_argument(
+    "--dataset_file",
+    type=str,
+    default=None,
+    help="Override TaskPreset.dataset_file for isolated worker output.",
+)
+parser.add_argument(
+    "--flat_dataset_session_dir",
+    action="store_true",
+    help="Write timestamped HDF5 directly under dataset_file's parent directory instead of a stem subdirectory.",
+)
+parser.add_argument(
     "--save_failed",
     action=argparse.BooleanOptionalAction,
     default=False,
@@ -78,6 +89,29 @@ parser.add_argument(
     action="store_true",
     dest="debug_logs",
     help="Print per-step planning/close debug logs (default: quiet).",
+)
+parser.add_argument(
+    "--no-health-checks",
+    action="store_true",
+    help="Disable post-reset / per-step / pre-export sanity checks.",
+)
+parser.add_argument(
+    "--reset_health_retries",
+    type=int,
+    default=3,
+    help="Re-run reset_episode_scene when post-reset health check fails.",
+)
+parser.add_argument(
+    "--post_reset_warmup_sec",
+    type=float,
+    default=1.0,
+    help="Extra wall-clock/render warmup after each reset before recording starts.",
+)
+parser.add_argument(
+    "--fatal_on_wrist_mount_error",
+    action=argparse.BooleanOptionalAction,
+    default=True,
+    help="Exit the process if wrist camera mount validation fails; wrapper should restart.",
 )
 add_randomization_cli_args(parser)
 AppLauncher.add_app_launcher_args(parser)
@@ -104,6 +138,13 @@ if args_cli.usd_path:
     else:
         p = p.resolve()
     task_preset = replace(task_preset, usd_path=str(p))
+if args_cli.dataset_file:
+    p = Path(args_cli.dataset_file).expanduser()
+    if not p.is_absolute():
+        p = (Path.cwd() / p).resolve()
+    else:
+        p = p.resolve()
+    task_preset = replace(task_preset, dataset_file=str(p))
 
 task_config_path = Path(args_cli.task_config).expanduser().resolve() if args_cli.task_config else None
 task_interaction = load_task_interaction_config(task_preset.task_id, task_config_path)
@@ -146,6 +187,10 @@ print(
     f"[INFO] Episode step limit: control_steps<={int(args_cli.episode_step_limit)} "
     "(timeout => failed attempt)"
 )
+print(
+    f"[INFO] Health checks: enabled={not bool(args_cli.no_health_checks)} "
+    f"reset_retries={int(args_cli.reset_health_retries)}"
+)
 
 args_cli = apply_camera_launch_workarounds(args_cli)
 
@@ -165,7 +210,18 @@ from env_setup import (
 )
 from episode_collector import OfficialEpisodeCollector
 from interaction_executor import PushInteractionExecutor
+from collection_health import (
+    HealthLimits,
+    check_robot_state,
+    check_scene_joint_angle_deg,
+)
 from isaaclab_env_module import IsaacLabEnvironmentModule, SCENE_JOINT_PHYSICS_WARMUP_STEPS
+
+health_limits = HealthLimits.from_task_preset(task_preset)
+health_checks_enabled = not bool(args_cli.no_health_checks)
+fatal_exit_requested = False
+FATAL_RESTART_EXIT_CODE = 75
+WRIST_CAMERA_PARENT_PATH = "/World/piper_description/gripper_base"
 
 env_module = IsaacLabEnvironmentModule(
     build_environment_module_config(task_preset, quiet_logging=not args_cli.debug_logs)
@@ -201,6 +257,9 @@ collector = OfficialEpisodeCollector(
     dataset_file=task_preset.dataset_file,
     env_name=task_preset.env_name,
     num_demos=args_cli.num_demos,
+    health_limits=health_limits,
+    health_checks_enabled=health_checks_enabled,
+    session_subdir=not bool(args_cli.flat_dataset_session_dir),
 )
 
 if not task_interaction.sampling or not task_interaction.push:
@@ -245,6 +304,8 @@ if task_interaction.interaction_mode == "push":
         rng=np_rng,
         home_steps=args_cli.home_reset_steps,
         verbose=bool(args_cli.debug_logs),
+        health_limits=health_limits,
+        health_checks_enabled=health_checks_enabled,
     )
 else:
     raise NotImplementedError(
@@ -312,6 +373,16 @@ def reset_episode_scene() -> None:
         gripper_targets=gripper_close_target,
         gripper_joint_ids=handles.gripper_joint_ids,
     )
+
+    warmup_sec = max(0.0, float(args_cli.post_reset_warmup_sec))
+    if warmup_sec > 0.0:
+        deadline = time.perf_counter() + warmup_sec
+        while time.perf_counter() < deadline:
+            sim.render()
+            robot.update(sim.cfg.dt)
+            if env_module.scene_articulation is not None:
+                env_module.scene_articulation.update(sim.cfg.dt)
+
     scene_spec = episode_preset.scene_root_specs[0] if episode_preset.scene_root_specs else None
     joint_spec = episode_preset.joint_initial_specs[0] if episode_preset.joint_initial_specs else None
     scene_xyz = tuple(round(float(v), 4) for v in scene_spec.translation) if scene_spec else None
@@ -331,6 +402,60 @@ def reset_episode_scene() -> None:
     )
     if args_cli.debug_logs:
         print("[TRACE] reset_episode_scene: end", flush=True)
+
+
+def validate_episode_scene_health(
+    *,
+    joint_target_deg: float | None,
+) -> tuple[bool, str]:
+    if not health_checks_enabled:
+        return True, ""
+
+    robot_health = check_robot_state(robot, handles, health_limits)
+    if not robot_health.ok:
+        return False, robot_health.reason
+
+    joint_spec = get_task_preset(args_cli.task_id).joint_initial_specs
+    joint_prim = joint_spec[0].prim_path if joint_spec else None
+    joint_sim = (
+        env_module.read_scene_joint_angle_deg(joint_prim)
+        if joint_prim is not None
+        else None
+    )
+    joint_health = check_scene_joint_angle_deg(
+        joint_sim,
+        target_deg=joint_target_deg,
+        limits=health_limits,
+    )
+    if not joint_health.ok:
+        return False, joint_health.reason
+
+    return True, ""
+
+
+def reset_episode_scene_with_health() -> tuple[bool, str]:
+    global fatal_exit_requested
+
+    max_retries = max(1, int(args_cli.reset_health_retries))
+    last_reason = ""
+    for retry_idx in range(max_retries):
+        reset_episode_scene()
+        joint_target_deg = None
+        if env_module.cfg.joint_initial_specs:
+            joint_target_deg = float(env_module.cfg.joint_initial_specs[0].position)
+        ok, reason = validate_episode_scene_health(joint_target_deg=joint_target_deg)
+        if ok:
+            return True, ""
+        last_reason = reason
+        print(
+            f"[WARN] Post-reset health check failed "
+            f"({retry_idx + 1}/{max_retries}): {reason}",
+            flush=True,
+        )
+        if reason.startswith("FATAL_WRIST_CAMERA_MOUNT") and bool(args_cli.fatal_on_wrist_mount_error):
+            fatal_exit_requested = True
+            return False, last_reason
+    return False, last_reason
 
 
 def export_episode_final_step(success: bool) -> tuple[bool, str | None, int]:
@@ -357,7 +482,19 @@ try:
 
         try:
             collector.reset_episode()
-            reset_episode_scene()
+            executor.reset_recording_health()
+            scene_ok, scene_reason = reset_episode_scene_with_health()
+            if not scene_ok:
+                print(
+                    f"[WARN] Attempt {total_attempts}: skipping after reset health failures: "
+                    f"{scene_reason}",
+                    flush=True,
+                )
+                collector.reset_episode()
+                if fatal_exit_requested:
+                    print("[FATAL] Restart requested after unrecoverable wrist camera mount error.", flush=True)
+                    break
+                continue
             capture_initial_state()
 
             t0 = time.perf_counter()
@@ -367,6 +504,14 @@ try:
                 episode_step_limit=int(args_cli.episode_step_limit),
             )
 
+            if success and executor.recording_health_failed:
+                print(
+                    f"[WARN] Attempt {total_attempts}: task succeeded but recording failed health "
+                    f"check ({executor._recording_health_reason}); discarding episode.",
+                    flush=True,
+                )
+                success = False
+
             if success:
                 saved, demo_key, num_steps = export_episode_final_step(success=True)
                 if saved:
@@ -375,8 +520,16 @@ try:
                         f"[INFO] Attempt {total_attempts}: saved {demo_key} "
                         f"T={num_steps} control_steps={executor.control_step_count}/"
                         f"{int(args_cli.episode_step_limit)} joints={final_joint_degs} "
-                        f"({successful_demos}/{args_cli.num_demos})"
+                        f"({successful_demos}/{args_cli.num_demos})",
+                        flush=True,
                     )
+                    if successful_demos >= args_cli.num_demos:
+                        print(
+                            f"[INFO] Target reached ({successful_demos}/{args_cli.num_demos}); "
+                            "leaving collection loop.",
+                            flush=True,
+                        )
+                        break
                 else:
                     print("[WARN] Success but no recorded steps; skipping export.")
                     collector.reset_episode()
@@ -420,6 +573,8 @@ finally:
         f"[INFO] Auto collection finished: {successful_demos} success, "
         f"{failed_exports} failed saved, {total_attempts} attempts"
     )
-    print(f"[INFO] Dataset: {collector.dataset_file}")
-    print("[INFO] Closing simulation app...")
+    print(f"[INFO] Dataset: {collector.dataset_file}", flush=True)
+    print("[INFO] Closing simulation app...", flush=True)
     simulation_app.close()
+    if fatal_exit_requested:
+        raise SystemExit(FATAL_RESTART_EXIT_CODE)

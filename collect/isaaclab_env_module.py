@@ -776,6 +776,89 @@ class IsaacLabEnvironmentModule:
 
 		return rgb[0].clone()
 
+	def validate_camera_mount(
+		self,
+		camera_name: str,
+		*,
+		expected_parent_path: str | None = None,
+		translation_tolerance_m: float = 1e-3,
+	) -> tuple[bool, str]:
+		"""Validate camera prim hierarchy/local pose and render sensor availability.
+
+		This catches the failure mode where the wrist camera prim/render product is left
+		in a stale or detached state after repeated Isaac/RTX resets. It does not rely
+		on image content, so lighting/domain randomization does not affect the check.
+		"""
+		import omni.usd
+		from pxr import Gf, UsdGeom
+
+		stage = omni.usd.get_context().get_stage()
+		if stage is None:
+			return False, "USD stage is unavailable"
+
+		spec = next((item for item in self.cfg.camera_specs if item.name == camera_name), None)
+		if spec is None:
+			return False, f"unknown camera '{camera_name}'"
+
+		prim = stage.GetPrimAtPath(spec.prim_path)
+		if not prim or not prim.IsValid():
+			return False, f"camera prim missing: {spec.prim_path}"
+
+		if expected_parent_path:
+			parent_path = str(prim.GetParent().GetPath())
+			if parent_path != expected_parent_path:
+				return False, f"camera parent={parent_path}, expected={expected_parent_path}"
+
+		if spec.translation is not None:
+			translate_op = self._find_xform_op(UsdGeom.Xformable(prim), UsdGeom.XformOp.TypeTranslate)
+			if translate_op is None:
+				return False, f"camera {camera_name} missing local translate op"
+			value = translate_op.Get()
+			if value is None:
+				return False, f"camera {camera_name} local translate is None"
+			delta = Gf.Vec3d(float(value[0]), float(value[1]), float(value[2])) - Gf.Vec3d(*spec.translation)
+			if delta.GetLength() > float(translation_tolerance_m):
+				return (
+					False,
+					f"camera {camera_name} local translation drift={delta.GetLength():.6f}m "
+					f"value=({float(value[0]):.4f},{float(value[1]):.4f},{float(value[2]):.4f}) "
+					f"expected={spec.translation}",
+				)
+
+		world = UsdGeom.XformCache().GetLocalToWorldTransform(prim)
+		for row in range(4):
+			for col in range(4):
+				if not math.isfinite(float(world[row][col])):
+					return False, f"camera {camera_name} has non-finite world transform"
+
+		sensor = self.sensor_cameras.get(camera_name)
+		if sensor is None:
+			return False, f"camera sensor '{camera_name}' is not registered"
+
+		if hasattr(sensor.data, "pos_w") and sensor.data.pos_w is not None:
+			sensor_pos = sensor.data.pos_w[0]
+			if not sensor_pos.isfinite().all():
+				return False, f"camera sensor '{camera_name}' pos_w has non-finite values"
+			usd_pos = world.ExtractTranslation()
+			sensor_pos_cpu = sensor_pos.detach().cpu()
+			delta_m = math.sqrt(
+				(sum((float(sensor_pos_cpu[i]) - float(usd_pos[i])) ** 2 for i in range(3)))
+			)
+			if delta_m > 0.02:
+				return (
+					False,
+					f"camera sensor '{camera_name}' pos_w disagrees with USD world pose "
+					f"by {delta_m:.4f}m sensor={sensor_pos_cpu.tolist()} "
+					f"usd=({float(usd_pos[0]):.4f},{float(usd_pos[1]):.4f},{float(usd_pos[2]):.4f})",
+				)
+
+		rgb = self.capture_rgb(camera_name)
+		if rgb is None:
+			return False, f"camera sensor '{camera_name}' produced no rgb"
+		if not rgb.isfinite().all():
+			return False, f"camera sensor '{camera_name}' rgb has non-finite values"
+		return True, ""
+
 	@property
 	def camera_paths(self) -> dict[str, str]:
 		return dict(self._camera_paths)

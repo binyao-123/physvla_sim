@@ -855,6 +855,7 @@ def _set_xform_ops_xyz_yaw_scale(
     xformable.AddTranslateOp().Set(Gf.Vec3d(*xyz))
     xformable.AddRotateXYZOp().Set(Gf.Vec3f(0.0, 0.0, float(yaw_deg)))
     uniform_scale = float(scale)
+    uniform_scale = max(0.01, min(uniform_scale, 10.0))
     xformable.AddScaleOp().Set(Gf.Vec3f(uniform_scale, uniform_scale, uniform_scale))
 
 

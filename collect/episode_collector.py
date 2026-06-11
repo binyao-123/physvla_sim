@@ -11,12 +11,25 @@ import h5py
 import torch
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
+from collection_health import HealthLimits, check_episode_data
+
 
 class OfficialEpisodeCollector:
-    def __init__(self, dataset_file: str, env_name: str, num_demos: int = 0):
-        self.dataset_file = self._make_session_dataset_file(dataset_file)
+    def __init__(
+        self,
+        dataset_file: str,
+        env_name: str,
+        num_demos: int = 0,
+        *,
+        health_limits: HealthLimits | None = None,
+        health_checks_enabled: bool = True,
+        session_subdir: bool = True,
+    ):
+        self.dataset_file = self._make_session_dataset_file(dataset_file, session_subdir=session_subdir)
         self.env_name = env_name
         self.num_demos = num_demos
+        self.health_limits = health_limits or HealthLimits()
+        self.health_checks_enabled = bool(health_checks_enabled)
 
         output_dir = os.path.dirname(self.dataset_file) or "."
         output_name = os.path.splitext(os.path.basename(self.dataset_file))[0]
@@ -70,10 +83,10 @@ class OfficialEpisodeCollector:
         self.exported_failed_episode_count = 0
 
     @staticmethod
-    def _make_session_dataset_file(dataset_file: str) -> str:
+    def _make_session_dataset_file(dataset_file: str, *, session_subdir: bool = True) -> str:
         output_dir = os.path.dirname(dataset_file) or "."
         output_name = os.path.splitext(os.path.basename(dataset_file))[0]
-        session_dir = os.path.join(output_dir, output_name)
+        session_dir = os.path.join(output_dir, output_name) if session_subdir else output_dir
         utc8 = timezone(timedelta(hours=8))
         timestamp = datetime.now(utc8).strftime("%Y%m%d_%H%M%S")
         return os.path.join(session_dir, f"{output_name}_{timestamp}.hdf5")

@@ -4,6 +4,7 @@ __pycache__/
 *.hdf5
 *.mp4
 collect/datasets/
+collect/logs/
 
 ${data}/
 collect/${data}/
