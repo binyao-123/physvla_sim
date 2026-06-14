@@ -14,7 +14,7 @@ cd ~/workspace/physvla_sim/rollout_sim
 #   --video_layout head_wrist \
 #   --video_fps 10
 
-# === 任务：关闭笔记本，提示词：Close the laptop lid until it is fully closed. ===
+# === 任务：关闭笔记本，提示词：close the laptop lid. ===
 ~/isaacsim/python.sh pi05_policy_rollout.py \
   --task_id close_laptop_lid \
   --headless \

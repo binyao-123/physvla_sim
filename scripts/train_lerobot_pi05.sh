@@ -34,7 +34,7 @@ export https_proxy="${https_proxy:-$HTTPS_PROXY}"
 #   --overwrite_output_dir=false
 
 
-# === 任务：关闭笔记本，提示词：Close the laptop lid until it is fully closed. ===
+# === 任务：关闭笔记本，提示词：close the laptop lid. ===
 uv run lerobot-train \
   --dataset.repo_id=physvla/piper_dual14_close_laptop_lid_sim_r1 \
   --dataset.root=/home/ubuntu/workspace/physvla_sim/convert_data/lerobot_datasets/piper_dual14_close_laptop_lid_sim_r1 \

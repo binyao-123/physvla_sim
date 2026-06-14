@@ -229,7 +229,7 @@ class TaskPreset:
 # 任务 ID 与 喂给 VLM 的提示词（须与 convert_hdf5_to_lerobot.py --task 一致）
 # ---------------------------------------------------------------------------
 CLOSE_LAPTOP_TASK_ID = "close_laptop_lid"
-CLOSE_LAPTOP_LANGUAGE_INSTRUCTION = "Close the laptop lid until it is fully closed."
+CLOSE_LAPTOP_LANGUAGE_INSTRUCTION = "close the laptop lid."
 
 ADJUST_MONITOR_TASK_ID = "adjust_the_monitor"
 ADJUST_MONITOR_LANGUAGE_INSTRUCTION = "adjust the display."
