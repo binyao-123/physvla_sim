@@ -331,6 +331,7 @@ def _create_dataset(
     mode: Literal["video", "image"],
     output_dir: Path | None,
     overwrite: bool,
+    resume: bool,
     video_backend: str | None,
     vector_dim: VectorDim,
     image_hw: tuple[int, int],
@@ -370,9 +371,21 @@ def _create_dataset(
     dataset_root = output_dir if output_dir is not None else Path(HF_LEROBOT_HOME) / repo_id
     cache_dataset_dir = dataset_root
     if cache_dataset_dir.exists():
-        if not overwrite:
-            raise FileExistsError(f"LeRobot cache dataset already exists: {cache_dataset_dir}. Pass --overwrite.")
-        shutil.rmtree(cache_dataset_dir)
+        if not overwrite and not resume:
+            raise FileExistsError(f"LeRobot cache dataset already exists: {cache_dataset_dir}. Pass --overwrite or --resume.")
+        if overwrite and not resume:
+            shutil.rmtree(cache_dataset_dir)
+
+    if resume and cache_dataset_dir.exists():
+        print(f"[INFO] Resuming: opening existing dataset at {cache_dataset_dir}")
+        return LeRobotDataset.resume(
+            repo_id=repo_id,
+            root=dataset_root,
+            batch_encoding_size=1,
+            image_writer_processes=4,
+            image_writer_threads=4,
+            video_backend=video_backend,
+        )
 
     return LeRobotDataset.create(
         repo_id=repo_id,
@@ -395,6 +408,7 @@ def _populate_dataset(
     task: str,
     include_failed: bool,
     max_episodes: int | None,
+    resume: int,
     joint_value_source: JointValueSource,
     gripper_obs_mode: GripperObsMode,
     vector_dim: VectorDim,
@@ -405,12 +419,20 @@ def _populate_dataset(
     converted = 0
     skipped_failed = 0
     missing_success = 0
+    skipped_io_errors = 0
+    global_idx = 0
 
     for file_path in files:
         with h5py.File(file_path, "r") as h5_file:
             for episode_name in _iter_episode_names(h5_file):
                 if max_episodes is not None and converted >= max_episodes:
-                    return converted, skipped_failed, missing_success
+                    return converted, skipped_failed, missing_success, skipped_io_errors
+
+                # Resume: skip already-converted episodes
+                if global_idx < resume:
+                    global_idx += 1
+                    continue
+                global_idx += 1
 
                 episode = h5_file["data"][episode_name]
                 success = _read_success(episode)
@@ -420,12 +442,17 @@ def _populate_dataset(
                     skipped_failed += 1
                     continue
 
-                state = _to_float32_2d(
-                    episode["obs/robot_joint_pos"],
-                    key="obs/robot_joint_pos",
-                    expected_dim=expected_hdf5_joint_width,
-                )
-                action = _to_float32_2d(episode["actions"], key="actions", expected_dim=expected_hdf5_joint_width)
+                try:
+                    state = _to_float32_2d(
+                        episode["obs/robot_joint_pos"],
+                        key="obs/robot_joint_pos",
+                        expected_dim=expected_hdf5_joint_width,
+                    )
+                    action = _to_float32_2d(episode["actions"], key="actions", expected_dim=expected_hdf5_joint_width)
+                except OSError as e:
+                    skipped_io_errors += 1
+                    print(f"[WARN] I/O error reading {file_path.name}:{episode_name} joints, skipping: {e}")
+                    continue
                 state, action = _apply_joint_encoding(state, action, source=joint_value_source)
                 state = _apply_gripper_obs_mode(state, action, mode=gripper_obs_mode)
 
@@ -457,29 +484,40 @@ def _populate_dataset(
                     file_label=file_path.name,
                     episode_name=episode_name,
                 )
-                head0 = _to_uint8_rgb(
-                    camera_datasets["rgb_main"][int(export_idx[0])],
-                    key="obs/rgb_main",
-                )
+                try:
+                    head0 = _to_uint8_rgb(
+                        camera_datasets["rgb_main"][int(export_idx[0])],
+                        key="obs/rgb_main",
+                    )
+                except OSError as e:
+                    skipped_io_errors += 1
+                    print(f"[WARN] I/O error reading {file_path.name}:{episode_name} images, skipping: {e}")
+                    continue
                 h, w = int(head0.shape[0]), int(head0.shape[1])
 
-                for frame_idx in export_idx:
-                    i = int(frame_idx)
-                    frame = {
-                        "observation.state": torch.from_numpy(state[i]),
-                        "action": torch.from_numpy(action[i]),
-                        "task": task,
-                        "observation.images.head": _to_uint8_rgb(
-                            camera_datasets["rgb_main"][i],
-                            key="obs/rgb_main",
-                        ),
-                        "observation.images.left_wrist": _to_uint8_rgb(
-                            camera_datasets["rgb_wrist"][i],
-                            key="obs/rgb_wrist",
-                        ),
-                        "observation.images.right_wrist": np.zeros((h, w, 3), dtype=np.uint8),
-                    }
-                    dataset.add_frame(frame)
+                try:
+                    for frame_idx in export_idx:
+                        i = int(frame_idx)
+                        frame = {
+                            "observation.state": torch.from_numpy(state[i]),
+                            "action": torch.from_numpy(action[i]),
+                            "task": task,
+                            "observation.images.head": _to_uint8_rgb(
+                                camera_datasets["rgb_main"][i],
+                                key="obs/rgb_main",
+                            ),
+                            "observation.images.left_wrist": _to_uint8_rgb(
+                                camera_datasets["rgb_wrist"][i],
+                                key="obs/rgb_wrist",
+                            ),
+                            "observation.images.right_wrist": np.zeros((h, w, 3), dtype=np.uint8),
+                        }
+                        dataset.add_frame(frame)
+                except OSError as e:
+                    skipped_io_errors += 1
+                    print(f"[WARN] I/O error mid-episode {file_path.name}:{episode_name}, discarding partial frames: {e}")
+                    dataset.clear_episode_buffer()
+                    continue
 
                 dataset.save_episode()
                 converted += 1
@@ -488,7 +526,7 @@ def _populate_dataset(
                     f"({export_idx.size}/{state.shape[0]} frames, filter={frame_filter})"
                 )
 
-    return converted, skipped_failed, missing_success
+    return converted, skipped_failed, missing_success, skipped_io_errors
 
 
 def main():
@@ -528,6 +566,12 @@ def main():
     parser.add_argument("--mode", choices=["video", "image"], default="video", help="Store images as videos or images.")
     parser.add_argument("--include-failed", action="store_true", help="Convert episodes explicitly marked success=False.")
     parser.add_argument("--max-episodes", type=int, default=None, help="Optional cap for smoke conversions.")
+    parser.add_argument(
+        "--resume",
+        type=int,
+        default=0,
+        help="Skip the first N episodes (already converted). Use for resuming after a crash.",
+    )
     parser.add_argument("--overwrite", action="store_true", help="Remove existing output/cache dataset before converting.")
     parser.add_argument("--video-backend", default=None, help="Optional LeRobot video backend override.")
     parser.add_argument(
@@ -618,17 +662,19 @@ def main():
         mode=args.mode,
         output_dir=args.output,
         overwrite=args.overwrite,
+        resume=args.resume > 0,
         video_backend=args.video_backend,
         vector_dim=args.vector_dim,
         image_hw=image_hw,
     )
     try:
-        converted, skipped_failed, missing_success = _populate_dataset(
+        converted, skipped_failed, missing_success, skipped_io_errors = _populate_dataset(
             dataset,
             files,
             task=args.task,
             include_failed=args.include_failed,
             max_episodes=args.max_episodes,
+            resume=args.resume,
             joint_value_source=args.joint_value_source,
             gripper_obs_mode=args.gripper_obs_mode,
             vector_dim=args.vector_dim,
@@ -646,7 +692,8 @@ def main():
     print(f"[INFO] LeRobot dataset root: {dataset.root}")
     print(
         "[INFO] Done. "
-        f"converted={converted}, skipped_failed={skipped_failed}, missing_success_attr={missing_success}"
+        f"converted={converted}, skipped_failed={skipped_failed}, "
+        f"missing_success_attr={missing_success}, skipped_io_errors={skipped_io_errors}"
     )
     print(
         "[INFO] meta/stats.json (incl. QUANTILES q01/q99) is written during dataset.finalize(). "
