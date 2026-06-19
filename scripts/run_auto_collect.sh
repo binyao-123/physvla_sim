@@ -1,19 +1,20 @@
 #!/bin/bash
-# Auto collect with watchdog: restart after CUDA/render fatal errors or wrist-camera mount failures.
+# adjust_the_monitor auto-collect with watchdog (yaml_handle push, VLM: "adjust the display.")
+# Restarts after CUDA/render fatal errors or wrist-camera mount failures.
 set -euo pipefail
 
 COLLECT_DIR="${COLLECT_DIR:-$HOME/workspace/physvla_sim/collect}"
-TASK_ID="${TASK_ID:-close_laptop_lid}"
+TASK_ID="${TASK_ID:-adjust_the_monitor}"
 WORKER_ID="${WORKER_ID:-main}"
 DATASET_ROOT="${DATASET_ROOT:-$COLLECT_DIR/datasets}"
 DATASET_DIR="${DATASET_DIR:-$DATASET_ROOT/$TASK_ID}"
 DATASET_STEM="${DATASET_STEM:-$TASK_ID}"
 DATASET_FILE="${DATASET_FILE:-$DATASET_DIR/${DATASET_STEM}.hdf5}"
 # This is the remaining target for this run/batch, not the total historical dataset size.
-TARGET_DEMOS="${TARGET_DEMOS:-354}"
+TARGET_DEMOS="${TARGET_DEMOS:-300}"
 BATCH_SIZE="${BATCH_SIZE:-300}"
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-500}"
-EPISODE_STEP_LIMIT="${EPISODE_STEP_LIMIT:-600}"
+EPISODE_STEP_LIMIT="${EPISODE_STEP_LIMIT:-800}"
 SEED="${SEED:-42}"
 RESTART_SLEEP_SEC="${RESTART_SLEEP_SEC:-10}"
 POST_RESET_WARMUP_SEC="${POST_RESET_WARMUP_SEC:-1.0}"

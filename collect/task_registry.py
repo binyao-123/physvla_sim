@@ -241,12 +241,13 @@ ADJUST_MONITOR_LANGUAGE_INSTRUCTION = "adjust the display."
 '''RoboTwin2 场景随机化'''
 # 视觉 DR：主俯视相机Translate、Focal Length随机化（腕部相机不动，rotation 不随机）
 ROBOTWIN2_CAMERA_MAIN_RANDOMIZATION_ENABLE = True  # ENABLE总开关
+# Y轴-0.6代表最右边界，Z轴代表上下距离，焦距6.9表示超广角，视野更广
 ROBOTWIN2_CAMERA_MAIN_TRANSLATION_RANGES = (
     (0.0, 0.5),
     (-0.6, -0.2),
-    (0.7, 0.9),
+    (0.7, 0.95),
 )
-ROBOTWIN2_CAMERA_MAIN_FOCAL_LENGTH_RANGE = (6.9, 8.9)
+ROBOTWIN2_CAMERA_MAIN_FOCAL_LENGTH_RANGE = (6.9, 8.0)
 
 # 视觉 DR：Isaac UsdLux 光照随机化  
 ROBOTWIN2_LIGHTING_RANDOMIZATION_ENABLE = True  # ENABLE总开关
@@ -306,11 +307,12 @@ ROBOTWIN2_CLUTTER_ASSET_CANDIDATES = (
 # 坐标以当前任务物体 scene root 的XY为中心；右侧=主俯视相机近侧（Y负方向）
 ROBOTWIN2_CLUTTER_SLOT_SPECS = (
     # Split the right side into three non-overlapping bands to avoid clutter overlap.
-    ("right", 1, (-0.36, -0.12), (-0.64, -0.28), 0.02),
-    ("right", 1, (-0.12, 0.12), (-0.64, -0.28), 0.02),
-    ("right", 1, (0.12, 0.36), (-0.64, -0.28), 0.02),
-    ("front", 1, (0.28, 0.46), (-0.10, 0.10), 0.02),
-    ("left", 1, (-0.18, 0.18), (0.28, 0.46), 0.02),
+    # 相对原始基准再远离原点 10cm：right Y 更负，front X 更大，left Y 更大
+    ("right", 1, (-0.36, -0.12), (-0.74, -0.38), 0.02),
+    ("right", 1, (-0.12, 0.12), (-0.74, -0.38), 0.02),
+    ("right", 1, (0.12, 0.36), (-0.74, -0.38), 0.02),
+    ("front", 1, (0.38, 0.56), (-0.10, 0.10), 0.02),
+    ("left", 1, (-0.18, 0.18), (0.38, 0.56), 0.02),
 )
 ROBOTWIN2_CLUTTER_YAW_RANGE_DEG = (-180.0, 180.0)
 
@@ -360,7 +362,7 @@ CLOSE_LAPTOP_SCENE_ROOT_RANDOM_Y_RANGE_M = 0.15
 CLOSE_LAPTOP_SCENE_ROOT_ROTATION_XYZ = (0.0, -10.0, 180.0)
 CLOSE_LAPTOP_SCENE_ROOT_RANDOM_YAW_RANGE_DEG = 20.0
 
-# 基准初始化尺寸（暂不随机化）
+# 基准初始化尺寸
 CLOSE_LAPTOP_SCENE_ROOT_SCALE = (0.15, 0.15, 0.15)
 
 # 标定笔记本模型基于该坐标平移
@@ -379,6 +381,33 @@ def scene_root_translation_delta(
     return tuple(float(c) - float(b) for c, b in zip(current, calibration))
 
 '''调节显示器采集任务'''
+# 基准初始化角度：显示器铰链初始角度 -17度，随机范围 [-22, -12]
+ADJUST_MONITOR_JOINT_INITIAL_BASE_DEG = -17.0
+ADJUST_MONITOR_JOINT_INITIAL_RANDOM_RANGE_DEG = 5.0  # position = base + x → [-22, -12]°
+
+# 基准初始化坐标，X轴10cm，Y轴±15cm
+ADJUST_MONITOR_SCENE_ROOT_BASE_TRANSLATION = (
+    0.45,
+    0.0,
+    0.2326,
+)
+ADJUST_MONITOR_SCENE_ROOT_RANDOM_X_RANGE_M = 0.10
+ADJUST_MONITOR_SCENE_ROOT_RANDOM_Y_RANGE_M = 0.15
+
+# 基准初始化yaw角：Z轴±20度
+ADJUST_MONITOR_SCENE_ROOT_ROTATION_XYZ = (0.0, 0.0, 180.0)
+ADJUST_MONITOR_SCENE_ROOT_RANDOM_YAW_RANGE_DEG = 20.0
+
+# 基准初始化尺寸
+ADJUST_MONITOR_SCENE_ROOT_SCALE = (0.275, 0.275, 0.275)
+
+# 标定显示器模型基于该坐标平移
+ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_TRANSLATION = (
+    0.4,
+    0.0,
+    0.2326,
+)
+ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ = ADJUST_MONITOR_SCENE_ROOT_ROTATION_XYZ
 
 
 # ---------------------------------------------------------------------------
@@ -444,28 +473,51 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         joint_drive_specs=(
             TaskJointDriveSpec(
                 prim_path="/World/generated/joints/joint_1",
-                damping=100.0,
+                damping=1500.0,
                 stiffness=0.0,
                 max_force=30.0,
             ),
         ),
-        joint_limit_specs=(),
+        joint_limit_specs=(
+            TaskJointLimitSpec(
+                prim_path="/World/generated/joints/joint_1",
+                lower_limit=-22.71,  # USD 默认值 physics:lowerLimit
+                # 比 USD 实际上限(3.58°)略大，让 T_rel 规划更长的推动弧线，
+                # 确保 EE 持续贴合推面直到 joint 稳定达到成功条件。
+                # USD 物理限位仍会阻止 joint 超过 3.58°。
+                upper_limit=10.0,
+            ),
+        ),
         joint_initial_specs=(
             TaskJointInitialSpec(
                 prim_path="/World/generated/joints/joint_1",
-                position=-20.0,
+                position=ADJUST_MONITOR_JOINT_INITIAL_BASE_DEG,
+            ),
+        ),
+        scene_root_specs=(
+            TaskSceneRootSpec(
+                prim_path=SCENE_ARTICULATION_PRIM_PATH,
+                translation=ADJUST_MONITOR_SCENE_ROOT_BASE_TRANSLATION,
+                rotation_xyz=ADJUST_MONITOR_SCENE_ROOT_ROTATION_XYZ,
+                scale=ADJUST_MONITOR_SCENE_ROOT_SCALE,
             ),
         ),
         rollout_success_specs=(
             TaskRolloutSuccessSpec(
                 joint_prim="/World/generated/joints/joint_1",
-                angle_gt_deg=0.0,   # 显示器角度大于0度时，判定任务成功
+                angle_gt_deg=-2.0,   # 显示器角度大于-2度时，判定任务成功
             ),
         ),
         randomization=ROBOTWIN2_COMMON_RANDOMIZATION,
         **_shared_teleop_kwargs(),
     ),
 }
+
+
+
+
+
+
 
 # ---------------------------------------------------------------------------
 # 计算函数
@@ -503,29 +555,77 @@ def sample_close_laptop_scene_root_rotation_xyz() -> tuple[float, float, float]:
     return (rx, ry, rz + yaw_delta)
 
 
+def sample_adjust_monitor_joint_initial_deg() -> float:
+    """Each call: x ~ U[-range, +range], return base + x."""
+    x = random.uniform(
+        -ADJUST_MONITOR_JOINT_INITIAL_RANDOM_RANGE_DEG,
+        ADJUST_MONITOR_JOINT_INITIAL_RANDOM_RANGE_DEG,
+    )
+    return ADJUST_MONITOR_JOINT_INITIAL_BASE_DEG + x
+
+
+def sample_adjust_monitor_scene_root_translation() -> tuple[float, float, float]:
+    """Each call: scene root translation = base + (dx, dy, 0)."""
+    base_x, base_y, base_z = ADJUST_MONITOR_SCENE_ROOT_BASE_TRANSLATION
+    dx = random.uniform(
+        -ADJUST_MONITOR_SCENE_ROOT_RANDOM_X_RANGE_M,
+        ADJUST_MONITOR_SCENE_ROOT_RANDOM_X_RANGE_M,
+    )
+    dy = random.uniform(
+        -ADJUST_MONITOR_SCENE_ROOT_RANDOM_Y_RANGE_M,
+        ADJUST_MONITOR_SCENE_ROOT_RANDOM_Y_RANGE_M,
+    )
+    return (base_x + dx, base_y + dy, base_z)
+
+
+def sample_adjust_monitor_scene_root_rotation_xyz() -> tuple[float, float, float]:
+    """Each call: scene root rotation = base + (0, 0, yaw_delta)."""
+    rx, ry, rz = ADJUST_MONITOR_SCENE_ROOT_ROTATION_XYZ
+    yaw_delta = random.uniform(
+        -ADJUST_MONITOR_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
+        ADJUST_MONITOR_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
+    )
+    return (rx, ry, rz + yaw_delta)
+
+
 def get_task_preset(task_id: str) -> TaskPreset:
     if task_id not in TASK_PRESETS:
         known = ", ".join(sorted(TASK_PRESETS.keys()))
         raise KeyError(f"Unknown task_id '{task_id}'. Available: {known}")
     preset = TASK_PRESETS[task_id]
-    if task_id != CLOSE_LAPTOP_TASK_ID:
-        return preset
-
-    angle_deg = sample_close_laptop_joint_initial_deg()
-    joint_initial_specs = tuple(
-        replace(spec, position=angle_deg) for spec in preset.joint_initial_specs
-    )
-    scene_translation = sample_close_laptop_scene_root_translation()
-    scene_rotation_xyz = sample_close_laptop_scene_root_rotation_xyz()
-    scene_root_specs = tuple(
-        replace(spec, translation=scene_translation, rotation_xyz=scene_rotation_xyz)
-        for spec in preset.scene_root_specs
-    )
-    return replace(
-        preset,
-        joint_initial_specs=joint_initial_specs,
-        scene_root_specs=scene_root_specs,
-    )
+    if task_id == CLOSE_LAPTOP_TASK_ID:
+        angle_deg = sample_close_laptop_joint_initial_deg()
+        joint_initial_specs = tuple(
+            replace(spec, position=angle_deg) for spec in preset.joint_initial_specs
+        )
+        scene_translation = sample_close_laptop_scene_root_translation()
+        scene_rotation_xyz = sample_close_laptop_scene_root_rotation_xyz()
+        scene_root_specs = tuple(
+            replace(spec, translation=scene_translation, rotation_xyz=scene_rotation_xyz)
+            for spec in preset.scene_root_specs
+        )
+        return replace(
+            preset,
+            joint_initial_specs=joint_initial_specs,
+            scene_root_specs=scene_root_specs,
+        )
+    elif task_id == ADJUST_MONITOR_TASK_ID:
+        angle_deg = sample_adjust_monitor_joint_initial_deg()
+        joint_initial_specs = tuple(
+            replace(spec, position=angle_deg) for spec in preset.joint_initial_specs
+        )
+        scene_translation = sample_adjust_monitor_scene_root_translation()
+        scene_rotation_xyz = sample_adjust_monitor_scene_root_rotation_xyz()
+        scene_root_specs = tuple(
+            replace(spec, translation=scene_translation, rotation_xyz=scene_rotation_xyz)
+            for spec in preset.scene_root_specs
+        )
+        return replace(
+            preset,
+            joint_initial_specs=joint_initial_specs,
+            scene_root_specs=scene_root_specs,
+        )
+    return preset
 
 
 def list_task_presets() -> list[TaskPreset]:

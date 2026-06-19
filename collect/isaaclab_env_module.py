@@ -214,12 +214,12 @@ class IsaacLabEnvironmentModule:
 				auth_attr = prim.CreateAttribute("physics:position", Sdf.ValueTypeNames.Float)
 			auth_attr.Set(value)
 
-			# Do not write state:angular:physics:position on a live stage. With PhysX
-			# Direct GPU API enabled, that live state sync can call illegal
-			# setJointPosition/updateKinematic paths. Let reset/warmup consume the
-			# authored physics:position instead.
-			# Do not set drive:angular:physics:targetPosition here: on GPU direct API it
-			# triggers illegal PhysX setDriveTarget errors. Warmup steps apply physics:position.
+			# Also write state:angular:physics:position so the visual pose matches
+			# immediately (before sim.reset). This is safe when called before the
+			# simulation starts or when GPU Direct API is not yet active.
+			state_attr = prim.GetAttribute("state:angular:physics:position")
+			if state_attr and state_attr.IsValid():
+				state_attr.Set(value)
 
 	def _read_usd_authored_joint_angle_deg(self, prim_path: str) -> float | None:
 		"""USD physics:position (authoring default), not guaranteed to match live PhysX state."""

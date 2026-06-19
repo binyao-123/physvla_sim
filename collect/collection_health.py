@@ -32,6 +32,8 @@ class HealthLimits:
         joint_max = 115.0
         joint_tol = 18.0
         for spec in task_preset.joint_limit_specs:
+            if spec.lower_limit is not None:
+                joint_min = min(joint_min, float(spec.lower_limit) - 5.0)
             if spec.upper_limit is not None:
                 joint_max = max(joint_max, float(spec.upper_limit) + 5.0)
         for spec in task_preset.joint_initial_specs:

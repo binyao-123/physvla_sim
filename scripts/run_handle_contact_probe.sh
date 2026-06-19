@@ -4,7 +4,8 @@
 cd ~/workspace/physvla_sim/collect
 
 ~/isaacsim/python.sh debug_link_contact_probe.py \
-  --task_id close_laptop_lid \
+  --task_id adjust_the_monitor \
   --livestream 2 \
   --mode yaml_handle_contact \
-  --probe_steps 400
+  --probe_steps 400 \
+  --debug-logs

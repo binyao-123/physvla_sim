@@ -186,6 +186,8 @@ executor = PushInteractionExecutor(
     diff_ik_pos_controller=diff_ik_pos_controller,
     gripper_open_target=gripper_open_target,
     gripper_close_target=gripper_close_target,
+    # 从 task_preset.joint_limit_specs 获取 upper_limit；为空时用 USD 内置限位（此处用保守默认值）
+    joint_upper_limit_deg=float(task_preset.joint_limit_specs[0].upper_limit) if task_preset.joint_limit_specs and task_preset.joint_limit_specs[0].upper_limit is not None else 30.0,
     verbose=bool(args_cli.debug_logs),
     trace_ee_handle=bool(args_cli.trace_ee_handle),
     trace_ee_handle_interval=int(args_cli.trace_interval),

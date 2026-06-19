@@ -42,6 +42,9 @@ from collection_health import HealthLimits, RecordingHealthError, check_step_pay
 from recording_utils import RecordingContext, build_step_tensors, capture_rgb_if_due
 from success_utils import evaluate_rollout_success, update_peak_joint_degs
 from task_registry import (
+    ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ,
+    ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_TRANSLATION,
+    ADJUST_MONITOR_TASK_ID,
     CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ,
     CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION,
     CLOSE_LAPTOP_TASK_ID,
@@ -78,7 +81,8 @@ POSE_REACH_ROT_RAD = 0.15
 # Close-phase contact servo: keep EE near the surface point captured at first contact.
 CLOSE_CONTACT_ANCHOR_GAIN = 0.8
 CLOSE_CONTACT_ANCHOR_MAX_CORRECTION_M = 0.1
-CLOSE_CONTACT_ANCHOR_DEADBAND_M = 0.08
+# 对于短行程任务（如显示器0.07m），deadband需要远小于行程才能生效
+CLOSE_CONTACT_ANCHOR_DEADBAND_M = 0.02
 # Piper URDF: joint7 origin is 0.1358 m along gripper_base +Z (closed-gripper pad estimate).
 GRIPPER_FINGER_ORIGIN_OFFSET_M = 0.1358
 # Scene joint_1 USD scale (task_registry close_laptop): 15°≈laptop open 90°, 104°≈closed 0°.
@@ -348,32 +352,42 @@ class PushInteractionExecutor:
 
     def _scene_root_translation_delta_world(self) -> np.ndarray:
         """Map yaml world-calibrated handle points when /World/generated moves."""
-        if self.task_config.task_id != CLOSE_LAPTOP_TASK_ID:
+        if self.task_config.task_id == CLOSE_LAPTOP_TASK_ID:
+            calib = CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION
+        elif self.task_config.task_id == ADJUST_MONITOR_TASK_ID:
+            calib = ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_TRANSLATION
+        else:
             return np.zeros(3, dtype=np.float64)
-        delta = self.env_module.get_scene_root_translation_delta(
-            CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION
-        )
+        delta = self.env_module.get_scene_root_translation_delta(calib)
         return np.asarray(delta, dtype=np.float64)
 
     def _scene_root_yaw_delta_deg(self) -> float:
         """Yaw delta for mapping world-calibrated handle points under Z rotation randomization."""
-        if self.task_config.task_id != CLOSE_LAPTOP_TASK_ID:
+        if self.task_config.task_id == CLOSE_LAPTOP_TASK_ID:
+            calib = CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
+        elif self.task_config.task_id == ADJUST_MONITOR_TASK_ID:
+            calib = ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
+        else:
             return 0.0
-        return float(
-            self.env_module.get_scene_root_yaw_delta_deg(
-                CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
-            )
-        )
+        return float(self.env_module.get_scene_root_yaw_delta_deg(calib))
 
     def _scene_root_yaw_deg(self) -> float:
+        if self.task_config.task_id == ADJUST_MONITOR_TASK_ID:
+            return float(ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ[2]) + self._scene_root_yaw_delta_deg()
         return float(CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ[2]) + self._scene_root_yaw_delta_deg()
 
     def _geometric_map_calibrated_world_position(self, pos: np.ndarray) -> np.ndarray:
         pos = np.asarray(pos, dtype=np.float64)
-        calib_t = np.asarray(
-            CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION,
-            dtype=np.float64,
-        )
+        if self.task_config.task_id == ADJUST_MONITOR_TASK_ID:
+            calib_t = np.asarray(
+                ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_TRANSLATION,
+                dtype=np.float64,
+            )
+        else:
+            calib_t = np.asarray(
+                CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION,
+                dtype=np.float64,
+            )
         delta_t = self._scene_root_translation_delta_world()
         current_t = calib_t + delta_t
         yaw_rad = math.radians(self._scene_root_yaw_delta_deg())
@@ -441,7 +455,7 @@ class PushInteractionExecutor:
 
     def _map_calibrated_world_position(self, pos: np.ndarray) -> np.ndarray:
         pos = np.asarray(pos, dtype=np.float64)
-        if self.task_config.task_id != CLOSE_LAPTOP_TASK_ID:
+        if self.task_config.task_id not in (CLOSE_LAPTOP_TASK_ID, ADJUST_MONITOR_TASK_ID):
             return pos
         return self._geometric_map_calibrated_world_position(pos) + self._yaw_anchor_position_correction()
 
@@ -615,7 +629,7 @@ class PushInteractionExecutor:
             approach = cfg.approach_direction_world
             if cfg.use_scene_approach_direction:
                 ee_pos = self.robot.data.body_pos_w[0, self.handles.ee_body_id].detach().cpu().numpy()
-                approach = scene_approach_direction(link_pos_np, link_quat, ee_pos)
+                approach = scene_approach_direction(ee_pos, link_pos_np, cfg)
             if approach is None:
                 raise ValueError(
                     "yaml_handle requires contact_quat_link or approach_direction_world in task yaml."
@@ -636,6 +650,17 @@ class PushInteractionExecutor:
         anchor_contact = self._yaw_anchor_contact_world()
         if anchor_contact is not None:
             _, quat_w = anchor_contact
+
+        print(
+            f"[DEBUG] _resolve_yaml_handle_world:\n"
+            f"  link_pos_w       = {np.round(link_pos_np, 4).tolist()}\n"
+            f"  link_quat_w      = {[round(float(v),4) for v in link_quat]}\n"
+            f"  contact_w (final)= {np.round(contact_w, 4).tolist()}\n"
+            f"  quat_w (final)   = {[round(float(v),4) for v in quat_w]}\n"
+            f"  quat_link used   = {[round(float(v),4) for v in quat_link] if quat_link else None}\n"
+            f"  yaw_anchor       = {anchor_contact is not None}",
+            flush=True,
+        )
 
         hinge_origin_w, hinge_axis_w = self.env_module.get_hinge_world_frame(
             link_prim,
@@ -1307,6 +1332,13 @@ class PushInteractionExecutor:
         start_quat = tuple(
             float(v) for v in self.robot.data.body_quat_w[0, self.handles.ee_body_id].tolist()
         )
+        print(
+            f"[DEBUG] _execute_handle_reach: EE start pos={np.round(ee_pos, 4).tolist()} "
+            f"target contact_w={np.round(contact_w, 4).tolist()} "
+            f"target quat_w={[round(float(v),4) for v in quat_w]} "
+            f"approach_w={np.round(approach_w, 4).tolist()}",
+            flush=True,
+        )
         approach_path, reach_poses = self._plan_handle_reach_poses(
             ee_pos, approach_w, contact_w, quat_w, start_quat
         )
@@ -1590,6 +1622,7 @@ class PushInteractionExecutor:
         if report.get("hinge_lever_m") is not None:
             print(f"  hinge lever       : {float(report['hinge_lever_m']):.4f} m", flush=True)
         print(f"  link_1 pos_w      : {np.round(report['link_pos_w'], 4).tolist()}", flush=True)
+        print(f"  link_1 quat_w     : {[round(float(v), 4) for v in report['link_quat_w']]}", flush=True)
         print(f"  {report['joint_prim']} : {report['joint_deg']} deg", flush=True)
         print(f"  arm joints (rad)  : {np.round(report['arm_joint_rad'], 3).tolist()}", flush=True)
         print(f"  control steps     : {report['control_steps']}", flush=True)

@@ -1,16 +1,18 @@
 #!/bin/bash
-# Full yaml_handle probe: approach + contact + ArticuBot T_rel close + 600s hold.
+# yaml_handle_push: approach + contact + T_rel close push
+# 成功条件: joint_1 > 0° (task_registry rollout_success_specs)
 cd ~/workspace/physvla_sim/collect
 
 ~/isaacsim/python.sh debug_link_contact_probe.py \
-  --task_id close_laptop_lid \
+  --task_id adjust_the_monitor \
   --livestream 2 \
   --mode yaml_handle_push \
   --probe_steps 400 \
-  --episode_step_limit 600 \
+  --episode_step_limit 800 \
   --hold_steps 180 \
   --trace-ee-handle \
   --trace-interval 30 \
   --repeat \
-  --max-attempts 50 \
-  --repeat-delay 1.0
+  --max-attempts 10 \
+  --repeat-delay 1.0 \
+  --debug-logs
