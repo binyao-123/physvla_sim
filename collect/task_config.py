@@ -22,9 +22,10 @@ class PushConfig:
     # ArticuBot demo gen: θ from init→target at this USD interval (paper ~1°). >0 overrides num_close_steps.
     close_step_deg_usd: float = 1.0
     close_sampled_waypoints: int = 12
-    close_final_hold_steps: int = 120
+    close_final_hold_steps: int | None = None
     close_auto_flip_hinge_axis: bool = False
     close_expected_delta_dir_world: tuple[float, float, float] | None = None
+    close_hinge_radius_m: float | None = None
     close_ik_substeps: int = 4
     close_clamp_joints: bool = False
     close_push_ee_step_m: float = 0.012
@@ -195,11 +196,20 @@ def _parse_push(raw: dict[str, Any]) -> PushConfig:
         num_close_steps=int(raw.get("num_close_steps", 80)),
         close_step_deg_usd=float(raw.get("close_step_deg_usd", 1.0)),
         close_sampled_waypoints=int(raw.get("close_sampled_waypoints", 12)),
-        close_final_hold_steps=int(raw.get("close_final_hold_steps", 120)),
+        close_final_hold_steps=(
+            int(raw["close_final_hold_steps"])
+            if raw.get("close_final_hold_steps") is not None
+            else None
+        ),
         close_auto_flip_hinge_axis=bool(raw.get("close_auto_flip_hinge_axis", False)),
         close_expected_delta_dir_world=(
             tuple(float(v) for v in raw["close_expected_delta_dir_world"])
             if raw.get("close_expected_delta_dir_world") is not None
+            else None
+        ),
+        close_hinge_radius_m=(
+            float(raw["close_hinge_radius_m"])
+            if raw.get("close_hinge_radius_m") is not None
             else None
         ),
         close_ik_substeps=int(raw.get("close_ik_substeps", 4)),

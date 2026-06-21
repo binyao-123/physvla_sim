@@ -3,7 +3,7 @@
 set -euo pipefail
 
 COLLECT_DIR="${COLLECT_DIR:-$HOME/workspace/physvla_sim/collect}"
-TASK_ID="${TASK_ID:-close_laptop_lid}"
+TASK_ID="${TASK_ID:-close_the_microwave}"
 WORKER_ID="${WORKER_ID:-main}"
 DATASET_ROOT="${DATASET_ROOT:-$COLLECT_DIR/datasets}"
 DATASET_DIR="${DATASET_DIR:-$DATASET_ROOT/$TASK_ID}"

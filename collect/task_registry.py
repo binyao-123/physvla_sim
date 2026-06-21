@@ -231,8 +231,8 @@ class TaskPreset:
 CLOSE_LAPTOP_TASK_ID = "close_laptop_lid"
 CLOSE_LAPTOP_LANGUAGE_INSTRUCTION = "close the laptop lid."
 
-ADJUST_MONITOR_TASK_ID = "adjust_the_monitor"
-ADJUST_MONITOR_LANGUAGE_INSTRUCTION = "adjust the display."
+CLOSE_MICROWAVE_TASK_ID = "close_the_microwave"
+CLOSE_MICROWAVE_LANGUAGE_INSTRUCTION = "close the microwave door."
 
 # ---------------------------------------------------------------------------
 # *******************************随机初始化参数*******************************
@@ -306,11 +306,12 @@ ROBOTWIN2_CLUTTER_ASSET_CANDIDATES = (
 # 坐标以当前任务物体 scene root 的XY为中心；右侧=主俯视相机近侧（Y负方向）
 ROBOTWIN2_CLUTTER_SLOT_SPECS = (
     # Split the right side into three non-overlapping bands to avoid clutter overlap.
-    ("right", 1, (-0.36, -0.12), (-0.64, -0.28), 0.02),
-    ("right", 1, (-0.12, 0.12), (-0.64, -0.28), 0.02),
-    ("right", 1, (0.12, 0.36), (-0.64, -0.28), 0.02),
-    ("front", 1, (0.28, 0.46), (-0.10, 0.10), 0.02),
-    ("left", 1, (-0.18, 0.18), (0.28, 0.46), 0.02),
+    # 相对原始基准再远离原点 10cm：right Y 更负，front X 更大，left Y 更大
+    ("right", 1, (-0.36, -0.12), (-0.74, -0.38), 0.02),
+    ("right", 1, (-0.12, 0.12), (-0.74, -0.38), 0.02),
+    ("right", 1, (0.12, 0.36), (-0.74, -0.38), 0.02),
+    ("front", 1, (0.38, 0.56), (-0.10, 0.10), 0.02),
+    ("left", 1, (-0.18, 0.18), (0.38, 0.56), 0.02),
 )
 ROBOTWIN2_CLUTTER_YAW_RANGE_DEG = (-180.0, 180.0)
 
@@ -378,7 +379,36 @@ def scene_root_translation_delta(
     #当前 scene root 相对标定平移的 Δ，用于把 yaml 世界坐标轨迹映射到新桌面位置。
     return tuple(float(c) - float(b) for c, b in zip(current, calibration))
 
-'''调节显示器采集任务'''
+
+'''关闭微波炉采集任务'''
+# 基准初始化角度：微波炉门初始角度
+CLOSE_MICROWAVE_JOINT_INITIAL_BASE_DEG = -20.0
+CLOSE_MICROWAVE_JOINT_INITIAL_RANDOM_RANGE_DEG = 10.0
+
+# 基准初始化坐标
+CLOSE_MICROWAVE_SCENE_ROOT_BASE_TRANSLATION = (
+    0.7,
+    -0.15,
+    0.1,
+)
+CLOSE_MICROWAVE_SCENE_ROOT_RANDOM_X_RANGE_M = 0.05
+CLOSE_MICROWAVE_SCENE_ROOT_RANDOM_Y_RANGE_M = 0.05
+
+# 基准初始化yaw角（USD 场景原始值）
+CLOSE_MICROWAVE_SCENE_ROOT_ROTATION_XYZ = (0.0, 0.0, 0.0)
+CLOSE_MICROWAVE_SCENE_ROOT_RANDOM_YAW_RANGE_DEG = 15.0
+
+# 基准初始化尺寸
+CLOSE_MICROWAVE_SCENE_ROOT_SCALE = (0.21, 0.21, 0.21)
+
+# 标定微波炉模型基于该坐标平移；yaw=0° 与 yaml 世界坐标标定一致（见 adjust_the_monitor / close_laptop_lid 写法）
+CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_TRANSLATION = (
+    0.7,
+    -0.13,
+    0.1,
+)
+# yaml reference/arc/yaw_contact_anchors@yaw=0° 录制；运行时 Δyaw 由 geometric map + yaw_contact_anchors 插值
+CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ = (0.0, 0.0, 0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -433,33 +463,47 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         randomization=ROBOTWIN2_COMMON_RANDOMIZATION,
         **_shared_teleop_kwargs(),
     ),
-    ADJUST_MONITOR_TASK_ID: TaskPreset(
-        task_id=ADJUST_MONITOR_TASK_ID,
-        description="Keyboard teleoperation for adjusting the monitor (generated URDF hinge).",
-        usd_path=_tasks_scene_usd("adjust_the_display", "data", "scene.usd"),
-        env_name="AdjustMonitorTask",
-        dataset_file="./datasets/adjust_the_monitor.hdf5",
-        language_instruction=ADJUST_MONITOR_LANGUAGE_INSTRUCTION,
+    CLOSE_MICROWAVE_TASK_ID: TaskPreset(
+        task_id=CLOSE_MICROWAVE_TASK_ID,
+        description="Keyboard teleoperation for closing the microwave door (generated URDF hinge).",
+        usd_path=_tasks_scene_usd("close_the_microwave", "data", "scene.usd"),
+        env_name="CloseMicrowaveTask",
+        dataset_file="./datasets/close_the_microwave.hdf5",
+        language_instruction=CLOSE_MICROWAVE_LANGUAGE_INSTRUCTION,
         sensitivity=2.0,
         joint_drive_specs=(
             TaskJointDriveSpec(
                 prim_path="/World/generated/joints/joint_1",
-                damping=100.0,
+                damping=5.0,
                 stiffness=0.0,
-                max_force=30.0,
+                max_force=3.0,
             ),
         ),
-        joint_limit_specs=(),
+        joint_limit_specs=(
+            TaskJointLimitSpec(
+                prim_path="/World/generated/joints/joint_1",
+                lower_limit=-90.0,
+                upper_limit=0.0,
+            ),
+        ),
         joint_initial_specs=(
             TaskJointInitialSpec(
                 prim_path="/World/generated/joints/joint_1",
-                position=-20.0,
+                position=CLOSE_MICROWAVE_JOINT_INITIAL_BASE_DEG,
+            ),
+        ),
+        scene_root_specs=(
+            TaskSceneRootSpec(
+                prim_path=SCENE_ARTICULATION_PRIM_PATH,
+                translation=CLOSE_MICROWAVE_SCENE_ROOT_BASE_TRANSLATION,
+                rotation_xyz=CLOSE_MICROWAVE_SCENE_ROOT_ROTATION_XYZ,
+                scale=CLOSE_MICROWAVE_SCENE_ROOT_SCALE,
             ),
         ),
         rollout_success_specs=(
             TaskRolloutSuccessSpec(
                 joint_prim="/World/generated/joints/joint_1",
-                angle_gt_deg=0.0,   # 显示器角度大于0度时，判定任务成功
+                angle_gt_deg=-1.0,
             ),
         ),
         randomization=ROBOTWIN2_COMMON_RANDOMIZATION,
@@ -503,29 +547,77 @@ def sample_close_laptop_scene_root_rotation_xyz() -> tuple[float, float, float]:
     return (rx, ry, rz + yaw_delta)
 
 
+def sample_close_microwave_joint_initial_deg() -> float:
+    """Each call: x ~ U[-range, +range], return base + x."""
+    x = random.uniform(
+        -CLOSE_MICROWAVE_JOINT_INITIAL_RANDOM_RANGE_DEG,
+        CLOSE_MICROWAVE_JOINT_INITIAL_RANDOM_RANGE_DEG,
+    )
+    return CLOSE_MICROWAVE_JOINT_INITIAL_BASE_DEG + x
+
+
+def sample_close_microwave_scene_root_translation() -> tuple[float, float, float]:
+    """Each call: scene root translation = base + (dx, dy, 0)."""
+    base_x, base_y, base_z = CLOSE_MICROWAVE_SCENE_ROOT_BASE_TRANSLATION
+    dx = random.uniform(
+        -CLOSE_MICROWAVE_SCENE_ROOT_RANDOM_X_RANGE_M,
+        CLOSE_MICROWAVE_SCENE_ROOT_RANDOM_X_RANGE_M,
+    )
+    dy = random.uniform(
+        -CLOSE_MICROWAVE_SCENE_ROOT_RANDOM_Y_RANGE_M,
+        CLOSE_MICROWAVE_SCENE_ROOT_RANDOM_Y_RANGE_M,
+    )
+    return (base_x + dx, base_y + dy, base_z)
+
+
+def sample_close_microwave_scene_root_rotation_xyz() -> tuple[float, float, float]:
+    """Each call: scene root rotation = base + (0, 0, yaw_delta)."""
+    rx, ry, rz = CLOSE_MICROWAVE_SCENE_ROOT_ROTATION_XYZ
+    yaw_delta = random.uniform(
+        -CLOSE_MICROWAVE_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
+        CLOSE_MICROWAVE_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
+    )
+    return (rx, ry, rz + yaw_delta)
+
+
 def get_task_preset(task_id: str) -> TaskPreset:
     if task_id not in TASK_PRESETS:
         known = ", ".join(sorted(TASK_PRESETS.keys()))
         raise KeyError(f"Unknown task_id '{task_id}'. Available: {known}")
     preset = TASK_PRESETS[task_id]
-    if task_id != CLOSE_LAPTOP_TASK_ID:
-        return preset
-
-    angle_deg = sample_close_laptop_joint_initial_deg()
-    joint_initial_specs = tuple(
-        replace(spec, position=angle_deg) for spec in preset.joint_initial_specs
-    )
-    scene_translation = sample_close_laptop_scene_root_translation()
-    scene_rotation_xyz = sample_close_laptop_scene_root_rotation_xyz()
-    scene_root_specs = tuple(
-        replace(spec, translation=scene_translation, rotation_xyz=scene_rotation_xyz)
-        for spec in preset.scene_root_specs
-    )
-    return replace(
-        preset,
-        joint_initial_specs=joint_initial_specs,
-        scene_root_specs=scene_root_specs,
-    )
+    if task_id == CLOSE_LAPTOP_TASK_ID:
+        angle_deg = sample_close_laptop_joint_initial_deg()
+        joint_initial_specs = tuple(
+            replace(spec, position=angle_deg) for spec in preset.joint_initial_specs
+        )
+        scene_translation = sample_close_laptop_scene_root_translation()
+        scene_rotation_xyz = sample_close_laptop_scene_root_rotation_xyz()
+        scene_root_specs = tuple(
+            replace(spec, translation=scene_translation, rotation_xyz=scene_rotation_xyz)
+            for spec in preset.scene_root_specs
+        )
+        return replace(
+            preset,
+            joint_initial_specs=joint_initial_specs,
+            scene_root_specs=scene_root_specs,
+        )
+    elif task_id == CLOSE_MICROWAVE_TASK_ID:
+        angle_deg = sample_close_microwave_joint_initial_deg()
+        joint_initial_specs = tuple(
+            replace(spec, position=angle_deg) for spec in preset.joint_initial_specs
+        )
+        scene_translation = sample_close_microwave_scene_root_translation()
+        scene_rotation_xyz = sample_close_microwave_scene_root_rotation_xyz()
+        scene_root_specs = tuple(
+            replace(spec, translation=scene_translation, rotation_xyz=scene_rotation_xyz)
+            for spec in preset.scene_root_specs
+        )
+        return replace(
+            preset,
+            joint_initial_specs=joint_initial_specs,
+            scene_root_specs=scene_root_specs,
+        )
+    return preset
 
 
 def list_task_presets() -> list[TaskPreset]:

@@ -177,8 +177,6 @@ robot_cfg = robot_cfg.replace(
 )
 
 robot = env_module.create_robot(robot_cfg)
-# Do not wrap scene in Isaac Articulation here — it overrides USD drive damping/stiffness
-# from task_registry (see auto_trajectory_collection). Hinge init uses USD state sync instead.
 env_module.initialize_robot_home_pose()
 
 device = sim.device
@@ -455,6 +453,11 @@ try:
 
         if sim_step_count % control_decimation == 0:
             control_step_count += 1
+
+            if control_step_count % 30 == 0:
+                _jdeg = env_module.read_scene_joint_angle_deg("/World/generated/joints/joint_1")
+                if _jdeg is not None:
+                    print(f"[JOINT] joint_1={_jdeg:.2f}°", flush=True)
 
             with torch.inference_mode():
                 keyboard_command = teleop_interface.advance()

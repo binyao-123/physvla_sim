@@ -180,6 +180,7 @@ if not _scene_usd.is_file():
 
 print(
     f"[INFO] Auto collect: task={task_preset.task_id} "
+    f"language_instruction={(task_preset.language_instruction or '').strip()!r} "
     f"target={args_cli.num_demos} max_attempts={max_attempts} "
     f"save_failed={args_cli.save_failed}"
 )

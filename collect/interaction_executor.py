@@ -32,6 +32,7 @@ from reference.contact_reference import (
     resolve_contact_pose_world,
     summarize_touch_reference,
 )
+from reference.grasping_utils import align_gripper_z_with_normal
 from reference.handle_reference import derive_contact_quat_link, resolve_yaml_handle_world
 from reference.opening_kinematics import (
     compute_articulation_ee_trajectory,
@@ -45,6 +46,9 @@ from task_registry import (
     CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ,
     CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION,
     CLOSE_LAPTOP_TASK_ID,
+    CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ,
+    CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_TRANSLATION,
+    CLOSE_MICROWAVE_TASK_ID,
     SHARED_TELEOP_PIPER,
 )
 
@@ -78,7 +82,8 @@ POSE_REACH_ROT_RAD = 0.15
 # Close-phase contact servo: keep EE near the surface point captured at first contact.
 CLOSE_CONTACT_ANCHOR_GAIN = 0.8
 CLOSE_CONTACT_ANCHOR_MAX_CORRECTION_M = 0.1
-CLOSE_CONTACT_ANCHOR_DEADBAND_M = 0.08
+# Short articulation tasks need contact correction to activate before the EE drifts far off the handle.
+CLOSE_CONTACT_ANCHOR_DEADBAND_M = 0.02
 # Piper URDF: joint7 origin is 0.1358 m along gripper_base +Z (closed-gripper pad estimate).
 GRIPPER_FINGER_ORIGIN_OFFSET_M = 0.1358
 # Scene joint_1 USD scale (task_registry close_laptop): 15°≈laptop open 90°, 104°≈closed 0°.
@@ -214,6 +219,12 @@ class PushInteractionExecutor:
         self.trace_ee_handle_interval = max(1, int(trace_ee_handle_interval))
         self.progress_log_interval = 50
         self._trace_phase = ""
+        self._scene_root_map_logged = False
+        self._last_arc_fit_log_joint: float | None = None
+
+    def _reset_episode_log_state(self) -> None:
+        self._scene_root_map_logged = False
+        self._last_arc_fit_log_joint = None
 
     def set_trace_phase(self, phase: str) -> None:
         self._trace_phase = phase
@@ -229,6 +240,11 @@ class PushInteractionExecutor:
             self.episode_step_limit = int(limit)
         self.episode_step_limit_hit = False
 
+    def _remaining_episode_control_steps(self) -> int | None:
+        if self.episode_step_limit is None:
+            return None
+        return max(0, int(self.episode_step_limit) - int(self.control_step_count))
+
     def _raise_if_episode_step_limit_reached(self) -> None:
         if self.episode_step_limit is None:
             return
@@ -238,6 +254,22 @@ class PushInteractionExecutor:
                 f"episode control-step limit reached: "
                 f"{self.control_step_count}/{self.episode_step_limit}"
             )
+
+    def _episode_success(self) -> tuple[bool, dict[str, float | None]]:
+        """Episode success: joint meets task_registry spec AND steps did not exceed limit."""
+        joint_ok, joint_degs = evaluate_rollout_success(self.env_module, self.success_specs)
+        within_limit = (
+            self.episode_step_limit is None
+            or int(self.control_step_count) <= int(self.episode_step_limit)
+        )
+        return joint_ok and within_limit, joint_degs
+
+    @staticmethod
+    def _stop_on_joint_success(
+        success_now: bool,
+        joint_degs: dict[str, float | None],
+    ) -> bool:
+        return success_now
 
     def _maybe_trace_ee_handle(self) -> None:
         """Periodic EE vs handle/contact-anchor world position (probe / debug)."""
@@ -271,9 +303,13 @@ class PushInteractionExecutor:
         # 打印类似：[TRACE close] step=330 EE=[0.4536, -0.0686, 0.1251] anchor=[0.5515, -0.076, 0.1587] dist=0.1038m joint=104.4°
         # print(msg, flush=True)
 
-    def _log_info(self, msg: str) -> None:
+    def _log_debug(self, msg: str) -> None:
         if self.verbose:
             print(msg, flush=True)
+
+    def _log_info(self, msg: str) -> None:
+        """Verbose diagnostics (--debug-logs). Prefer _log_debug for new messages."""
+        self._log_debug(msg)
 
     def preload_articulation_contact_reference(self) -> None:
         """Load touch HDF5 once; store contact pose in link_1 frame + hinge lever length."""
@@ -348,32 +384,42 @@ class PushInteractionExecutor:
 
     def _scene_root_translation_delta_world(self) -> np.ndarray:
         """Map yaml world-calibrated handle points when /World/generated moves."""
-        if self.task_config.task_id != CLOSE_LAPTOP_TASK_ID:
+        if self.task_config.task_id == CLOSE_LAPTOP_TASK_ID:
+            calib = CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION
+        elif self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID:
+            calib = CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_TRANSLATION
+        else:
             return np.zeros(3, dtype=np.float64)
-        delta = self.env_module.get_scene_root_translation_delta(
-            CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION
-        )
+        delta = self.env_module.get_scene_root_translation_delta(calib)
         return np.asarray(delta, dtype=np.float64)
 
     def _scene_root_yaw_delta_deg(self) -> float:
         """Yaw delta for mapping world-calibrated handle points under Z rotation randomization."""
-        if self.task_config.task_id != CLOSE_LAPTOP_TASK_ID:
+        if self.task_config.task_id == CLOSE_LAPTOP_TASK_ID:
+            calib = CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
+        elif self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID:
+            calib = CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
+        else:
             return 0.0
-        return float(
-            self.env_module.get_scene_root_yaw_delta_deg(
-                CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
-            )
-        )
+        return float(self.env_module.get_scene_root_yaw_delta_deg(calib))
 
     def _scene_root_yaw_deg(self) -> float:
+        if self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID:
+            return float(CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ[2]) + self._scene_root_yaw_delta_deg()
         return float(CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ[2]) + self._scene_root_yaw_delta_deg()
 
     def _geometric_map_calibrated_world_position(self, pos: np.ndarray) -> np.ndarray:
         pos = np.asarray(pos, dtype=np.float64)
-        calib_t = np.asarray(
-            CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION,
-            dtype=np.float64,
-        )
+        if self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID:
+            calib_t = np.asarray(
+                CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_TRANSLATION,
+                dtype=np.float64,
+            )
+        else:
+            calib_t = np.asarray(
+                CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION,
+                dtype=np.float64,
+            )
         delta_t = self._scene_root_translation_delta_world()
         current_t = calib_t + delta_t
         yaw_rad = math.radians(self._scene_root_yaw_delta_deg())
@@ -441,7 +487,7 @@ class PushInteractionExecutor:
 
     def _map_calibrated_world_position(self, pos: np.ndarray) -> np.ndarray:
         pos = np.asarray(pos, dtype=np.float64)
-        if self.task_config.task_id != CLOSE_LAPTOP_TASK_ID:
+        if self.task_config.task_id not in (CLOSE_LAPTOP_TASK_ID, CLOSE_MICROWAVE_TASK_ID):
             return pos
         return self._geometric_map_calibrated_world_position(pos) + self._yaw_anchor_position_correction()
 
@@ -494,13 +540,15 @@ class PushInteractionExecutor:
             return default_contact_w
 
         if float(np.linalg.norm(world_delta)) > 1e-6 or abs(yaw_delta) > 1e-6:
-            anchor_delta = self._yaw_anchor_position_correction()
-            self._log_info(
-                f"[INFO] yaml_handle scene-root Δ applied to arc samples: "
-                f"translation_m={np.round(world_delta, 4).tolist()} "
-                f"yaw_deg={yaw_delta:.2f} "
-                f"anchor_correction_m={np.round(anchor_delta, 4).tolist()}"
-            )
+            if not self._scene_root_map_logged:
+                anchor_delta = self._yaw_anchor_position_correction()
+                self._log_debug(
+                    f"[INFO] yaml_handle scene-root Δ applied to arc samples: "
+                    f"translation_m={np.round(world_delta, 4).tolist()} "
+                    f"yaw_deg={yaw_delta:.2f} "
+                    f"anchor_correction_m={np.round(anchor_delta, 4).tolist()}"
+                )
+                self._scene_root_map_logged = True
 
         joint_read_deg = self.env_module.read_scene_joint_angle_deg(self.task_config.joint_prim)
         if joint_read_deg is None:
@@ -532,19 +580,25 @@ class PushInteractionExecutor:
 
         sample_degs = np.asarray([deg for deg, _ in samples], dtype=np.float64)
         sample_world = np.asarray([pos for _, pos in samples], dtype=np.float64)
-        sample_xz = np.column_stack((sample_world @ x_dir, sample_world[:, 2]))
+        hinge_axis = np.asarray(cfg.hinge.axis, dtype=np.float64)
+        horizontal_arc = abs(float(hinge_axis[2])) >= max(abs(float(hinge_axis[0])), abs(float(hinge_axis[1])))
+        if horizontal_arc:
+            sample_plane = np.column_stack((sample_world @ x_dir, sample_world @ y_pos_dir))
+        else:
+            sample_plane = np.column_stack((sample_world @ x_dir, sample_world[:, 2]))
 
         if len(samples) >= 3:
             design = np.column_stack(
-                (2.0 * sample_xz[:, 0], 2.0 * sample_xz[:, 1], np.ones(len(sample_xz)))
+                (2.0 * sample_plane[:, 0], 2.0 * sample_plane[:, 1], np.ones(len(sample_plane)))
             )
-            rhs = np.sum(sample_xz * sample_xz, axis=1)
-            center_x, center_z, radius_term = np.linalg.lstsq(design, rhs, rcond=None)[0]
-            radius = math.sqrt(max(0.0, radius_term + center_x * center_x + center_z * center_z))
+            rhs = np.sum(sample_plane * sample_plane, axis=1)
+            center_u, center_v, radius_term = np.linalg.lstsq(design, rhs, rcond=None)[0]
+            radius = math.sqrt(max(0.0, radius_term + center_u * center_u + center_v * center_v))
             if radius < 1e-6:
-                return default_contact_w
+                nearest_i = int(np.argmin(np.abs(sample_degs - joint_deg)))
+                return np.asarray(sample_world[nearest_i], dtype=np.float64)
             sample_angles = np.unwrap(
-                np.arctan2(sample_xz[:, 1] - center_z, sample_xz[:, 0] - center_x)
+                np.arctan2(sample_plane[:, 1] - center_v, sample_plane[:, 0] - center_u)
             )
 
             def interp_extrap(x: float, xs: np.ndarray, ys: np.ndarray) -> float:
@@ -557,8 +611,8 @@ class PushInteractionExecutor:
                 return float(np.interp(x, xs, ys))
 
             theta = interp_extrap(joint_deg, sample_degs, sample_angles)
-            contact_xz = np.array(
-                [center_x + radius * math.cos(theta), center_z + radius * math.sin(theta)],
+            contact_plane = np.array(
+                [center_u + radius * math.cos(theta), center_v + radius * math.sin(theta)],
                 dtype=np.float64,
             )
         else:
@@ -569,8 +623,8 @@ class PushInteractionExecutor:
             if abs(fit_delta_rad) < 1e-6:
                 return default_contact_w
 
-            ref_xz = sample_xz[0]
-            fit_xz = sample_xz[-1]
+            ref_plane = sample_plane[0]
+            fit_plane = sample_plane[-1]
 
             def rot2(theta: float) -> np.ndarray:
                 c = math.cos(theta)
@@ -579,25 +633,37 @@ class PushInteractionExecutor:
 
             fit_rot = rot2(fit_delta_rad)
             try:
-                origin_xz = np.linalg.solve(np.eye(2) - fit_rot, fit_xz - fit_rot @ ref_xz)
+                origin_plane = np.linalg.solve(np.eye(2) - fit_rot, fit_plane - fit_rot @ ref_plane)
             except np.linalg.LinAlgError:
                 return default_contact_w
 
             theta = math.radians(joint_deg - ref_deg)
-            contact_xz = origin_xz + rot2(theta) @ (ref_xz - origin_xz)
+            contact_plane = origin_plane + rot2(theta) @ (ref_plane - origin_plane)
 
-        local_y = float(np.interp(joint_deg, sample_degs, sample_world @ y_pos_dir))
-        fitted = x_dir * contact_xz[0] + y_pos_dir * local_y
-        fitted[2] = contact_xz[1]
+        if horizontal_arc:
+            local_z = float(np.interp(joint_deg, sample_degs, sample_world[:, 2]))
+            fitted = x_dir * contact_plane[0] + y_pos_dir * contact_plane[1]
+            fitted[2] = local_z
+        else:
+            local_y = float(np.interp(joint_deg, sample_degs, sample_world @ y_pos_dir))
+            fitted = x_dir * contact_plane[0] + y_pos_dir * local_y
+            fitted[2] = contact_plane[1]
 
-        self._log_info(
-            f"[INFO] yaml_handle arc-fit: joint={float(joint_read_deg):.2f}° "
-            f"used={joint_deg:.2f}° "
-            f"samples={[round(float(v), 2) for v in sample_degs.tolist()]} "
-            f"range={[round(float(v), 3) for v in fit_range] if fit_range is not None else 'unbounded'} "
-            f"default={np.round(default_contact_w, 4).tolist()} "
-            f"fitted={np.round(fitted, 4).tolist()}"
-        )
+        if self.verbose:
+            log_joint = round(float(joint_read_deg), 1)
+            if (
+                self._last_arc_fit_log_joint is None
+                or abs(log_joint - self._last_arc_fit_log_joint) >= 1.0
+            ):
+                self._last_arc_fit_log_joint = log_joint
+                self._log_debug(
+                    f"[INFO] yaml_handle arc-fit: joint={float(joint_read_deg):.2f}° "
+                    f"used={joint_deg:.2f}° "
+                    f"samples={[round(float(v), 2) for v in sample_degs.tolist()]} "
+                    f"range={[round(float(v), 3) for v in fit_range] if fit_range is not None else 'unbounded'} "
+                    f"default={np.round(default_contact_w, 4).tolist()} "
+                    f"fitted={np.round(fitted, 4).tolist()}"
+                )
         return fitted
 
     def _resolve_yaml_handle_world(
@@ -615,7 +681,7 @@ class PushInteractionExecutor:
             approach = cfg.approach_direction_world
             if cfg.use_scene_approach_direction:
                 ee_pos = self.robot.data.body_pos_w[0, self.handles.ee_body_id].detach().cpu().numpy()
-                approach = scene_approach_direction(link_pos_np, link_quat, ee_pos)
+                approach = scene_approach_direction(ee_pos, link_pos_np, cfg)
             if approach is None:
                 raise ValueError(
                     "yaml_handle requires contact_quat_link or approach_direction_world in task yaml."
@@ -675,6 +741,112 @@ class PushInteractionExecutor:
             return np.array([0.0, 0.0, 1.0], dtype=np.float64)
         return axis / norm
 
+    @staticmethod
+    def _unit_or_none(vec: np.ndarray) -> np.ndarray | None:
+        norm = float(np.linalg.norm(vec))
+        if norm < 1e-9:
+            return None
+        return np.asarray(vec, dtype=np.float64) / norm
+
+    def _contact_push_normal_world(
+        self,
+        contact_w: np.ndarray,
+        approach_w: np.ndarray,
+    ) -> np.ndarray | None:
+        """Desired push normal: approach point -> contact point."""
+        return self._unit_or_none(np.asarray(contact_w, dtype=np.float64) - np.asarray(approach_w, dtype=np.float64))
+
+    def _link_plane_push_normal_world(
+        self,
+        contact_w: np.ndarray,
+        hinge_origin_w: np.ndarray,
+        hinge_axis_w: np.ndarray,
+        *,
+        fallback_quat_w: tuple[float, float, float, float] | None = None,
+    ) -> np.ndarray | None:
+        """Normal to the door plane at contact: tangent direction of the hinge arc."""
+        axis = self._unit_or_none(np.asarray(hinge_axis_w, dtype=np.float64))
+        if axis is None:
+            return None
+        radial = np.asarray(contact_w, dtype=np.float64) - np.asarray(hinge_origin_w, dtype=np.float64)
+        radial = radial - np.dot(radial, axis) * axis
+        radial = self._unit_or_none(radial)
+        if radial is None:
+            return None
+
+        normal = self._unit_or_none(np.cross(axis, radial))
+        if normal is None:
+            return None
+
+        expected = self._expected_close_delta_dir_world()
+        if expected is not None:
+            if float(np.dot(normal, expected)) < 0.0:
+                normal = -normal
+        elif fallback_quat_w is not None:
+            fallback_axis = self._gripper_push_axis_world(fallback_quat_w)
+            if float(np.dot(normal, fallback_axis)) < 0.0:
+                normal = -normal
+        return normal
+
+    def _quat_from_world_push_normal(
+        self,
+        normal_w: np.ndarray,
+        *,
+        horizontal: bool,
+    ) -> tuple[float, float, float, float]:
+        rot = align_gripper_z_with_normal(normal_w, horizontal=horizontal)
+        return _rot_to_wxyz(rot)
+
+    @staticmethod
+    def _axis_alignment_deg(axis_w: np.ndarray, normal_w: np.ndarray) -> float:
+        dot = float(np.clip(np.dot(axis_w, normal_w), -1.0, 1.0))
+        return math.degrees(math.acos(dot))
+
+    def _normal_alignment_report(
+        self,
+        contact_w: np.ndarray,
+        approach_w: np.ndarray,
+        planned_quat_w: tuple[float, float, float, float],
+        actual_quat_w: tuple[float, float, float, float],
+    ) -> dict[str, object] | None:
+        normal_w = self._contact_push_normal_world(contact_w, approach_w)
+        if normal_w is None:
+            return None
+        planned_axis_w = self._gripper_push_axis_world(planned_quat_w)
+        actual_axis_w = self._gripper_push_axis_world(actual_quat_w)
+        return {
+            "push_normal_w": normal_w,
+            "planned_push_axis_w": planned_axis_w,
+            "actual_push_axis_w": actual_axis_w,
+            "planned_normal_dot": float(np.dot(planned_axis_w, normal_w)),
+            "actual_normal_dot": float(np.dot(actual_axis_w, normal_w)),
+            "planned_normal_angle_deg": self._axis_alignment_deg(planned_axis_w, normal_w),
+            "actual_normal_angle_deg": self._axis_alignment_deg(actual_axis_w, normal_w),
+        }
+
+    def _log_normal_alignment(
+        self,
+        label: str,
+        contact_w: np.ndarray,
+        approach_w: np.ndarray,
+        planned_quat_w: tuple[float, float, float, float],
+        actual_quat_w: tuple[float, float, float, float],
+    ) -> None:
+        report = self._normal_alignment_report(contact_w, approach_w, planned_quat_w, actual_quat_w)
+        if report is None:
+            return
+        self._log_debug(
+            f"[INFO] {label} normal alignment: "
+            f"normal={np.round(report['push_normal_w'], 4).tolist()} "
+            f"planned+Z={np.round(report['planned_push_axis_w'], 4).tolist()} "
+            f"actual+Z={np.round(report['actual_push_axis_w'], 4).tolist()} "
+            f"dot(planned,normal)={float(report['planned_normal_dot']):.4f} "
+            f"angle={float(report['planned_normal_angle_deg']):.1f}°; "
+            f"dot(actual,normal)={float(report['actual_normal_dot']):.4f} "
+            f"angle={float(report['actual_normal_angle_deg']):.1f}° "
+            "(0° means EE +Z follows the push normal; 90° means perpendicular to it)"
+        )
+
     def _read_link_pose(self) -> tuple[np.ndarray, tuple[float, float, float, float]]:
         """link_1 world pose from USD stage (matches keyboard calibration at USD joint=15°).
 
@@ -722,10 +894,46 @@ class PushInteractionExecutor:
         origin = contact - radial_x * x_offset_m - np.array([0.0, 0.0, z_offset_m], dtype=np.float64)
         return origin, axis_w
 
+    def _horizontal_hinge_world_frame_from_expected_delta(
+        self, contact_pos_world: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Horizontal-door prior: hinge axis is vertical, and the planned chord matches demo ΔEE."""
+        contact = np.asarray(contact_pos_world, dtype=np.float64)
+        expected = self._expected_close_delta_dir_world()
+        if expected is None:
+            expected = np.array([1.0, 0.0, 0.0], dtype=np.float64)
+        expected = np.asarray(expected, dtype=np.float64)
+        expected[2] = 0.0
+        expected /= max(float(np.linalg.norm(expected)), 1e-9)
+
+        axis_w = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+        radius = float(
+            getattr(self.push_cfg, "close_hinge_radius_m", None)
+            or self._close_hinge_lever_m
+            or getattr(self.sampling_config, "push_anchor_dist_m", 0.10)
+        )
+        radius = max(radius, 1e-4)
+
+        joint_init = self.env_module.read_scene_joint_angle_deg(self.task_config.joint_prim)
+        if joint_init is None:
+            joint_init = 0.0
+        joint_target = self._resolve_close_target_deg(float(joint_init))
+        span_rad = math.radians(float(joint_target) - float(joint_init))
+        # The full demo tells us the end-to-end chord direction.  For a signed
+        # rotation span, the chord direction is the mid-arc tangent, so place
+        # the radius vector half a span behind that tangent.
+        chord_angle = math.atan2(float(expected[1]), float(expected[0]))
+        rel_angle = chord_angle - math.copysign(math.pi / 2.0, span_rad or 1.0) - span_rad / 2.0
+        rel = radius * np.array([math.cos(rel_angle), math.sin(rel_angle), 0.0], dtype=np.float64)
+        origin = contact - rel
+        return origin, axis_w
+
     def _get_planning_hinge_world_frame(
         self, contact_pos_world: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray]:
         """Close planning hinge frame: explicit laptop geometry from contact + lever."""
+        if self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID:
+            return self._horizontal_hinge_world_frame_from_expected_delta(contact_pos_world)
         return self._explicit_laptop_hinge_world_frame(contact_pos_world)
 
     def _expected_close_delta_dir_world(self) -> np.ndarray | None:
@@ -822,6 +1030,11 @@ class PushInteractionExecutor:
 
     def _resolve_close_target_deg(self, joint_deg: float) -> float:
         """ArticuBot T_rel target: close_ratio, bumped to rollout success threshold if needed."""
+        arc_points = tuple(getattr(self.sampling_config, "push_contact_joint_arc_points", ()) or ())
+        if self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID and arc_points:
+            # Microwave close uses the calibrated handle arc directly; success still
+            # stops early from live joint readback, so do not plan from registry over-push limits.
+            return max(float(p[0]) for p in arc_points)
         ratio_target = joint_deg + self.push_cfg.close_ratio * (
             self.joint_upper_limit_deg - joint_deg
         )
@@ -848,15 +1061,15 @@ class PushInteractionExecutor:
     ) -> None:
         """Capture ArticuBot T_rel at contact: constant eef_in_link while lid rotates."""
         link_pos_np, link_quat = self._read_link_pose()
+        hinge_origin_w, hinge_axis_w = self._get_planning_hinge_world_frame(
+            np.asarray(eef_pos_world, dtype=np.float64)
+        )
         link_pos_inv, link_quat_inv = invert_pose(link_pos_np, link_quat)
         eef_in_link_pos, eef_in_link_quat = compose_pose(
             link_pos_inv,
             link_quat_inv,
             np.asarray(eef_pos_world, dtype=np.float64),
             eef_quat_wxyz,
-        )
-        hinge_origin_w, hinge_axis_w = self._get_planning_hinge_world_frame(
-            np.asarray(eef_pos_world, dtype=np.float64)
         )
         joint_init = self.env_module.read_scene_joint_angle_deg(self.task_config.joint_prim)
         if joint_init is None:
@@ -892,7 +1105,7 @@ class PushInteractionExecutor:
         )
         self._log_info(
             f"[INFO] Close hinge frame: origin={np.round(hinge_origin_w, 4).tolist()} "
-            f"axis={np.round(hinge_axis_w, 4).tolist()} (explicit_laptop from contact+lever)"
+            f"axis={np.round(hinge_axis_w, 4).tolist()}"
         )
         diag0 = self._close_handle_diagnostics(joint_init, joint_deg=float(joint_init))
         if diag0:
@@ -918,6 +1131,32 @@ class PushInteractionExecutor:
         theta_init_rad = math.radians(joint_init)
         theta_targets = np.linspace(theta_init_rad, math.radians(joint_target), n_wp)
         contact_pos = np.asarray(anchor["contact_pos_w"], dtype=np.float64)
+        poses = self._build_calibrated_arc_close_trajectory(
+            contact_pos,
+            anchor["contact_quat_w"],
+            joint_init,
+            joint_target,
+            n_wp,
+        )
+        if poses:
+            ee_end = np.asarray(poses[-1][0], dtype=np.float64)
+            delta = ee_end - contact_pos
+            arc_m = float(sum(
+                np.linalg.norm(np.asarray(poses[i][0]) - np.asarray(poses[i - 1][0]))
+                for i in range(1, len(poses))
+            ))
+            self._log_info(
+                f"[INFO] Calibrated-arc close plan: joint {joint_init:.2f}° -> {joint_target:.2f}° "
+                f"({len(poses)} waypoints @ {getattr(self.push_cfg, 'close_step_deg_usd', 1.0):.1f}°USD, "
+                f"EE arc {arc_m:.3f}m, ΔEE={np.round(delta, 4).tolist()} "
+                f"|Δ|={float(np.linalg.norm(delta)):.3f}m)"
+            )
+            return poses
+
+        if self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID:
+            self._log_info("[WARN] Microwave calibrated close arc unavailable; aborting close instead of falling back to T_rel.")
+            return []
+
         poses = compute_articulation_ee_trajectory(
             eef_pos_world=contact_pos,
             eef_quat_wxyz=anchor["contact_quat_w"],
@@ -943,6 +1182,50 @@ class PushInteractionExecutor:
             )
         return poses
 
+    def _build_calibrated_arc_close_trajectory(
+        self,
+        contact_pos: np.ndarray,
+        contact_quat_w: tuple[float, float, float, float],
+        joint_init: float,
+        joint_target: float,
+        n_wp: int,
+    ) -> list[tuple[np.ndarray, tuple[float, float, float, float]]]:
+        """Close path from calibrated [joint, x, y, z] handle arc points."""
+        if self.task_config.task_id != CLOSE_MICROWAVE_TASK_ID:
+            return []
+        arc_points = tuple(getattr(self.sampling_config, "push_contact_joint_arc_points", ()) or ())
+        if len(arc_points) < 3:
+            return []
+        init_eval = self._calibrated_arc_position_at_joint(joint_init)
+        if init_eval is None:
+            sample_degs = np.asarray([float(p[0]) for p in arc_points], dtype=np.float64)
+            self._log_info(
+                f"[WARN] calibrated close arc skipped: joint_init={joint_init:.2f}° "
+                f"outside samples [{sample_degs[0]:.1f}, {sample_degs[-1]:.1f}]°"
+            )
+            return []
+        _, info = init_eval
+        sample_degs = np.asarray(info["sample_degs"], dtype=np.float64)
+        target = float(np.clip(joint_target, sample_degs[0], sample_degs[-1]))
+        joint_targets = np.linspace(float(joint_init), target, max(2, int(n_wp)))
+
+        poses: list[tuple[np.ndarray, tuple[float, float, float, float]]] = []
+        for joint in joint_targets:
+            evaluated = self._calibrated_arc_position_at_joint(float(joint))
+            if evaluated is None:
+                continue
+            pos, _ = evaluated
+            poses.append((pos, contact_quat_w))
+
+        self._log_info(
+            f"[INFO] Calibrated close arc fit: samples={[round(float(v), 2) for v in sample_degs.tolist()]} "
+            f"target={target:.2f}° "
+            f"center_xy={[round(float(info['center_u']), 4), round(float(info['center_v']), 4)]} "
+            f"radius={float(info['radius']):.4f} "
+            f"z_source=yaml"
+        )
+        return poses
+
     def _compute_close_pose_at_joint_deg(
         self, theta_deg: float
     ) -> tuple[np.ndarray, tuple[float, float, float, float]]:
@@ -950,6 +1233,11 @@ class PushInteractionExecutor:
         if self._close_anchor is None:
             raise RuntimeError("Call _init_close_anchor before close phase.")
         anchor = self._close_anchor
+        if self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID:
+            evaluated = self._calibrated_arc_position_at_joint(float(theta_deg))
+            if evaluated is not None:
+                pos, _ = evaluated
+                return pos, anchor["contact_quat_w"]
         joint_init = float(anchor["joint_init_deg"])
         theta_init_rad = math.radians(joint_init)
         theta_rad = math.radians(float(theta_deg))
@@ -967,10 +1255,128 @@ class PushInteractionExecutor:
             raise RuntimeError(f"T_rel close pose failed at θ={theta_deg:.2f}°USD")
         return poses[-1]
 
+    def _calibrated_arc_position_at_joint(
+        self,
+        joint_deg: float,
+    ) -> tuple[np.ndarray, dict[str, object]] | None:
+        """Evaluate the YAML [joint, x, y, z] handle circle at a joint angle."""
+        cfg = self.sampling_config
+        arc_points = tuple(getattr(cfg, "push_contact_joint_arc_points", ()) or ())
+        if len(arc_points) < 3:
+            return None
+
+        samples = sorted(
+            (
+                float(p[0]),
+                self._map_calibrated_world_position(np.asarray(p[1:4], dtype=np.float64)),
+            )
+            for p in arc_points
+        )
+        sample_degs = np.asarray([deg for deg, _ in samples], dtype=np.float64)
+        sample_world = np.asarray([pos for _, pos in samples], dtype=np.float64)
+        boundary_tol_deg = 0.75
+        if (
+            float(joint_deg) < float(sample_degs[0]) - boundary_tol_deg
+            or float(joint_deg) > float(sample_degs[-1]) + boundary_tol_deg
+        ):
+            return None
+        used_joint = float(np.clip(float(joint_deg), float(sample_degs[0]), float(sample_degs[-1])))
+
+        x_dir, y_neg_dir = self._generated_root_yaw_frame()
+        y_pos_dir = -y_neg_dir
+        sample_plane = np.column_stack((sample_world @ x_dir, sample_world @ y_pos_dir))
+        design = np.column_stack(
+            (2.0 * sample_plane[:, 0], 2.0 * sample_plane[:, 1], np.ones(len(sample_plane)))
+        )
+        rhs = np.sum(sample_plane * sample_plane, axis=1)
+        center_u, center_v, radius_term = np.linalg.lstsq(design, rhs, rcond=None)[0]
+        radius = math.sqrt(max(0.0, radius_term + center_u * center_u + center_v * center_v))
+        if radius < 1e-6:
+            return None
+
+        sample_angles = np.unwrap(
+            np.arctan2(sample_plane[:, 1] - center_v, sample_plane[:, 0] - center_u)
+        )
+        theta = float(np.interp(used_joint, sample_degs, sample_angles))
+        plane = np.array(
+            [center_u + radius * math.cos(theta), center_v + radius * math.sin(theta)],
+            dtype=np.float64,
+        )
+        pos = x_dir * plane[0] + y_pos_dir * plane[1]
+        # Use the calibrated z from YAML, not the lower IK-achieved contact z.
+        pos[2] = float(np.interp(used_joint, sample_degs, sample_world[:, 2]))
+        info: dict[str, object] = {
+            "sample_degs": sample_degs.copy(),
+            "used_joint": used_joint,
+            "center_u": float(center_u),
+            "center_v": float(center_v),
+            "radius": float(radius),
+        }
+        return pos, info
+
+    def _align_close_trajectory_quats_to_tangent(
+        self,
+        poses: list[tuple[np.ndarray, tuple[float, float, float, float]]],
+    ) -> list[tuple[np.ndarray, tuple[float, float, float, float]]]:
+        """Microwave close: keep positions, gradually rotate EE +Z toward each arc tangent."""
+        if self.task_config.task_id != CLOSE_MICROWAVE_TASK_ID or self._close_anchor is None:
+            return poses
+        if not poses:
+            return poses
+
+        anchor = self._close_anchor
+        hinge_origin_w = np.asarray(anchor["hinge_origin_w"], dtype=np.float64)
+        hinge_axis_w = np.asarray(anchor["hinge_axis_w"], dtype=np.float64)
+        aligned: list[tuple[np.ndarray, tuple[float, float, float, float]]] = []
+        tangent_angles: list[float] = []
+        ramp_start = 0.35
+        ramp_span = max(1e-6, 1.0 - ramp_start)
+        alphas: list[float] = []
+        for i, (pos, quat) in enumerate(poses):
+            pos_np = np.asarray(pos, dtype=np.float64)
+            tangent_w = self._link_plane_push_normal_world(
+                pos_np,
+                hinge_origin_w,
+                hinge_axis_w,
+                fallback_quat_w=quat,
+            )
+            if tangent_w is None:
+                aligned.append((pos_np, quat))
+                continue
+            tangent_quat = self._quat_from_world_push_normal(
+                tangent_w,
+                horizontal=self.sampling_config.horizontal_grasp,
+            )
+            progress = float(i) / float(max(1, len(poses) - 1))
+            alpha = float(np.clip((progress - ramp_start) / ramp_span, 0.0, 1.0))
+            blended_quat = _slerp_wxyz(quat, tangent_quat, alpha)
+            alphas.append(alpha)
+            tangent_angles.append(self._axis_alignment_deg(self._gripper_push_axis_world(quat), tangent_w))
+            aligned.append((pos_np, blended_quat))
+
+        if tangent_angles:
+            first_axis = self._gripper_push_axis_world(aligned[0][1])
+            last_axis = self._gripper_push_axis_world(aligned[-1][1])
+            self._log_info(
+                "[INFO] Microwave close quats tangent-blended: "
+                f"alpha_first={alphas[0]:.2f} "
+                f"alpha_last={alphas[-1]:.2f} "
+                f"old_angle_first={tangent_angles[0]:.1f}° "
+                f"old_angle_last={tangent_angles[-1]:.1f}° "
+                f"new+Z_first={np.round(first_axis, 4).tolist()} "
+                f"new+Z_last={np.round(last_axis, 4).tolist()}"
+            )
+        return aligned
+
     def _close_contact_anchor_world_at_joint(self, joint_deg: float) -> np.ndarray | None:
         """Surface point captured at contact, rotated by the live scene hinge angle."""
         if self._close_anchor is None:
             return None
+        if self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID:
+            evaluated = self._calibrated_arc_position_at_joint(float(joint_deg))
+            if evaluated is not None:
+                pos, _ = evaluated
+                return pos
         anchor = self._close_anchor
         origin = np.asarray(anchor["hinge_origin_w"], dtype=np.float64)
         axis = np.asarray(anchor["hinge_axis_w"], dtype=np.float64)
@@ -1013,7 +1419,9 @@ class PushInteractionExecutor:
         if self.trace_ee_handle and self.control_step_count % self.trace_ee_handle_interval == 0:
             self._log_info(
                 f"[INFO] close anchor correction: live_anchor={np.round(anchor_now, 4).tolist()} "
-                f"err={error_norm:.4f}m correction={np.round(correction, 4).tolist()}"
+                f"ee={np.round(ee_pos, 4).tolist()} "
+                f"err={error_norm:.4f}m z_err={float(error[2]):+.4f}m "
+                f"correction={np.round(correction, 4).tolist()}"
             )
         return corrected
 
@@ -1132,6 +1540,13 @@ class PushInteractionExecutor:
         """Execute a coarse sampled T_rel arc using the same pose-path servo as handle reach."""
         if len(trajectory) < 2:
             return False
+        continuous_result = self._execute_continuous_calibrated_close(
+            collector,
+            on_control_step,
+            trajectory,
+        )
+        if continuous_result is not None:
+            return continuous_result
 
         close_poses = list(trajectory[1:])
         sample_count = max(2, int(getattr(self.push_cfg, "close_sampled_waypoints", 12)))
@@ -1151,7 +1566,7 @@ class PushInteractionExecutor:
         sampled_last = np.asarray(close_poses[-1][0], dtype=np.float64)
         self._log_info(
             f"[INFO] Close phase (sampled pose path): sampled={len(close_poses)} "
-            f"from {len(trajectory) - 1} T_rel waypoints, steps/wp={steps_per_wp}, "
+            f"from {len(trajectory) - 1} close waypoints, steps/wp={steps_per_wp}, "
             f"close_clamp_joints={close_clamp}, full_arc_delta={float(np.linalg.norm(wp_last - wp0)):.3f}m, "
             f"sampled_delta={float(np.linalg.norm(sampled_last - wp0)):.3f}m"
         )
@@ -1172,48 +1587,136 @@ class PushInteractionExecutor:
         )
         if not stopped and close_poses:
             last_pos, last_quat = close_poses[-1]
-            hold_steps = max(0, int(getattr(self.push_cfg, "close_final_hold_steps", 120)))
+            configured_hold_steps = getattr(self.push_cfg, "close_final_hold_steps", None)
+            remaining_steps = self._remaining_episode_control_steps()
+            hold_steps = (
+                max(0, int(configured_hold_steps))
+                if configured_hold_steps is not None
+                else (0 if remaining_steps is None else remaining_steps)
+            )
             close_step_m = float(getattr(self.push_cfg, "close_push_ee_step_m", 0.003))
             if hold_steps > 0:
                 self._log_info(
-                    f"[INFO] Close final hold: up to {hold_steps} substeps on last keyframe "
+                    f"[INFO] Close hold: up to {hold_steps} remaining control steps on "
                     f"{np.round(np.asarray(last_pos), 3).tolist()}"
                 )
-            for hold_i in range(hold_steps):
+            hold_start = int(self.control_step_count)
+            while int(self.control_step_count) - hold_start < hold_steps:
+                remaining_hold_steps = hold_steps - (int(self.control_step_count) - hold_start)
                 if self._servo_toward_close_pose(
                     collector,
                     np.asarray(last_pos, dtype=np.float64),
                     last_quat,
                     on_control_step,
-                    substeps=2,
+                    substeps=min(2, max(1, remaining_hold_steps)),
                     max_pos_step_m=close_step_m,
                     clamp_joints=close_clamp,
                 ):
                     stopped = True
                     break
+                success_now, joint_degs = evaluate_rollout_success(
+                    self.env_module, self.success_specs
+                )
                 if on_control_step is not None:
-                    success_now, joint_degs = evaluate_rollout_success(
-                        self.env_module, self.success_specs
-                    )
                     if on_control_step(success_now, joint_degs):
                         stopped = True
                         break
-                else:
-                    success_now, _ = evaluate_rollout_success(
-                        self.env_module, self.success_specs
-                    )
-                    if success_now:
-                        stopped = True
-                        break
-                if hold_i > 0 and hold_i % max(1, hold_steps // 4) == 0:
+                elif success_now:
+                    stopped = True
+                    break
+                hold_done = int(self.control_step_count) - hold_start
+                if hold_done > 0 and hold_done % max(1, hold_steps // 4) == 0:
                     joint_now = self.env_module.read_scene_joint_angle_deg(
                         self.task_config.joint_prim
                     )
                     self._log_info(
-                        f"[INFO] Close hold {hold_i}/{hold_steps}: "
+                        f"[INFO] Close hold {hold_done}/{hold_steps}: "
                         f"joint_1={joint_now:.2f}°USD, {self._robot_effort_debug_line()}"
                     )
         self._log_info(f"[INFO] Close sampled effort: {self._robot_effort_debug_line()}")
+        return stopped
+
+    def _execute_continuous_calibrated_close(
+        self,
+        collector: OfficialEpisodeCollector,
+        on_control_step: Callable[[bool, dict[str, float | None]], bool] | None,
+        trajectory: list[tuple[np.ndarray, tuple[float, float, float, float]]],
+    ) -> bool | None:
+        """Microwave: track calibrated arc until success or episode step budget runs out."""
+        if self.task_config.task_id != CLOSE_MICROWAVE_TASK_ID or self._close_anchor is None:
+            return None
+        if len(tuple(getattr(self.sampling_config, "push_contact_joint_arc_points", ()) or ())) < 3:
+            return None
+
+        anchor = self._close_anchor
+        joint_init = float(anchor["joint_init_deg"])
+        joint_target = float(anchor["joint_target_deg"])
+        close_clamp = bool(getattr(self.push_cfg, "close_clamp_joints", True))
+        target_quat = anchor["contact_quat_w"]
+        pos_step = float(getattr(self.push_cfg, "close_push_ee_step_m", self.max_ee_pos_step_m))
+        lead_deg = max(float(getattr(self.push_cfg, "close_step_deg_usd", 1.0)), 0.5)
+
+        first = np.asarray(trajectory[0][0], dtype=np.float64)
+        last = np.asarray(trajectory[-1][0], dtype=np.float64)
+        remaining = self._remaining_episode_control_steps()
+        budget_text = str(remaining) if remaining is not None else "unlimited"
+        self._log_info(
+            f"[INFO] Close phase (continuous calibrated arc): remaining_steps={budget_text}, "
+            f"joint {joint_init:.2f}°->{joint_target:.2f}°, close_clamp_joints={close_clamp}, "
+            f"arc_delta={float(np.linalg.norm(last - first)):.3f}m"
+        )
+
+        self._reset_ee_tracking_from_robot()
+        self.diff_ik_controller.reset()
+        stopped = False
+        step_i = 0
+        log_interval = max(1, (remaining or 200) // 4)
+        joint_prim = self.task_config.joint_prim
+
+        while remaining is None or step_i < remaining:
+            joint_live = self.env_module.read_scene_joint_angle_deg(joint_prim)
+            if joint_live is None:
+                joint_live = joint_init
+            joint_cmd = min(joint_target, max(joint_init, float(joint_live)) + lead_deg)
+
+            evaluated = self._calibrated_arc_position_at_joint(joint_cmd)
+            if evaluated is None:
+                step_i += 1
+                continue
+            target_pos, _ = evaluated
+            corrected_target = self._apply_close_contact_anchor_correction(target_pos)
+            self._advance_tracking_pose(corrected_target, target_quat, max_pos_step_m=pos_step)
+            arm_targets = self._ik_targets_for_pose(self._tracking_pos, self._tracking_quat_wxyz)
+            if self._control_step_ik(
+                collector,
+                arm_targets,
+                gripper_open=False,
+                on_control_step=on_control_step,
+                clamp_joints=close_clamp,
+            ):
+                stopped = True
+                break
+
+            success_now, joint_degs = evaluate_rollout_success(
+                self.env_module, self.success_specs
+            )
+            if on_control_step is not None:
+                if on_control_step(success_now, joint_degs):
+                    stopped = True
+                    break
+            elif success_now:
+                stopped = True
+                break
+
+            step_i += 1
+            if step_i % log_interval == 0:
+                self._log_info(
+                    f"[INFO] Continuous close step={step_i}: "
+                    f"cmd_joint={joint_cmd:.2f}°USD live_joint={float(joint_live):.2f}°USD, "
+                    f"{self._robot_effort_debug_line()}"
+                )
+
+        self._log_info(f"[INFO] Close continuous effort: {self._robot_effort_debug_line()}")
         return stopped
 
     def _execute_close_phase(
@@ -1387,6 +1890,12 @@ class PushInteractionExecutor:
         ee_to_contact = contact_w - actual_pos
         push_axis_planned = self._gripper_push_axis_world(quat_w)
         push_axis_actual = self._gripper_push_axis_world(actual_quat)
+        normal_alignment = self._normal_alignment_report(
+            contact_w,
+            approach_w,
+            quat_w,
+            actual_quat,
+        )
         signed_push_gap_m = float(np.dot(ee_to_contact, push_axis_actual))
         lateral_err_m = float(
             np.linalg.norm(ee_to_contact - signed_push_gap_m * push_axis_actual)
@@ -1454,6 +1963,21 @@ class PushInteractionExecutor:
             "ee_to_contact_w": ee_to_contact.copy(),
             "push_axis_planned_w": push_axis_planned.copy(),
             "push_axis_actual_w": push_axis_actual.copy(),
+            "push_normal_w": (
+                normal_alignment["push_normal_w"].copy() if normal_alignment is not None else None
+            ),
+            "planned_normal_dot": (
+                normal_alignment["planned_normal_dot"] if normal_alignment is not None else None
+            ),
+            "actual_normal_dot": (
+                normal_alignment["actual_normal_dot"] if normal_alignment is not None else None
+            ),
+            "planned_normal_angle_deg": (
+                normal_alignment["planned_normal_angle_deg"] if normal_alignment is not None else None
+            ),
+            "actual_normal_angle_deg": (
+                normal_alignment["actual_normal_angle_deg"] if normal_alignment is not None else None
+            ),
             "signed_push_gap_m": signed_push_gap_m,
             "lateral_err_m": lateral_err_m,
             "gripper_base_pos_w": gripper_base_pos_w.copy() if gripper_base_pos_w is not None else None,
@@ -1508,6 +2032,20 @@ class PushInteractionExecutor:
             flush=True,
         )
         print(f"  actual EE quat_w  : {np.round(report['actual_ee_quat_w'], 4).tolist()}", flush=True)
+        if report.get("push_normal_w") is not None:
+            print(
+                f"  push normal_w     : {np.round(report['push_normal_w'], 4).tolist()} "
+                f"(approach -> contact)",
+                flush=True,
+            )
+            print(
+                f"  EE +Z vs normal   : planned dot={float(report['planned_normal_dot']):.4f}, "
+                f"angle={float(report['planned_normal_angle_deg']):.1f}°; "
+                f"actual dot={float(report['actual_normal_dot']):.4f}, "
+                f"angle={float(report['actual_normal_angle_deg']):.1f}° "
+                "(0° aligned, 90° perpendicular)",
+                flush=True,
+            )
         print(
             f"  pos err           : {report['pos_err_m']:.4f} m "
             f"(tol {report['pos_tol_m']:.3f} m) "
@@ -1659,8 +2197,15 @@ class PushInteractionExecutor:
             parts.append(f"{joint_prim}={float(joint_deg):.2f}deg")
         print("\n" + " | ".join(parts), flush=True)
         if not success and joint_deg is not None:
+            success_hints = [
+                f"{spec.joint_prim} > {float(spec.angle_gt_deg):.1f}°"
+                for spec in self.success_specs
+                if getattr(spec, "joint_prim", None) is not None
+                and getattr(spec, "angle_gt_deg", None) is not None
+            ]
+            success_msg = ", ".join(success_hints) if success_hints else "task_registry success spec"
             print(
-                "[PUSH+CLOSE EXIT] Success needs joint_1 > 98°USD (task_registry). "
+                f"[PUSH+CLOSE EXIT] Success needs {success_msg} (task_registry). "
                 "Check Close push logs if lid did not move.",
                 flush=True,
             )
@@ -1754,6 +2299,7 @@ class PushInteractionExecutor:
         self.set_episode_step_limit(episode_step_limit)
         self.episode_start_wall_time = episode_start_wall_time
         self.last_record = None
+        self._reset_episode_log_state()
         self._close_hinge_lever_m = float(hinge_lever_m) if hinge_lever_m is not None else None
         self._reset_ee_tracking_from_robot()
         self.diff_ik_controller.reset()
@@ -1802,29 +2348,25 @@ class PushInteractionExecutor:
                     f"actual={np.round(actual_contact_pos, 4).tolist()} "
                     f"drift={contact_drift:.4f}m rot={math.degrees(rot_drift):.1f}deg"
                 )
+                self._log_normal_alignment(
+                    "Contact anchor",
+                    contact_w,
+                    approach_w,
+                    quat_w,
+                    actual_contact_quat,
+                )
 
                 self._reset_close_phase_tracking()
                 self._init_close_anchor(actual_contact_pos, actual_contact_quat)
                 if self._execute_hinge_close_anchored(collector, on_step):
                     task_success = True
                 else:
-                    success_now, joint_degs = evaluate_rollout_success(
-                        self.env_module, self.success_specs
-                    )
-                    final_joint_degs = joint_degs
-                    task_success = success_now
+                    task_success, final_joint_degs = self._episode_success()
         except EpisodeStepLimitExceeded as exc:
-            _, joint_degs = evaluate_rollout_success(
-                self.env_module, self.success_specs
-            )
-            final_joint_degs = joint_degs
-            task_success = False
+            task_success, final_joint_degs = self._episode_success()
             print(f"[WARN] {label} episode timeout: {exc}; mark attempt failed.", flush=True)
         except RecordingHealthError as exc:
-            _, joint_degs = evaluate_rollout_success(
-                self.env_module, self.success_specs
-            )
-            final_joint_degs = joint_degs
+            task_success, final_joint_degs = self._episode_success()
             task_success = False
             print(f"[WARN] {label} recording health abort: {exc}; mark attempt failed.", flush=True)
 
@@ -1864,6 +2406,7 @@ class PushInteractionExecutor:
         episode_step_limit: int | None = None,
     ) -> dict[str, object]:
         self.set_episode_step_limit(episode_step_limit)
+        self._reset_episode_log_state()
         approach_w = approach_from_contact(
             contact_w,
             quat_w,
@@ -1885,46 +2428,67 @@ class PushInteractionExecutor:
             int(max_servo_steps) - contact_steps_per * max(2, int(self.push_cfg.contact_hold_steps)),
         )
         close_poses: list[tuple[np.ndarray, tuple[float, float, float, float]]] = []
+        actual_contact_pos = np.asarray(contact_w, dtype=np.float64)
+        actual_contact_quat = quat_w
+        contact_drift = 0.0
+        rot_drift = 0.0
         try:
             self.set_trace_phase("approach")
-            self._execute_handle_reach(
+            joint_success_early = self._execute_handle_reach(
                 collector,
                 approach_w,
                 contact_w,
                 quat_w,
-                on_control_step=None,
+                on_control_step=self._stop_on_joint_success,
                 approach_step_budget=approach_budget,
                 contact_steps_per_waypoint=contact_steps_per,
             )
-
-            self.set_trace_phase("close")
-            actual_contact_pos, actual_contact_quat = self._read_ee_pose()
-            contact_drift = float(np.linalg.norm(actual_contact_pos - contact_w))
-            rot_drift = (
-                _wxyz_to_rot(quat_w) * _wxyz_to_rot(actual_contact_quat).inv()
-            ).magnitude()
-            self._log_info(
-                f"[INFO] Contact anchor: planned={np.round(contact_w, 4).tolist()} "
-                f"actual={np.round(actual_contact_pos, 4).tolist()} "
-                f"drift={contact_drift:.4f}m rot={math.degrees(rot_drift):.1f}deg"
-            )
-
-            self._reset_close_phase_tracking()
-            self._init_close_anchor(actual_contact_pos, actual_contact_quat)
-            close_poses = self._build_close_trajectory_from_anchor()
-            if close_poses:
-                self._execute_hinge_close_anchored(
-                    collector,
-                    on_control_step=None,
-                    trajectory=close_poses,
+            if joint_success_early:
+                actual_contact_pos, actual_contact_quat = self._read_ee_pose()
+                contact_drift = float(np.linalg.norm(actual_contact_pos - contact_w))
+                rot_drift = (
+                    _wxyz_to_rot(quat_w) * _wxyz_to_rot(actual_contact_quat).inv()
+                ).magnitude()
+                self._log_info(
+                    f"[INFO] {label} probe: joint success during handle reach; "
+                    f"skip close phase at step={self.control_step_count}."
                 )
+            else:
+                self.set_trace_phase("close")
+                actual_contact_pos, actual_contact_quat = self._read_ee_pose()
+                contact_drift = float(np.linalg.norm(actual_contact_pos - contact_w))
+                rot_drift = (
+                    _wxyz_to_rot(quat_w) * _wxyz_to_rot(actual_contact_quat).inv()
+                ).magnitude()
+                self._log_info(
+                    f"[INFO] Contact anchor: planned={np.round(contact_w, 4).tolist()} "
+                    f"actual={np.round(actual_contact_pos, 4).tolist()} "
+                    f"drift={contact_drift:.4f}m rot={math.degrees(rot_drift):.1f}deg"
+                )
+                self._log_normal_alignment(
+                    "Contact anchor",
+                    contact_w,
+                    approach_w,
+                    quat_w,
+                    actual_contact_quat,
+                )
+
+                self._reset_close_phase_tracking()
+                self._init_close_anchor(actual_contact_pos, actual_contact_quat)
+                close_poses = self._build_close_trajectory_from_anchor()
+                if close_poses:
+                    self._execute_hinge_close_anchored(
+                        collector,
+                        on_control_step=self._stop_on_joint_success,
+                        trajectory=close_poses,
+                    )
         except EpisodeStepLimitExceeded as exc:
             actual_contact_pos, actual_contact_quat = self._read_ee_pose()
             contact_drift = float(np.linalg.norm(actual_contact_pos - contact_w))
             rot_drift = (
                 _wxyz_to_rot(quat_w) * _wxyz_to_rot(actual_contact_quat).inv()
             ).magnitude()
-            print(f"[WARN] {label} probe timeout: {exc}; mark run failed.", flush=True)
+            print(f"[WARN] {label} probe step budget exhausted: {exc}", flush=True)
 
         anchor = self._close_anchor
         if anchor is not None:
@@ -1937,12 +2501,26 @@ class PushInteractionExecutor:
                 self.sampling_config.hinge.axis,
             )
 
-        success_now, joint_degs = evaluate_rollout_success(self.env_module, self.success_specs)
-        if self.episode_step_limit_hit:
-            success_now = False
+        success_now, joint_degs = self._episode_success()
         joint_deg = joint_degs.get(self.task_config.joint_prim)
-        # Probe should always leave the arm in a known pose, including timeout/threshold failures.
-        self.run_home_reset(collector)
+        if success_now:
+            self.run_home_reset(collector)
+        elif self.verbose:
+            joint_ok, _ = evaluate_rollout_success(self.env_module, self.success_specs)
+            within_limit = (
+                self.episode_step_limit is None
+                or int(self.control_step_count) <= int(self.episode_step_limit)
+            )
+            if not joint_ok:
+                print(
+                    "[INFO] Probe failed before success threshold; keeping final pose for inspection.",
+                    flush=True,
+                )
+            elif not within_limit:
+                print(
+                    "[INFO] Probe failed: episode step limit exceeded; keeping final pose for inspection.",
+                    flush=True,
+                )
         if self.verbose:
             if joint_deg is not None:
                 print(
@@ -1986,6 +2564,7 @@ class PushInteractionExecutor:
         self._skip_recording = True
         self.sim_step_count = 0
         self.control_step_count = 0
+        self._reset_episode_log_state()
         self.episode_start_wall_time = time.perf_counter()
         self._reset_ee_tracking_from_robot()
         self.diff_ik_controller.reset()
@@ -2545,10 +3124,30 @@ class PushInteractionExecutor:
                 steps_per_waypoint,
                 on_control_step,
                 clamp_joints=clamp_joints,
+                pos_tol_m=0.006 if close_anchor_correction else None,
                 close_anchor_correction=close_anchor_correction,
             ):
                 return True
         return False
+
+    def _hold_arm_at_current_pose(
+        self,
+        collector: OfficialEpisodeCollector,
+        *,
+        duration_sec: float = 0.5,
+        record: bool = False,
+    ) -> None:
+        """Hold current arm pose (gripper closed) before homing."""
+        hold_steps = max(1, int(round(duration_sec * self.timing.control_hz)))
+        arm_targets = self.robot.data.joint_pos[0, self.handles.arm_joint_ids].detach().clone()
+        arm_targets = arm_targets.unsqueeze(0)
+        print(f"[INFO] Success hold: {hold_steps} steps ({duration_sec:.1f}s)", flush=True)
+        for _ in range(hold_steps):
+            self.control_step_count += 1
+            self._apply_arm_command(arm_targets, gripper_open=False)
+            self._sim_substeps()
+            if record:
+                self._maybe_record(collector, arm_targets, gripper_open=False)
 
     def _restore_arm_home(self, collector: OfficialEpisodeCollector, *, record: bool) -> None:
         from motion_planner import interpolate_joint_segment
@@ -2557,10 +3156,7 @@ class PushInteractionExecutor:
             float(v) for v in self.robot.data.joint_pos[0, self.handles.arm_joint_ids].tolist()
         )
         num_steps = max(1, int(self.home_steps))
-        self._log_info(
-            f"[INFO] Go to zero: joint-space home over {num_steps} steps "
-            f"(target={list(round(math.degrees(v), 1) for v in self.home_arm_rad)} deg)"
-        )
+        print(f"[INFO] Go to zero: {num_steps} steps", flush=True)
         for joint_rad in interpolate_joint_segment(current_arm, self.home_arm_rad, num_steps):
             self.control_step_count += 1
             arm_targets = torch.tensor([list(joint_rad)], dtype=torch.float32, device=self.device)
@@ -2573,4 +3169,5 @@ class PushInteractionExecutor:
 
     def run_home_reset(self, collector: OfficialEpisodeCollector) -> None:
         """Return arm joints to zero after successful task (recorded into episode)."""
+        self._hold_arm_at_current_pose(collector, duration_sec=0.5, record=True)
         self._restore_arm_home(collector, record=True)

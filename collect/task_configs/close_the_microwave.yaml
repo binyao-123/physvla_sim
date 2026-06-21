@@ -1,0 +1,98 @@
+task_id: close_the_microwave
+interaction_mode: push
+
+interaction:
+  link_prim: /World/generated/link_1
+  joint_prim: /World/generated/joints/joint_1
+  joint_type: revolute
+
+sampling:
+  assets:
+    subdir: microwave
+    mesh: link_1.obj
+    movable_link: link_1
+    base_link: link_0
+    mesh_origin: [0.0, 0.0, 0.0]
+  hinge:
+    origin: [0.0, 0.0, 0.0]
+    # 关门轨迹在水平 XY 平面内运动：+X、-Y，Z 基本不变。
+    # 因此 close/T_rel 规划使用竖直 Z 轴作为 hinge axis；正负方向由 close_auto_flip_hinge_axis 按 expected Δdir 自动选择。
+    axis: [0.0, 0.0, 1.0]
+  num_fps_points: 15
+  num_yaw_perturbations: 8
+  max_yaw_perturb_deg: 30.0
+  approach_offset_m: 0.04
+  contact_offset_m: 0.02
+  min_hinge_distance_percentile: 0.0
+  horizontal_grasp: true
+  max_contact_link_local_y_m: 0.25
+  max_contact_delta_y_from_link_m: 0.15
+  use_push_anchor_fallback: true
+  use_scene_approach_direction: true
+  approach_direction_world: [0.0, -1.0, 0.0]
+  min_approach_direction_dot: 0.08
+  min_contact_world_x_m: 0.10
+  max_contact_world_x_m: 0.90
+  min_contact_world_z_m: 0.05
+  max_contact_world_z_m: 0.40
+  max_contact_dist_from_link_m: 1.2
+  push_anchor_dist_m: 0.10
+  # ─── Handle 世界坐标标定（keyboard HDF5 直接测量） ───
+  # Handle 锚定点来源于专门停在 handle 的 keyboard HDF5；第一阶段触碰点保持不变。
+  # 完整关闭 demo 只用于第二阶段 close 圆弧方向/半径，不反向改动第一阶段锚点。
+  # scene root translation=[0.75,-0.15,0.1], yaw=0°
+  # -50° handle: close_the_microwave_20260620_125944.hdf5 demo_0, frames 240:388
+  # EE world pos = [0.3009, -0.0683, 0.1500]  # z unified for microwave close fitting
+  # EE world quat(wxyz) = [-0.6864, -0.0044, -0.7272, 0.0013]
+  # push_contact_offset_link: handle 在 link_1 局部坐标（fallback + offset_err 诊断）
+  # 标定方法（对齐 monitor）：
+  #   1) bash scripts/run_handle_contact_probe.sh  （mode=yaml_handle_contact）
+  #   2) 看 [HANDLE CONTACT] 报告里的 actual EE pos_link
+  #   或: python collect/scripts/inspect_touch_hdf5.py <handle.hdf5> --demo 0
+  #       （需传入该 scene/joint 下正确的 link_1 world pose）
+  # 来源: 全流程探针 @ joint=-50° scene=[0.75,-0.15,0.1] 的 eef_in_link
+  push_contact_offset_link: [0.3656, 0.0629, 0.0772]
+  # contact_quat_link: 被 yaw_contact_anchors 覆盖；此处保留 yaw=0° 标定占位值
+  contact_quat_link: [-0.6864, -0.0044, -0.7272, 0.0013]
+  # ─── Arc-fit: 决定 EE 目标世界位置 ───
+  # reference_contact_world = keyboard demo 中 EE 在 handle 上的世界坐标（joint=-50°基准）
+  reference_contact_world: [0.3009, -0.0683, 0.1500]
+  push_contact_reference_joint_deg: -50.0
+  # 圆弧标定点 [joint_deg, x, y, z]。
+  # Handle 锚定点来自专门触碰 handle 的 HDF5；完整关闭 demo 只用于判断 close 阶段运动方向。
+  # 0° point: close_the_microwave_20260620_164200.hdf5 demo_0 final stable hold mean, z unified to 0.15.
+  push_contact_joint_arc_points:
+    - [-50.0, 0.2909, -0.0767, 0.1500]
+    - [-24.0, 0.3737, -0.1331, 0.1500]
+    - [0.0, 0.4458, -0.2576, 0.1500]
+  push_contact_joint_fit_range_deg: [-50.0, 0.0]
+  # ─── Yaw Anchor: 第一阶段 EE 目标世界位姿（覆盖 contact_quat_link 路径） ───
+  # 格式: [yaw_deg, x, y, z, qw, qx, qy, qz]
+  # 各 yaw 下 keyboard HDF5 触碰 handle 稳定段的 EE world pos/quat；scene=[0.75,-0.15,0.1]
+  # yaw=-20°: close_the_microwave_20260620_195919.hdf5 demo_0 final stable hold (frames≈482:654)
+  # yaw=0°: close_the_microwave_20260620_125944.hdf5 demo_0 handle 稳定段
+  # yaw=20°: yaw20.hdf5 demo_0 final stable hold (frames≈202:388)
+  yaw_contact_anchors:
+    - [-20.0, 0.4106, -0.0579, 0.1500, -0.7279, 0.0153, -0.6853, -0.0174]
+    - [0.0, 0.3009, -0.0683, 0.1500, -0.6864, -0.0044, -0.7272, 0.0013]
+    - [20.0, 0.3925, -0.2857, 0.1500, -0.7289, -0.0029, -0.6845, -0.0109]
+
+push:
+  push_strategy: yaml_handle
+  close_ratio: 0.93
+  close_auto_flip_hinge_axis: true
+  # close_expected_delta_dir_world 来自完整关闭轨迹 close_the_microwave_20260620_151432.hdf5 的健康 close 段。
+  close_expected_delta_dir_world: [0.6221, -0.7829, 0.0078]
+  # 水平圆弧半径：151432 demo 的 close 段(frame≈110→182) ΔEE≈[+0.151,-0.190,+0.002]，
+  # 弦长约 0.243m；按 -50°→0° 的 T_rel span 反推 r≈chord/(2*sin25°)≈0.287m。
+  close_hinge_radius_m: 0.287
+  close_step_deg_usd: 1.0
+  close_clamp_joints: true
+  close_push_ee_step_m: 0.003
+  close_ik_substeps: 8
+  # close 阶段消耗 episode_step_limit 剩余步数，直到 joint 达到成功条件。
+  max_approach_distance_m: 1.5
+  approach_steps: 80
+  contact_hold_steps: 24
+  approach_backoff_m: 0.04
+  approach_clearance_z_m: 0.14

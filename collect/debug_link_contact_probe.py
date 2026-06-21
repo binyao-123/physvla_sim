@@ -32,7 +32,12 @@ parser = argparse.ArgumentParser(description="Debug link_1 contact sampling and 
 parser.add_argument("--task_id", type=str, default="close_laptop_lid")
 parser.add_argument("--list_tasks", action="store_true")
 parser.add_argument("--task_config", type=str, default=None)
-parser.add_argument("--probe_steps", type=int, default=400)
+parser.add_argument(
+    "--probe_steps",
+    type=int,
+    default=None,
+    help="Optional per-mode servo budget. Defaults to --episode_step_limit.",
+)
 parser.add_argument(
     "--episode_step_limit",
     type=int,
@@ -97,6 +102,7 @@ parser.add_argument(
 add_randomization_cli_args(parser)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
+probe_steps_limit = int(args_cli.probe_steps or args_cli.episode_step_limit)
 
 if args_cli.list_tasks:
     for preset in list_task_presets():
@@ -172,6 +178,12 @@ diff_ik_pos_controller = DifferentialIKController(
     device=device,
 )
 
+joint_upper_limit_deg = 104.0
+for spec in task_preset.joint_limit_specs:
+    if spec.prim_path == task_interaction.joint_prim and spec.upper_limit is not None:
+        joint_upper_limit_deg = float(spec.upper_limit)
+        break
+
 executor = PushInteractionExecutor(
     robot=robot,
     env_module=env_module,
@@ -186,6 +198,7 @@ executor = PushInteractionExecutor(
     diff_ik_pos_controller=diff_ik_pos_controller,
     gripper_open_target=gripper_open_target,
     gripper_close_target=gripper_close_target,
+    joint_upper_limit_deg=joint_upper_limit_deg,
     verbose=bool(args_cli.debug_logs),
     trace_ee_handle=bool(args_cli.trace_ee_handle),
     trace_ee_handle_interval=int(args_cli.trace_interval),
@@ -256,7 +269,7 @@ def reset_scene() -> None:
     joint_sim_s = f"{float(joint_sim):.2f}°" if joint_sim is not None else "n/a"
     print(
         "[INFO] Probe init: "
-        f"mode={args_cli.mode} probe_steps={int(args_cli.probe_steps)} "
+        f"mode={args_cli.mode} step_budget={probe_steps_limit} "
         f"episode_step_limit={int(args_cli.episode_step_limit)} "
         f"scene_xyz={scene_xyz} scene_yaw={scene_yaw}° joint_target={joint_target:.2f}° "
         f"joint_sim={joint_sim_s} DR=({format_randomization_sample(sample)})",
@@ -386,7 +399,7 @@ def main_loop() -> bool:
         else:
             probe_result = executor.run_yaml_handle_contact_only_probe(
                 collector,
-                max_servo_steps=int(args_cli.probe_steps),
+                max_servo_steps=probe_steps_limit,
                 episode_step_limit=int(args_cli.episode_step_limit),
             )
             LAST_HANDLE_CONTACT_REPORT = probe_result
@@ -413,13 +426,13 @@ def main_loop() -> bool:
             if args_cli.mode == "articulation_push":
                 probe_result = executor.run_articulation_calibrated_probe(
                     collector,
-                    max_servo_steps=int(args_cli.probe_steps),
+                    max_servo_steps=probe_steps_limit,
                     episode_step_limit=int(args_cli.episode_step_limit),
                 )
             else:
                 probe_result = executor.run_yaml_handle_probe(
                     collector,
-                    max_servo_steps=int(args_cli.probe_steps),
+                    max_servo_steps=probe_steps_limit,
                     episode_step_limit=int(args_cli.episode_step_limit),
                 )
             LAST_PROBE_RESULT = probe_result
@@ -479,13 +492,13 @@ def main_loop() -> bool:
                 executor.run_link_local_axis_probe(
                     collector,
                     local_offset=tuple(float(v) for v in args_cli.local_offset),
-                    max_servo_steps=int(args_cli.probe_steps),
+                    max_servo_steps=probe_steps_limit,
                     hold_control_steps=int(args_cli.hold_steps),
                 )
             else:
                 executor.run_top_contact_probe(
                     collector,
-                    max_servo_steps=int(args_cli.probe_steps),
+                    max_servo_steps=probe_steps_limit,
                     hold_control_steps=int(args_cli.hold_steps),
                 )
             draw_link_debug(link_pos_np, link_quat, probe_w, candidates, top_candidate=top)
