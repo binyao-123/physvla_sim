@@ -266,9 +266,13 @@ if not task_interaction.sampling or not task_interaction.push:
     raise ValueError(f"Task config for '{task_preset.task_id}' must define 'sampling' and 'push' sections.")
 
 joint_upper_limit_deg = 104.0
+joint_lower_limit_deg = 0.0
 for spec in task_preset.joint_limit_specs:
-    if spec.prim_path == task_interaction.joint_prim and spec.upper_limit is not None:
-        joint_upper_limit_deg = float(spec.upper_limit)
+    if spec.prim_path == task_interaction.joint_prim:
+        if spec.lower_limit is not None:
+            joint_lower_limit_deg = float(spec.lower_limit)
+        if spec.upper_limit is not None:
+            joint_upper_limit_deg = float(spec.upper_limit)
 
 np_rng = np.random.default_rng(rand_config.seed)
 
@@ -301,6 +305,7 @@ if task_interaction.interaction_mode == "push":
         gripper_open_target=gripper_open_target,
         gripper_close_target=gripper_close_target,
         joint_upper_limit_deg=joint_upper_limit_deg,
+        joint_lower_limit_deg=joint_lower_limit_deg,
         rng=np_rng,
         home_steps=args_cli.home_reset_steps,
         verbose=bool(args_cli.debug_logs),

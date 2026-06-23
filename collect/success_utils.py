@@ -9,6 +9,13 @@ if TYPE_CHECKING:
     from task_registry import TaskRolloutSuccessSpec
 
 
+def _spec_satisfied(spec: TaskRolloutSuccessSpec, value: float) -> bool:
+    compare = getattr(spec, "compare", "gt")
+    if compare == "lt":
+        return value < spec.angle_gt_deg
+    return value > spec.angle_gt_deg
+
+
 def evaluate_rollout_success(
     env_module: IsaacLabEnvironmentModule,
     specs: tuple[TaskRolloutSuccessSpec, ...],
@@ -20,7 +27,7 @@ def evaluate_rollout_success(
         for spec in specs
     }
     success = all(
-        deg is not None and deg > spec.angle_gt_deg
+        deg is not None and _spec_satisfied(spec, float(deg))
         for spec, deg in ((s, joint_degs[s.joint_prim]) for s in specs)
     )
     return success, joint_degs

@@ -190,9 +190,18 @@ def build_scene_hinge_cfg(task_preset: TaskPreset) -> ArticulationCfg | None:
     if not task_preset.rollout_success_specs:
         return None
 
-    scene_prefix = f"{SCENE_ARTICULATION_PRIM_PATH}/"
+    scene_root_prim_path = (
+        task_preset.scene_root_specs[0].prim_path
+        if task_preset.scene_root_specs
+        else SCENE_ARTICULATION_PRIM_PATH
+    )
+    scene_prefix = f"{scene_root_prim_path}/"
     joint_pos = {
-        spec.prim_path.rsplit("/", 1)[-1]: math.radians(float(spec.position))
+        spec.prim_path.rsplit("/", 1)[-1]: (
+            float(spec.position)
+            if getattr(spec, "joint_type", "revolute") == "prismatic"
+            else math.radians(float(spec.position))
+        )
         for spec in task_preset.joint_initial_specs
         if spec.prim_path.startswith(scene_prefix)
     }
@@ -210,7 +219,7 @@ def build_scene_hinge_cfg(task_preset: TaskPreset) -> ArticulationCfg | None:
         return None
 
     return ArticulationCfg(
-        prim_path=SCENE_ARTICULATION_PRIM_PATH,
+        prim_path=scene_root_prim_path,
         spawn=None,
         init_state=ArticulationCfg.InitialStateCfg(joint_pos=joint_pos),
         actuators=actuators,

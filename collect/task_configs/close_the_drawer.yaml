@@ -1,0 +1,77 @@
+task_id: close_the_drawer
+interaction_mode: push
+
+interaction:
+  link_prim: /World/mobility_isaac/link_1
+  joint_prim: /World/mobility_isaac/joints/joint_1
+  joint_type: prismatic
+
+sampling:
+  assets:
+    subdir: drawer
+    mesh: link_1.obj
+    movable_link: link_1
+    base_link: base
+    mesh_origin: [0.0, 0.0, 0.0]
+  hinge:
+    origin: [0.0, 0.0, 0.0]
+    # link-local prismatic slide; maps to ~+X world at yaw=0 (153259 close demo).
+    axis: [-1.0, 0.0, 0.0]
+  num_fps_points: 15
+  num_yaw_perturbations: 8
+  max_yaw_perturb_deg: 30.0
+  approach_offset_m: 0.04
+  contact_offset_m: 0.02
+  min_hinge_distance_percentile: 0.0
+  horizontal_grasp: true
+  use_push_anchor_fallback: true
+  use_scene_approach_direction: true
+  approach_direction_world: [-1.0, 0.0, 0.0]
+  min_approach_direction_dot: 0.08
+  min_contact_world_x_m: 0.50
+  max_contact_world_x_m: 1.10
+  min_contact_world_z_m: 0.05
+  max_contact_world_z_m: 0.45
+  max_contact_dist_from_link_m: 1.2
+  push_anchor_dist_m: 0.10
+  # Anchor 1: scene XY=(0.75, 0.0), yaw=0, joint_1=0.0.
+  # From close_the_drawer_20260622_223156.hdf5 demo_0 stable hold; Z +0.013 m (probe EE undershot).
+  # Anchor 2: scene XY=(0.7, -0.15), yaw=25, joint_1=0.0.
+  # From close_the_drawer_20260623_133129.hdf5 demo_0 stable hold; Z +0.013 m.
+  # Anchor 3: scene XY=(0.75, 0.0), yaw=-25, joint_1=0.0.
+  # From close_the_drawer_20260623_142333.hdf5 demo_0 stable hold (tail 89 frames); Z +0.013 m.
+  # yaw_contact_anchors xyz are at calibration scene (0.75, 0, 0.105); runtime adds scene-root Δtranslation.
+  push_contact_offset_link: [0.258242, 0.076552, 0.093574]
+  contact_quat_link: [-0.505076, -0.216225, 0.83551, 0.008245]
+  reference_contact_world: [0.467603, -0.000048, 0.157459]
+  push_contact_reference_joint_deg: 0.0
+  # Prismatic linear samples at calibration scene (0.75, 0, 0.105).
+  # j=0 closed: 223156; j=0.163 open: 153259 demo_0 stable hold frames 171-243 @ scene (0.7,0,0.105).
+  push_contact_joint_arc_points:
+    - [0.0, 0.467603, -0.000048, 0.157459]
+    - [0.0815, 0.387076, -0.000025, 0.176002]
+    - [0.163, 0.306551, -0.000001, 0.184549]
+  push_contact_joint_fit_range_deg: [0.0326, 0.163]
+  yaw_contact_anchors:
+    - [-25.0, 0.481015, 0.066104, 0.154983, -0.727820, 0.007678, -0.685712, -0.004161]
+    - [0.0, 0.467603, -0.000048, 0.157459, -0.722678, 0.000073, -0.691185, 0.000046]
+    - [25.0, 0.480733, -0.062270, 0.150758, -0.728301, -0.016854, -0.685018, 0.006655]
+
+push:
+  push_strategy: yaml_handle
+  close_ratio: 0.93
+  close_sampled_waypoints: 12
+  close_auto_flip_hinge_axis: false
+  close_expected_delta_dir_world: [1.0, 0.0, 0.0]
+  close_step_deg_usd: 0.02
+  close_clamp_joints: true
+  close_push_ee_step_m: 0.003
+  close_ik_substeps: 8
+  close_steps_per_waypoint: 48
+  close_final_hold_steps: 0
+  max_approach_distance_m: 1.5
+  approach_steps: 80
+  contact_hold_steps: 10
+  contact_pos_tol_m: 0.008
+  approach_backoff_m: 0.04
+  approach_clearance_z_m: 0.11

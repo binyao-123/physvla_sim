@@ -45,6 +45,9 @@ from task_registry import (
     ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ,
     ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_TRANSLATION,
     ADJUST_MONITOR_TASK_ID,
+    CLOSE_DRAWER_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ,
+    CLOSE_DRAWER_HANDLE_CALIBRATION_SCENE_TRANSLATION,
+    CLOSE_DRAWER_TASK_ID,
     CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ,
     CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION,
     CLOSE_LAPTOP_TASK_ID,
@@ -138,9 +141,16 @@ def _build_safe_approach_path(
     *,
     clearance_z_m: float = 0.14,
 ) -> list[np.ndarray]:
-    """Directly move to the handle approach pose; no extra upward cruise waypoint."""
-    del ee_pos, clearance_z_m
-    return [np.asarray(approach_w, dtype=np.float64)]
+    """Lift once at initial EE pose, then move to approach (single pre-approach lift)."""
+    ee_pos = np.asarray(ee_pos, dtype=np.float64)
+    approach_w = np.asarray(approach_w, dtype=np.float64)
+    lift = ee_pos.copy()
+    lift[2] = float(ee_pos[2]) + float(clearance_z_m)
+    if float(np.linalg.norm(lift - approach_w)) < 1e-4:
+        return [approach_w.copy()]
+    if abs(lift[2] - float(ee_pos[2])) < 1e-4:
+        return [approach_w.copy()]
+    return [lift, approach_w.copy()]
 
 
 class PushInteractionExecutor:
@@ -163,6 +173,7 @@ class PushInteractionExecutor:
         gripper_open_target: torch.Tensor,
         gripper_close_target: torch.Tensor,
         joint_upper_limit_deg: float = 104.0,
+        joint_lower_limit_deg: float = 0.0,
         rng: np.random.Generator | None = None,
         home_steps: int = 40,
         verbose: bool = False,
@@ -188,6 +199,7 @@ class PushInteractionExecutor:
         self.gripper_open_target = gripper_open_target
         self.gripper_close_target = gripper_close_target
         self.joint_upper_limit_deg = joint_upper_limit_deg
+        self.joint_lower_limit_deg = joint_lower_limit_deg
         self.rng = rng or np.random.default_rng()
         self.home_steps = home_steps
         self.max_ee_pos_step_m = float(getattr(push_config, "max_ee_pos_step_m", KEYBOARD_EE_POS_STEP_M))
@@ -218,6 +230,8 @@ class PushInteractionExecutor:
         self.trace_ee_handle_interval = max(1, int(trace_ee_handle_interval))
         self.progress_log_interval = 50
         self._trace_phase = ""
+        self._printed_yaml_handle_debug = False
+        self._printed_prismatic_fit_debug = False
 
     def set_trace_phase(self, phase: str) -> None:
         self._trace_phase = phase
@@ -273,7 +287,7 @@ class PushInteractionExecutor:
             msg += f" joint={float(joint_deg):.1f}°"
         # 此处在实时打印EE位姿和锚定点位置，
         # 打印类似：[TRACE close] step=330 EE=[0.4536, -0.0686, 0.1251] anchor=[0.5515, -0.076, 0.1587] dist=0.1038m joint=104.4°
-        # print(msg, flush=True)
+        print(msg, flush=True)
 
     def _log_info(self, msg: str) -> None:
         if self.verbose:
@@ -356,6 +370,8 @@ class PushInteractionExecutor:
             calib = CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION
         elif self.task_config.task_id == ADJUST_MONITOR_TASK_ID:
             calib = ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_TRANSLATION
+        elif self.task_config.task_id == CLOSE_DRAWER_TASK_ID:
+            calib = CLOSE_DRAWER_HANDLE_CALIBRATION_SCENE_TRANSLATION
         else:
             return np.zeros(3, dtype=np.float64)
         delta = self.env_module.get_scene_root_translation_delta(calib)
@@ -367,6 +383,8 @@ class PushInteractionExecutor:
             calib = CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
         elif self.task_config.task_id == ADJUST_MONITOR_TASK_ID:
             calib = ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
+        elif self.task_config.task_id == CLOSE_DRAWER_TASK_ID:
+            calib = CLOSE_DRAWER_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
         else:
             return 0.0
         return float(self.env_module.get_scene_root_yaw_delta_deg(calib))
@@ -374,6 +392,8 @@ class PushInteractionExecutor:
     def _scene_root_yaw_deg(self) -> float:
         if self.task_config.task_id == ADJUST_MONITOR_TASK_ID:
             return float(ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ[2]) + self._scene_root_yaw_delta_deg()
+        if self.task_config.task_id == CLOSE_DRAWER_TASK_ID:
+            return float(CLOSE_DRAWER_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ[2]) + self._scene_root_yaw_delta_deg()
         return float(CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ[2]) + self._scene_root_yaw_delta_deg()
 
     def _geometric_map_calibrated_world_position(self, pos: np.ndarray) -> np.ndarray:
@@ -381,6 +401,11 @@ class PushInteractionExecutor:
         if self.task_config.task_id == ADJUST_MONITOR_TASK_ID:
             calib_t = np.asarray(
                 ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_TRANSLATION,
+                dtype=np.float64,
+            )
+        elif self.task_config.task_id == CLOSE_DRAWER_TASK_ID:
+            calib_t = np.asarray(
+                CLOSE_DRAWER_HANDLE_CALIBRATION_SCENE_TRANSLATION,
                 dtype=np.float64,
             )
         else:
@@ -402,6 +427,22 @@ class PushInteractionExecutor:
             dtype=np.float64,
         )
         return current_t + rot_z @ (pos - calib_t)
+
+    def _rotate_calibrated_world_vector_by_scene_yaw(self, vec: np.ndarray) -> np.ndarray:
+        """Rotate a calibration-world direction vector with the current scene yaw."""
+        vec = np.asarray(vec, dtype=np.float64)
+        yaw_rad = math.radians(self._scene_root_yaw_delta_deg())
+        c = math.cos(yaw_rad)
+        s = math.sin(yaw_rad)
+        rot_z = np.array(
+            (
+                (c, -s, 0.0),
+                (s, c, 0.0),
+                (0.0, 0.0, 1.0),
+            ),
+            dtype=np.float64,
+        )
+        return rot_z @ vec
 
     def _yaw_anchor_bracket(self):
         anchors = sorted(
@@ -455,9 +496,56 @@ class PushInteractionExecutor:
 
     def _map_calibrated_world_position(self, pos: np.ndarray) -> np.ndarray:
         pos = np.asarray(pos, dtype=np.float64)
-        if self.task_config.task_id not in (CLOSE_LAPTOP_TASK_ID, ADJUST_MONITOR_TASK_ID):
+        if self.task_config.task_id not in (
+            CLOSE_LAPTOP_TASK_ID,
+            ADJUST_MONITOR_TASK_ID,
+            CLOSE_DRAWER_TASK_ID,
+        ):
             return pos
         return self._geometric_map_calibrated_world_position(pos) + self._yaw_anchor_position_correction()
+
+    @staticmethod
+    def _interp_extrap_scalar(x: float, xs: np.ndarray, ys: np.ndarray) -> float:
+        if x <= xs[0]:
+            slope = (ys[1] - ys[0]) / max(float(xs[1] - xs[0]), 1e-9)
+            return float(ys[0] + (x - xs[0]) * slope)
+        if x >= xs[-1]:
+            slope = (ys[-1] - ys[-2]) / max(float(xs[-1] - xs[-2]), 1e-9)
+            return float(ys[-1] + (x - xs[-1]) * slope)
+        return float(np.interp(x, xs, ys))
+
+    def _joint_fitted_prismatic_linear_world(
+        self,
+        samples: list[tuple[float, np.ndarray]],
+        *,
+        joint_m: float,
+        joint_read_m: float,
+        default_contact_w: np.ndarray,
+        fit_range: tuple[float, float] | None,
+    ) -> np.ndarray:
+        """Linear handle model for prismatic joints (drawer slide), not revolute arc."""
+        sample_ms = np.asarray([p[0] for p in samples], dtype=np.float64)
+        sample_world = np.asarray([p[1] for p in samples], dtype=np.float64)
+        if len(samples) < 2:
+            return default_contact_w
+        fitted = np.asarray(
+            [
+                self._interp_extrap_scalar(joint_m, sample_ms, sample_world[:, i])
+                for i in range(3)
+            ],
+            dtype=np.float64,
+        )
+        if not self._printed_prismatic_fit_debug:
+            self._printed_prismatic_fit_debug = True
+            self._log_info(
+                f"[INFO] yaml_handle prismatic linear-fit: joint={joint_read_m:.4f}m "
+                f"used={joint_m:.4f}m "
+                f"samples_m={[round(float(v), 4) for v in sample_ms.tolist()]} "
+                f"range={[round(float(v), 4) for v in fit_range] if fit_range is not None else 'unbounded'} "
+                f"default={np.round(default_contact_w, 4).tolist()} "
+                f"fitted={np.round(fitted, 4).tolist()}"
+            )
+        return fitted
 
     def _joint_fitted_yaml_handle_world(self, default_contact_w: np.ndarray) -> np.ndarray:
         """Optional hinge-arc handle model from calibrated EE touch samples.
@@ -522,13 +610,43 @@ class PushInteractionExecutor:
         joint_deg = float(joint_read_deg)
 
         ref_deg = float(cfg.push_contact_reference_joint_deg)
+        fit_range = cfg.push_contact_joint_fit_range_deg
+
+        if self.task_config.joint_type == "prismatic":
+            joint_m = joint_deg
+            ref_m = ref_deg
+            # Prismatic joints are reported in meters; do not apply the revolute 0.5° tolerance.
+            if abs(joint_m - ref_m) < 5e-4:
+                if cfg.reference_contact_world is not None:
+                    return self._map_calibrated_world_position(
+                        np.asarray(cfg.reference_contact_world, dtype=np.float64)
+                    )
+                return default_contact_w
+            if fit_range is not None:
+                lo, hi = sorted((float(fit_range[0]), float(fit_range[1])))
+                boundary_tol_m = 5e-4
+                if joint_m < lo - boundary_tol_m or joint_m > hi + boundary_tol_m:
+                    print(
+                        f"[WARN] yaml_handle prismatic linear-fit disabled: joint={joint_m:.4f}m "
+                        f"outside calibrated range [{lo:.4f}, {hi:.4f}]m; using link-local default.",
+                        flush=True,
+                    )
+                    return default_contact_w
+                joint_m = float(np.clip(joint_m, lo, hi))
+            return self._joint_fitted_prismatic_linear_world(
+                samples,
+                joint_m=joint_m,
+                joint_read_m=float(joint_read_deg),
+                default_contact_w=default_contact_w,
+                fit_range=fit_range,
+            )
+
         if abs(joint_deg - ref_deg) < 0.5:
             if cfg.reference_contact_world is not None:
                 return self._map_calibrated_world_position(
                     np.asarray(cfg.reference_contact_world, dtype=np.float64)
                 )
             return default_contact_w
-        fit_range = cfg.push_contact_joint_fit_range_deg
         if fit_range is not None:
             lo, hi = sorted((float(fit_range[0]), float(fit_range[1])))
             boundary_tol_deg = 0.5
@@ -651,16 +769,17 @@ class PushInteractionExecutor:
         if anchor_contact is not None:
             _, quat_w = anchor_contact
 
-        print(
-            f"[DEBUG] _resolve_yaml_handle_world:\n"
-            f"  link_pos_w       = {np.round(link_pos_np, 4).tolist()}\n"
-            f"  link_quat_w      = {[round(float(v),4) for v in link_quat]}\n"
-            f"  contact_w (final)= {np.round(contact_w, 4).tolist()}\n"
-            f"  quat_w (final)   = {[round(float(v),4) for v in quat_w]}\n"
-            f"  quat_link used   = {[round(float(v),4) for v in quat_link] if quat_link else None}\n"
-            f"  yaw_anchor       = {anchor_contact is not None}",
-            flush=True,
-        )
+        if not self._printed_yaml_handle_debug:
+            self._printed_yaml_handle_debug = True
+            self._log_info(
+                f"[DEBUG] _resolve_yaml_handle_world:\n"
+                f"  link_pos_w       = {np.round(link_pos_np, 4).tolist()}\n"
+                f"  link_quat_w      = {[round(float(v),4) for v in link_quat]}\n"
+                f"  contact_w (final)= {np.round(contact_w, 4).tolist()}\n"
+                f"  quat_w (final)   = {[round(float(v),4) for v in quat_w]}\n"
+                f"  quat_link used   = {[round(float(v),4) for v in quat_link] if quat_link else None}\n"
+                f"  yaw_anchor       = {anchor_contact is not None}"
+            )
 
         hinge_origin_w, hinge_axis_w = self.env_module.get_hinge_world_frame(
             link_prim,
@@ -847,14 +966,32 @@ class PushInteractionExecutor:
 
     def _resolve_close_target_deg(self, joint_deg: float) -> float:
         """ArticuBot T_rel target: close_ratio, bumped to rollout success threshold if needed."""
+        compare = "gt"
+        success_threshold: float | None = None
+        for spec in self.success_specs:
+            if spec.joint_prim == self.task_config.joint_prim:
+                compare = getattr(spec, "compare", "gt")
+                success_threshold = float(spec.angle_gt_deg)
+                break
+
+        closing_toward_lower = (
+            self.task_config.joint_type == "prismatic" or compare == "lt"
+        )
+        if closing_toward_lower:
+            lower = float(self.joint_lower_limit_deg)
+            if self.task_config.joint_type == "prismatic":
+                return lower
+            ratio_target = joint_deg + self.push_cfg.close_ratio * (lower - joint_deg)
+            success_target = success_threshold if success_threshold is not None else lower
+            target = min(ratio_target, success_target)
+            return max(target, lower)
+
         ratio_target = joint_deg + self.push_cfg.close_ratio * (
             self.joint_upper_limit_deg - joint_deg
         )
         success_floor = self.joint_upper_limit_deg
-        for spec in self.success_specs:
-            if spec.joint_prim == self.task_config.joint_prim:
-                success_floor = float(spec.angle_gt_deg) + 1.0
-                break
+        if success_threshold is not None:
+            success_floor = success_threshold + 1.0
         target = max(ratio_target, success_floor)
         return min(target, self.joint_upper_limit_deg)
 
@@ -885,18 +1022,19 @@ class PushInteractionExecutor:
         )
         joint_init = self.env_module.read_scene_joint_angle_deg(self.task_config.joint_prim)
         if joint_init is None:
-            joint_init = 15.0
+            joint_init = self.joint_upper_limit_deg if self.task_config.joint_type == "prismatic" else 15.0
         target_joint = self._resolve_close_target_deg(float(joint_init))
-        hinge_axis_w = self._maybe_flip_close_hinge_axis(
-            eef_pos_world=np.asarray(eef_pos_world, dtype=np.float64),
-            eef_quat_wxyz=eef_quat_wxyz,
-            link_pos_world=link_pos_np,
-            link_quat_wxyz=link_quat,
-            hinge_origin_world=hinge_origin_w,
-            hinge_axis_world=hinge_axis_w,
-            joint_init_deg=float(joint_init),
-            joint_target_deg=float(target_joint),
-        )
+        if self.task_config.joint_type != "prismatic":
+            hinge_axis_w = self._maybe_flip_close_hinge_axis(
+                eef_pos_world=np.asarray(eef_pos_world, dtype=np.float64),
+                eef_quat_wxyz=eef_quat_wxyz,
+                link_pos_world=link_pos_np,
+                link_quat_wxyz=link_quat,
+                hinge_origin_world=hinge_origin_w,
+                hinge_axis_world=hinge_axis_w,
+                joint_init_deg=float(joint_init),
+                joint_target_deg=float(target_joint),
+            )
         self._close_anchor = {
             "link_pos_init": link_pos_np.copy(),
             "link_quat_init": link_quat,
@@ -910,11 +1048,18 @@ class PushInteractionExecutor:
             "joint_target_deg": float(target_joint),
         }
         n_wp = self._resolve_num_close_waypoints(joint_init, target_joint)
-        self._log_info(
-            f"[INFO] Close anchor T_rel (USD joint_1: 15°≈real90°open, 104°≈real0°closed): "
-            f"{joint_init:.2f}° -> {target_joint:.2f}° ({n_wp} waypoints) "
-            f"eef_in_link={np.round(eef_in_link_pos, 4).tolist()}"
-        )
+        if self.task_config.joint_type == "prismatic":
+            self._log_info(
+                f"[INFO] Close anchor prismatic: joint_1 {joint_init:.4f}m -> "
+                f"{target_joint:.4f}m ({n_wp} waypoints) "
+                f"eef_in_link={np.round(eef_in_link_pos, 4).tolist()}"
+            )
+        else:
+            self._log_info(
+                f"[INFO] Close anchor T_rel (USD joint_1: 15°≈real90°open, 104°≈real0°closed): "
+                f"{joint_init:.2f}° -> {target_joint:.2f}° ({n_wp} waypoints) "
+                f"eef_in_link={np.round(eef_in_link_pos, 4).tolist()}"
+            )
         self._log_info(
             f"[INFO] Close hinge frame: origin={np.round(hinge_origin_w, 4).tolist()} "
             f"axis={np.round(hinge_axis_w, 4).tolist()} (explicit_laptop from contact+lever)"
@@ -968,6 +1113,65 @@ class PushInteractionExecutor:
             )
         return poses
 
+    def _build_prismatic_close_trajectory_from_anchor(
+        self,
+    ) -> list[tuple[np.ndarray, tuple[float, float, float, float]]]:
+        """Drawer close path: keep EE orientation, translate along the calibrated slide direction."""
+        if self._close_anchor is None:
+            return []
+        anchor = self._close_anchor
+        joint_init = float(anchor["joint_init_deg"])
+        joint_target = float(anchor["joint_target_deg"])
+        n_wp = self._resolve_num_close_waypoints(joint_init, joint_target)
+
+        expected_dir = getattr(self.push_cfg, "close_expected_delta_dir_world", None)
+        if expected_dir is not None:
+            axis = self._rotate_calibrated_world_vector_by_scene_yaw(
+                np.asarray(expected_dir, dtype=np.float64)
+            )
+            axis_source = (
+                f"close_expected_delta_dir_world+yaw_delta({self._scene_root_yaw_delta_deg():.1f}deg)"
+            )
+        else:
+            _, axis_w = self.env_module.get_hinge_world_frame(
+                self.task_config.link_prim,
+                self.sampling_config.hinge.origin,
+                self.sampling_config.hinge.axis,
+            )
+            axis = np.asarray(axis_w, dtype=np.float64)
+            axis_source = "hinge.axis"
+        norm = float(np.linalg.norm(axis))
+        if norm < 1e-9:
+            return []
+        axis /= norm
+
+        contact_pos = np.asarray(anchor["contact_pos_w"], dtype=np.float64)
+        contact_quat = anchor["contact_quat_w"]
+        joint_targets = np.linspace(joint_init, joint_target, n_wp)
+        base_travel = max(0.0, joint_init - joint_target)
+        poses = [
+            (
+                contact_pos
+                + axis
+                * (
+                    (joint_init - float(j))
+                    + 0.05
+                    * ((joint_init - float(j)) / max(base_travel, 1e-9))
+                ),
+                contact_quat,
+            )
+            for j in joint_targets
+        ]
+        if poses:
+            delta = poses[-1][0] - contact_pos
+            self._log_info(
+                f"[INFO] Prismatic close plan: joint {joint_init:.4f}m -> {joint_target:.4f}m "
+                f"({len(poses)} waypoints), axis={np.round(axis, 4).tolist()} "
+                f"source={axis_source}, overshoot=0.050m, "
+                f"ΔEE={np.round(delta, 4).tolist()} |Δ|={float(np.linalg.norm(delta)):.4f}m"
+            )
+        return poses
+
     def _compute_close_pose_at_joint_deg(
         self, theta_deg: float
     ) -> tuple[np.ndarray, tuple[float, float, float, float]]:
@@ -1012,6 +1216,8 @@ class PushInteractionExecutor:
         nominal_target_pos: np.ndarray,
     ) -> np.ndarray:
         """Small external correction that pulls the close target back toward the live contact anchor."""
+        if self.task_config.joint_type == "prismatic":
+            return np.asarray(nominal_target_pos, dtype=np.float64)
         if self._close_anchor is None:
             return np.asarray(nominal_target_pos, dtype=np.float64)
 
@@ -1248,7 +1454,11 @@ class PushInteractionExecutor:
         *,
         trajectory: list[tuple[np.ndarray, tuple[float, float, float, float]]] | None = None,
     ) -> bool:
-        trajectory = trajectory if trajectory is not None else self._build_close_trajectory_from_anchor()
+        if trajectory is None:
+            if self.task_config.joint_type == "prismatic":
+                trajectory = self._build_prismatic_close_trajectory_from_anchor()
+            else:
+                trajectory = self._build_close_trajectory_from_anchor()
         if len(trajectory) < 2:
             return False
 
@@ -1260,7 +1470,12 @@ class PushInteractionExecutor:
         joint_init = float(self._close_anchor["joint_init_deg"]) if self._close_anchor else 15.0
         joint_fin = self.env_module.read_scene_joint_angle_deg(joint_prim)
         fin = float(joint_fin or joint_init)
-        if self.verbose:
+        if self.task_config.joint_type == "prismatic":
+            print(
+                f"[INFO] Close: {joint_prim} {joint_init:.4f}m -> {fin:.4f}m",
+                flush=True,
+            )
+        elif self.verbose:
             print(
                 f"[INFO] Close finished: {joint_prim} {joint_init:.2f}°USD(real≈"
                 f"{usd_joint_to_real_lid_deg(joint_init):.0f}°) -> {fin:.2f}°USD(real≈"
@@ -1300,7 +1515,7 @@ class PushInteractionExecutor:
         quat_w: tuple[float, float, float, float],
         start_quat_wxyz: tuple[float, float, float, float],
     ) -> tuple[list[np.ndarray], list[tuple[np.ndarray, tuple[float, float, float, float]]]]:
-        """Pose waypoints: cruise with slerp to contact orientation, then contact segment."""
+        """Pose waypoints: lift + approach with slerp, then contact segment (pose IK)."""
         clearance_z = float(getattr(self.push_cfg, "approach_clearance_z_m", 0.14))
         approach_path = _build_safe_approach_path(ee_pos, approach_w, clearance_z_m=clearance_z)
         n_contact = max(2, int(self.push_cfg.contact_hold_steps))
@@ -1332,12 +1547,11 @@ class PushInteractionExecutor:
         start_quat = tuple(
             float(v) for v in self.robot.data.body_quat_w[0, self.handles.ee_body_id].tolist()
         )
-        print(
+        self._log_info(
             f"[DEBUG] _execute_handle_reach: EE start pos={np.round(ee_pos, 4).tolist()} "
             f"target contact_w={np.round(contact_w, 4).tolist()} "
             f"target quat_w={[round(float(v),4) for v in quat_w]} "
-            f"approach_w={np.round(approach_w, 4).tolist()}",
-            flush=True,
+            f"approach_w={np.round(approach_w, 4).tolist()}"
         )
         approach_path, reach_poses = self._plan_handle_reach_poses(
             ee_pos, approach_w, contact_w, quat_w, start_quat
@@ -1351,6 +1565,7 @@ class PushInteractionExecutor:
         else:
             approach_steps_per = max(8, int(approach_step_budget) // max(1, n_approach))
         contact_steps_per = max(8, int(contact_steps_per_waypoint or self.push_cfg.contact_hold_steps))
+        contact_pos_tol_m = getattr(self.push_cfg, "contact_pos_tol_m", None)
 
         self._log_info(
             f"[INFO] Handle reach: {n_approach} approach + {len(contact_poses)} contact waypoints "
@@ -1369,12 +1584,19 @@ class PushInteractionExecutor:
             clamp_joints=True,
         ):
             return True
+        self._log_info(
+            "\n"
+            "========================================================================\n"
+            "[HANDLE APPROACH COMPLETE] approach reached; starting contact phase\n"
+            "========================================================================"
+        )
         if self._follow_pose_path(
             collector,
             contact_poses,
             contact_steps_per,
             on_control_step,
             clamp_joints=True,
+            final_pos_tol_m=contact_pos_tol_m,
         ):
             return True
         return False
@@ -1395,7 +1617,8 @@ class PushInteractionExecutor:
         pos_err_m = float(np.linalg.norm(actual_pos - contact_w))
         rot_err_rad = (_wxyz_to_rot(quat_w) * _wxyz_to_rot(actual_quat).inv()).magnitude()
         rot_err_deg = math.degrees(rot_err_rad)
-        handle_reached = pos_err_m <= POSE_REACH_TOL_M and rot_err_rad <= POSE_REACH_ROT_RAD
+        pos_tol_m = POSE_REACH_TOL_M
+        handle_reached = pos_err_m <= pos_tol_m and rot_err_rad <= POSE_REACH_ROT_RAD
 
         link_pos_np, link_quat = self._read_movable_link_pose()
         link_pos_inv, link_quat_inv = invert_pose(link_pos_np, link_quat)
@@ -1481,7 +1704,7 @@ class PushInteractionExecutor:
             "offset_err_m": offset_err_m,
             "pos_err_m": pos_err_m,
             "rot_err_deg": rot_err_deg,
-            "pos_tol_m": POSE_REACH_TOL_M,
+            "pos_tol_m": pos_tol_m,
             "rot_tol_deg": math.degrees(POSE_REACH_ROT_RAD),
             "ee_to_contact_w": ee_to_contact.copy(),
             "push_axis_planned_w": push_axis_planned.copy(),
@@ -1650,8 +1873,6 @@ class PushInteractionExecutor:
             f"visual={visual}",
             f"T={report.get('control_steps', '?')}",
         ]
-        if report.get("probe_steps_limit") is not None:
-            parts.append(f"probe_steps={report.get('probe_steps_limit')}")
         if report.get("episode_step_limit") is not None:
             parts.append(f"episode_limit={report.get('episode_step_limit')}")
         if report.get("episode_step_limit_hit"):
@@ -1682,18 +1903,26 @@ class PushInteractionExecutor:
             f"close_wps={n_close}",
             f"T={self.control_step_count}",
         ]
-        if result.get("probe_steps_limit") is not None:
-            parts.append(f"probe_steps={result.get('probe_steps_limit')}")
         if result.get("episode_step_limit") is not None:
             parts.append(f"episode_limit={result.get('episode_step_limit')}")
         if result.get("episode_step_limit_hit"):
             parts.append("timeout=True")
         if joint_deg is not None:
-            parts.append(f"{joint_prim}={float(joint_deg):.2f}deg")
+            unit = "m" if self.task_config.joint_type == "prismatic" else "deg"
+            parts.append(f"{joint_prim}={float(joint_deg):.4f}{unit}")
         print("\n" + " | ".join(parts), flush=True)
         if not success and joint_deg is not None:
+            need_msg = "task_registry threshold"
+            for spec in self.success_specs:
+                if spec.joint_prim == joint_prim:
+                    compare = getattr(spec, "compare", "gt")
+                    threshold = float(spec.angle_gt_deg)
+                    op = "<" if compare == "lt" else ">"
+                    unit = "m" if self.task_config.joint_type == "prismatic" else "°USD"
+                    need_msg = f"joint_1 {op} {threshold:g}{unit} (task_registry)"
+                    break
             print(
-                "[PUSH+CLOSE EXIT] Success needs joint_1 > 98°USD (task_registry). "
+                f"[PUSH+CLOSE EXIT] Success needs {need_msg}. "
                 "Check Close push logs if lid did not move.",
                 flush=True,
             )
@@ -1710,6 +1939,8 @@ class PushInteractionExecutor:
         self._skip_recording = True
         self.sim_step_count = 0
         self.control_step_count = 0
+        self._printed_yaml_handle_debug = False
+        self._printed_prismatic_fit_debug = False
         self.set_episode_step_limit(episode_step_limit)
         self.episode_start_wall_time = time.perf_counter()
         self._reset_ee_tracking_from_robot()
@@ -1730,10 +1961,7 @@ class PushInteractionExecutor:
             )
 
             contact_steps_per = max(8, int(self.push_cfg.contact_hold_steps))
-            approach_budget = max(
-                int(self.push_cfg.approach_steps),
-                int(max_servo_steps) - contact_steps_per * max(2, int(self.push_cfg.contact_hold_steps)),
-            )
+            approach_budget = int(self.push_cfg.approach_steps)
             try:
                 self.set_trace_phase("approach")
                 self._execute_handle_reach(
@@ -1742,7 +1970,11 @@ class PushInteractionExecutor:
                     contact_w,
                     quat_w,
                     on_control_step=None,
-                    approach_step_budget=approach_budget,
+                    approach_step_budget=(
+                        int(max_servo_steps)
+                        if self.task_config.joint_type == "prismatic"
+                        else approach_budget
+                    ),
                     contact_steps_per_waypoint=contact_steps_per,
                 )
             except EpisodeStepLimitExceeded as exc:
@@ -1763,7 +1995,6 @@ class PushInteractionExecutor:
             report["hinge_origin_w"] = hinge_origin_w
             report["hinge_axis_w"] = hinge_axis_w
             report["close_poses"] = []
-            report["probe_steps_limit"] = int(max_servo_steps)
             report["episode_step_limit"] = self.episode_step_limit
             report["episode_step_limit_hit"] = self.episode_step_limit_hit
             return report
@@ -1784,6 +2015,8 @@ class PushInteractionExecutor:
         """Approach yaml/HDF5 handle, contact, then hinge-relative close from actual EE anchor."""
         self.sim_step_count = 0
         self.control_step_count = 0
+        self._printed_yaml_handle_debug = False
+        self._printed_prismatic_fit_debug = False
         self.set_episode_step_limit(episode_step_limit)
         self.episode_start_wall_time = episode_start_wall_time
         self.last_record = None
@@ -1897,6 +2130,8 @@ class PushInteractionExecutor:
         episode_step_limit: int | None = None,
     ) -> dict[str, object]:
         self.set_episode_step_limit(episode_step_limit)
+        self._printed_yaml_handle_debug = False
+        self._printed_prismatic_fit_debug = False
         approach_w = approach_from_contact(
             contact_w,
             quat_w,
@@ -1913,11 +2148,17 @@ class PushInteractionExecutor:
         )
 
         contact_steps_per = max(8, int(self.push_cfg.contact_hold_steps))
-        approach_budget = max(
-            int(self.push_cfg.approach_steps),
-            int(max_servo_steps) - contact_steps_per * max(2, int(self.push_cfg.contact_hold_steps)),
-        )
+        approach_budget = int(self.push_cfg.approach_steps)
         close_poses: list[tuple[np.ndarray, tuple[float, float, float, float]]] = []
+        joint_degs: dict[str, float | None] = {}
+        success_now = False
+
+        def on_success_step(success: bool, joints: dict[str, float | None]) -> bool:
+            nonlocal success_now, joint_degs
+            success_now = bool(success)
+            joint_degs = joints
+            return success_now
+
         try:
             self.set_trace_phase("approach")
             self._execute_handle_reach(
@@ -1944,11 +2185,14 @@ class PushInteractionExecutor:
 
             self._reset_close_phase_tracking()
             self._init_close_anchor(actual_contact_pos, actual_contact_quat)
-            close_poses = self._build_close_trajectory_from_anchor()
+            if self.task_config.joint_type == "prismatic":
+                close_poses = self._build_prismatic_close_trajectory_from_anchor()
+            else:
+                close_poses = self._build_close_trajectory_from_anchor()
             if close_poses:
                 self._execute_hinge_close_anchored(
                     collector,
-                    on_control_step=None,
+                    on_control_step=on_success_step,
                     trajectory=close_poses,
                 )
         except EpisodeStepLimitExceeded as exc:
@@ -2002,7 +2246,6 @@ class PushInteractionExecutor:
             "contact_drift_m": contact_drift,
             "contact_rot_drift_deg": math.degrees(rot_drift),
             "control_steps": self.control_step_count,
-            "probe_steps_limit": int(max_servo_steps),
             "episode_step_limit": self.episode_step_limit,
             "episode_step_limit_hit": self.episode_step_limit_hit,
         }
@@ -2490,18 +2733,39 @@ class PushInteractionExecutor:
         target_pos: np.ndarray,
         max_steps: int,
         on_control_step: Callable[[bool, dict[str, float | None]], bool] | None,
+        *,
+        pos_tol_m: float | None = None,
     ) -> bool:
         """Position-only servo (hold wrist orientation) — stable approach like keyboard teleop."""
         target_pos = np.asarray(target_pos, dtype=np.float64)
-        for _ in range(max_steps):
+        pos_tol = POSITION_REACH_TOL_M if pos_tol_m is None else float(pos_tol_m)
+        last_err = math.inf
+        last_pos = None
+        for step_idx in range(max_steps):
             ee_pos = self.robot.data.body_pos_w[0, self.handles.ee_body_id].detach().cpu().numpy()
-            if float(np.linalg.norm(target_pos - ee_pos)) <= POSITION_REACH_TOL_M:
+            err = float(np.linalg.norm(target_pos - ee_pos))
+            last_err = err
+            last_pos = ee_pos.copy()
+            if err <= pos_tol:
+                self._log_info(
+                    f"[INFO] Position reach OK: steps={step_idx}/{max_steps} "
+                    f"err={err:.4f}m tol={pos_tol:.4f}m "
+                    f"target={np.round(target_pos, 4).tolist()} "
+                    f"ee={np.round(ee_pos, 4).tolist()}"
+                )
                 return False
 
             self._advance_tracking_position(target_pos)
             arm_targets = self._ik_targets_for_position(self._tracking_pos)
             if self._control_step_ik(collector, arm_targets, gripper_open=False, on_control_step=on_control_step):
                 return True
+        self._log_info(
+            f"[WARN] Position reach max steps exhausted: steps={max_steps} "
+            f"err={last_err:.4f}m tol={pos_tol:.4f}m "
+            f"target={np.round(target_pos, 4).tolist()} "
+            f"ee={np.round(last_pos, 4).tolist() if last_pos is not None else None} "
+            f"tracking={np.round(self._tracking_pos, 4).tolist()}"
+        )
         return False
 
     def _move_to_pose(
@@ -2569,8 +2833,15 @@ class PushInteractionExecutor:
         *,
         clamp_joints: bool = False,
         close_anchor_correction: bool = False,
+        pos_tol_m: float | None = None,
+        rot_tol_rad: float | None = None,
+        final_pos_tol_m: float | None = None,
+        final_rot_tol_rad: float | None = None,
     ) -> bool:
-        for pos, quat in poses:
+        last_idx = len(poses) - 1
+        for idx, (pos, quat) in enumerate(poses):
+            waypoint_pos_tol = final_pos_tol_m if idx == last_idx else pos_tol_m
+            waypoint_rot_tol = final_rot_tol_rad if idx == last_idx else rot_tol_rad
             if self._move_to_pose(
                 collector,
                 pos,
@@ -2579,6 +2850,8 @@ class PushInteractionExecutor:
                 on_control_step,
                 clamp_joints=clamp_joints,
                 close_anchor_correction=close_anchor_correction,
+                pos_tol_m=waypoint_pos_tol,
+                rot_tol_rad=waypoint_rot_tol,
             ):
                 return True
         return False

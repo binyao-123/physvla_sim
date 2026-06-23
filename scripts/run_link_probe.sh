@@ -7,5 +7,5 @@ cd ~/workspace/physvla_sim/collect
   --task_id close_laptop_lid \
   --livestream 2 \
   --mode top_contact \
-  --probe_steps 400 \
+  --episode_step_limit 800 \
   --hold_steps 120

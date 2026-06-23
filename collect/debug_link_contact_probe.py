@@ -32,7 +32,6 @@ parser = argparse.ArgumentParser(description="Debug link_1 contact sampling and 
 parser.add_argument("--task_id", type=str, default="close_laptop_lid")
 parser.add_argument("--list_tasks", action="store_true")
 parser.add_argument("--task_config", type=str, default=None)
-parser.add_argument("--probe_steps", type=int, default=400)
 parser.add_argument(
     "--episode_step_limit",
     type=int,
@@ -108,6 +107,7 @@ task_config_path = Path(args_cli.task_config).expanduser().resolve() if args_cli
 task_interaction = load_task_interaction_config(task_preset.task_id, task_config_path)
 if not task_interaction.sampling or not task_interaction.push:
     raise ValueError("Task yaml must define sampling and push sections.")
+motion_step_budget = int(args_cli.episode_step_limit)
 
 rand_config = randomization_config_from_args(args_cli, task_preset)
 
@@ -172,6 +172,15 @@ diff_ik_pos_controller = DifferentialIKController(
     device=device,
 )
 
+joint_upper_limit_deg = 104.0
+joint_lower_limit_deg = 0.0
+for spec in task_preset.joint_limit_specs:
+    if spec.prim_path == task_interaction.joint_prim:
+        if spec.lower_limit is not None:
+            joint_lower_limit_deg = float(spec.lower_limit)
+        if spec.upper_limit is not None:
+            joint_upper_limit_deg = float(spec.upper_limit)
+
 executor = PushInteractionExecutor(
     robot=robot,
     env_module=env_module,
@@ -186,8 +195,8 @@ executor = PushInteractionExecutor(
     diff_ik_pos_controller=diff_ik_pos_controller,
     gripper_open_target=gripper_open_target,
     gripper_close_target=gripper_close_target,
-    # 从 task_preset.joint_limit_specs 获取 upper_limit；为空时用 USD 内置限位（此处用保守默认值）
-    joint_upper_limit_deg=float(task_preset.joint_limit_specs[0].upper_limit) if task_preset.joint_limit_specs and task_preset.joint_limit_specs[0].upper_limit is not None else 30.0,
+    joint_upper_limit_deg=joint_upper_limit_deg,
+    joint_lower_limit_deg=joint_lower_limit_deg,
     verbose=bool(args_cli.debug_logs),
     trace_ee_handle=bool(args_cli.trace_ee_handle),
     trace_ee_handle_interval=int(args_cli.trace_interval),
@@ -258,7 +267,7 @@ def reset_scene() -> None:
     joint_sim_s = f"{float(joint_sim):.2f}°" if joint_sim is not None else "n/a"
     print(
         "[INFO] Probe init: "
-        f"mode={args_cli.mode} probe_steps={int(args_cli.probe_steps)} "
+        f"mode={args_cli.mode} "
         f"episode_step_limit={int(args_cli.episode_step_limit)} "
         f"scene_xyz={scene_xyz} scene_yaw={scene_yaw}° joint_target={joint_target:.2f}° "
         f"joint_sim={joint_sim_s} DR=({format_randomization_sample(sample)})",
@@ -388,7 +397,7 @@ def main_loop() -> bool:
         else:
             probe_result = executor.run_yaml_handle_contact_only_probe(
                 collector,
-                max_servo_steps=int(args_cli.probe_steps),
+                max_servo_steps=motion_step_budget,
                 episode_step_limit=int(args_cli.episode_step_limit),
             )
             LAST_HANDLE_CONTACT_REPORT = probe_result
@@ -398,43 +407,48 @@ def main_loop() -> bool:
         return False
 
     if args_cli.mode in ("yaml_handle_push", "articulation_push"):
+        contact_w = quat_w = hinge_lever_m = None
         if args_cli.mode == "articulation_push":
             print("[WARN] articulation_push is legacy; prefer --mode yaml_handle_push.")
             print("[INFO] Loading touch contact reference...", flush=True)
             executor.preload_articulation_contact_reference()
             contact_w, quat_w, ref = executor._resolve_touch_contact_world()
             hinge_lever_m = ref.hinge_lever_m
-        else:
+        elif args_cli.no_move:
             contact_w, quat_w, hinge_lever_m = executor._resolve_yaml_handle_world()
-        approach_w = approach_from_contact(
-            contact_w,
-            quat_w,
-            float(task_interaction.push.approach_backoff_m),
-        )
         if not args_cli.no_move:
             if args_cli.mode == "articulation_push":
                 probe_result = executor.run_articulation_calibrated_probe(
                     collector,
-                    max_servo_steps=int(args_cli.probe_steps),
+                    max_servo_steps=motion_step_budget,
                     episode_step_limit=int(args_cli.episode_step_limit),
                 )
             else:
                 probe_result = executor.run_yaml_handle_probe(
                     collector,
-                    max_servo_steps=int(args_cli.probe_steps),
+                    max_servo_steps=motion_step_budget,
                     episode_step_limit=int(args_cli.episode_step_limit),
                 )
             LAST_PROBE_RESULT = probe_result
             LAST_PROBE_MODE = args_cli.mode
             draw_articulation_debug(probe_result)
         else:
+            assert contact_w is not None and quat_w is not None and hinge_lever_m is not None
+            approach_w = approach_from_contact(
+                contact_w,
+                quat_w,
+                float(task_interaction.push.approach_backoff_m),
+            )
             executor._close_hinge_lever_m = float(hinge_lever_m)
             executor._reset_close_phase_tracking()
             executor._init_close_anchor(
                 np.asarray(contact_w, dtype=np.float64),
                 quat_w,
             )
-            close_poses = executor._build_close_trajectory_from_anchor()
+            if task_interaction.joint_type == "prismatic":
+                close_poses = executor._build_prismatic_close_trajectory_from_anchor()
+            else:
+                close_poses = executor._build_close_trajectory_from_anchor()
             anchor = executor._close_anchor
             if anchor is not None:
                 hinge_origin_w = np.asarray(anchor["hinge_origin_w"], dtype=np.float64)
@@ -481,13 +495,13 @@ def main_loop() -> bool:
                 executor.run_link_local_axis_probe(
                     collector,
                     local_offset=tuple(float(v) for v in args_cli.local_offset),
-                    max_servo_steps=int(args_cli.probe_steps),
+                    max_servo_steps=motion_step_budget,
                     hold_control_steps=int(args_cli.hold_steps),
                 )
             else:
                 executor.run_top_contact_probe(
                     collector,
-                    max_servo_steps=int(args_cli.probe_steps),
+                    max_servo_steps=motion_step_budget,
                     hold_control_steps=int(args_cli.hold_steps),
                 )
             draw_link_debug(link_pos_np, link_quat, probe_w, candidates, top_candidate=top)

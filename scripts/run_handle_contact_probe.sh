@@ -7,5 +7,5 @@ cd ~/workspace/physvla_sim/collect
   --task_id adjust_the_monitor \
   --livestream 2 \
   --mode yaml_handle_contact \
-  --probe_steps 400 \
+  --episode_step_limit 800 \
   --debug-logs

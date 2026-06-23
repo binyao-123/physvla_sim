@@ -40,6 +40,7 @@ class PushConfig:
     max_servo_steps_per_phase: int = 250
     close_steps_per_waypoint: int | None = None
     approach_clearance_z_m: float = 0.14
+    contact_pos_tol_m: float | None = None
 
 
 @dataclass
@@ -220,6 +221,11 @@ def _parse_push(raw: dict[str, Any]) -> PushConfig:
             else None
         ),
         approach_clearance_z_m=float(raw.get("approach_clearance_z_m", 0.14)),
+        contact_pos_tol_m=(
+            float(raw["contact_pos_tol_m"])
+            if raw.get("contact_pos_tol_m") is not None
+            else None
+        ),
     )
 
 

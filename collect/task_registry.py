@@ -37,6 +37,7 @@ class TaskCameraSpec:
 @dataclass(frozen=True)
 class TaskJointDriveSpec:
     prim_path: str
+    joint_type: str = "revolute"
     damping: float | None = None
     stiffness: float | None = None
     max_force: float | None = None
@@ -55,6 +56,7 @@ class TaskJointLimitSpec:
 class TaskJointInitialSpec:
     prim_path: str
     position: float
+    joint_type: str = "revolute"
 
 
 @dataclass(frozen=True)
@@ -68,9 +70,14 @@ class TaskSceneRootSpec:
 
 @dataclass(frozen=True)
 class TaskRolloutSuccessSpec:
-    """仿真 Rollout 单关节成功条件：角度（度）大于 angle_gt_deg。"""
+    """仿真 Rollout 单关节成功条件。
+
+    compare='gt': joint 值 > angle_gt_deg（旋转关盖/调显示器，单位为度）
+    compare='lt': joint 值 < angle_gt_deg（平移关抽屉，单位为米）
+    """
     joint_prim: str
     angle_gt_deg: float
+    compare: str = "gt"
 
 
 @dataclass(frozen=True)
@@ -126,6 +133,7 @@ class TaskRandomizationSpec:
 
 
 SCENE_ARTICULATION_PRIM_PATH = "/World/generated"
+DRAWER_SCENE_ARTICULATION_PRIM_PATH = "/World/mobility_isaac"
 
 
 # ---------------------------------------------------------------------------
@@ -233,6 +241,9 @@ CLOSE_LAPTOP_LANGUAGE_INSTRUCTION = "close the laptop lid."
 
 ADJUST_MONITOR_TASK_ID = "adjust_the_monitor"
 ADJUST_MONITOR_LANGUAGE_INSTRUCTION = "adjust the display."
+
+CLOSE_DRAWER_TASK_ID = "close_the_drawer"
+CLOSE_DRAWER_LANGUAGE_INSTRUCTION = "close the top drawer."
 
 # ---------------------------------------------------------------------------
 # *******************************随机初始化参数*******************************
@@ -409,6 +420,33 @@ ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_TRANSLATION = (
 )
 ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ = ADJUST_MONITOR_SCENE_ROOT_ROTATION_XYZ
 
+'''关闭抽屉采集任务'''
+# joint_1=0.163 表示当前 scene 缩放后的上层抽屉完全打开。
+# 后续随机范围 [0.0326, 0.163] 时，base=(0.0326+0.163)/2，range=0.163-base。        其实不能开到最大，到时候是情况而定
+CLOSE_DRAWER_JOINT_INITIAL_BASE_M = 0.1
+CLOSE_DRAWER_JOINT_INITIAL_RANDOM_RANGE_M = 0.06
+
+CLOSE_DRAWER_SCENE_ROOT_BASE_TRANSLATION = (
+    0.65,
+    0.0,
+    0.105,
+)
+CLOSE_DRAWER_SCENE_ROOT_RANDOM_X_RANGE_M = 0.05  # 0.05
+CLOSE_DRAWER_SCENE_ROOT_RANDOM_Y_RANGE_M = 0.15  # 0.15
+
+CLOSE_DRAWER_SCENE_ROOT_ROTATION_XYZ = (0.0, 0.0, 0.0)
+CLOSE_DRAWER_SCENE_ROOT_RANDOM_YAW_RANGE_DEG = 25.0  # 25
+CLOSE_DRAWER_SCENE_ROOT_SCALE = (0.223, 0.158, 0.163)
+
+CLOSE_DRAWER_HANDLE_CALIBRATION_SCENE_TRANSLATION = (
+    0.75,
+    0.0,
+    0.105,
+)
+CLOSE_DRAWER_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ = (0.0, 0.0, 0.0)
+
+CLOSE_DRAWER_RANDOMIZATION_DISABLED = TaskRandomizationSpec()
+
 
 # ---------------------------------------------------------------------------
 # 已注册任务
@@ -511,6 +549,55 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         randomization=ROBOTWIN2_COMMON_RANDOMIZATION,
         **_shared_teleop_kwargs(),
     ),
+    CLOSE_DRAWER_TASK_ID: TaskPreset(
+        task_id=CLOSE_DRAWER_TASK_ID,
+        description="Keyboard teleoperation for closing the top drawer (mobility_isaac prismatic joint).",
+        usd_path=_tasks_scene_usd("close_the_drawer", "data", "scene.usd"),
+        env_name="CloseDrawerTask",
+        dataset_file="./datasets/close_the_drawer.hdf5",
+        language_instruction=CLOSE_DRAWER_LANGUAGE_INSTRUCTION,
+        sensitivity=2.0,
+        joint_drive_specs=(
+            TaskJointDriveSpec(
+                prim_path="/World/mobility_isaac/joints/joint_1",
+                joint_type="prismatic",
+                damping=30.0,   #30
+                stiffness=0.0,
+                max_force=6.0,  #6
+            ),
+        ),
+        joint_limit_specs=(
+            TaskJointLimitSpec(
+                prim_path="/World/mobility_isaac/joints/joint_1",
+                lower_limit=0.0,
+                upper_limit=0.163,
+            ),
+        ),
+        joint_initial_specs=(
+            TaskJointInitialSpec(
+                prim_path="/World/mobility_isaac/joints/joint_1",
+                position=CLOSE_DRAWER_JOINT_INITIAL_BASE_M,
+                joint_type="prismatic",
+            ),
+        ),
+        scene_root_specs=(
+            TaskSceneRootSpec(
+                prim_path=DRAWER_SCENE_ARTICULATION_PRIM_PATH,
+                translation=CLOSE_DRAWER_SCENE_ROOT_BASE_TRANSLATION,
+                rotation_xyz=CLOSE_DRAWER_SCENE_ROOT_ROTATION_XYZ,
+                scale=CLOSE_DRAWER_SCENE_ROOT_SCALE,
+            ),
+        ),
+        rollout_success_specs=(
+            TaskRolloutSuccessSpec(
+                joint_prim="/World/mobility_isaac/joints/joint_1",
+                angle_gt_deg=0.005,
+                compare="lt",
+            ),
+        ),
+        randomization=ROBOTWIN2_COMMON_RANDOMIZATION,
+        **_shared_teleop_kwargs(),
+    ),
 }
 
 
@@ -588,6 +675,39 @@ def sample_adjust_monitor_scene_root_rotation_xyz() -> tuple[float, float, float
     return (rx, ry, rz + yaw_delta)
 
 
+def sample_close_drawer_joint_initial_m() -> float:
+    """当前关闭随机化：range=0 时返回基准 1.0；后续可改为 [0.2, 1.0] 采样。"""
+    x = random.uniform(
+        -CLOSE_DRAWER_JOINT_INITIAL_RANDOM_RANGE_M,
+        CLOSE_DRAWER_JOINT_INITIAL_RANDOM_RANGE_M,
+    )
+    return CLOSE_DRAWER_JOINT_INITIAL_BASE_M + x
+
+
+def sample_close_drawer_scene_root_translation() -> tuple[float, float, float]:
+    """当前关闭随机化：dx/dy range=0 时返回基准坐标。"""
+    base_x, base_y, base_z = CLOSE_DRAWER_SCENE_ROOT_BASE_TRANSLATION
+    dx = random.uniform(
+        -CLOSE_DRAWER_SCENE_ROOT_RANDOM_X_RANGE_M,
+        CLOSE_DRAWER_SCENE_ROOT_RANDOM_X_RANGE_M,
+    )
+    dy = random.uniform(
+        -CLOSE_DRAWER_SCENE_ROOT_RANDOM_Y_RANGE_M,
+        CLOSE_DRAWER_SCENE_ROOT_RANDOM_Y_RANGE_M,
+    )
+    return (base_x + dx, base_y + dy, base_z)
+
+
+def sample_close_drawer_scene_root_rotation_xyz() -> tuple[float, float, float]:
+    """当前关闭随机化：yaw range=0 时返回基准 yaw。"""
+    rx, ry, rz = CLOSE_DRAWER_SCENE_ROOT_ROTATION_XYZ
+    yaw_delta = random.uniform(
+        -CLOSE_DRAWER_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
+        CLOSE_DRAWER_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
+    )
+    return (rx, ry, rz + yaw_delta)
+
+
 def get_task_preset(task_id: str) -> TaskPreset:
     if task_id not in TASK_PRESETS:
         known = ", ".join(sorted(TASK_PRESETS.keys()))
@@ -616,6 +736,22 @@ def get_task_preset(task_id: str) -> TaskPreset:
         )
         scene_translation = sample_adjust_monitor_scene_root_translation()
         scene_rotation_xyz = sample_adjust_monitor_scene_root_rotation_xyz()
+        scene_root_specs = tuple(
+            replace(spec, translation=scene_translation, rotation_xyz=scene_rotation_xyz)
+            for spec in preset.scene_root_specs
+        )
+        return replace(
+            preset,
+            joint_initial_specs=joint_initial_specs,
+            scene_root_specs=scene_root_specs,
+        )
+    elif task_id == CLOSE_DRAWER_TASK_ID:
+        joint_position_m = sample_close_drawer_joint_initial_m()
+        joint_initial_specs = tuple(
+            replace(spec, position=joint_position_m) for spec in preset.joint_initial_specs
+        )
+        scene_translation = sample_close_drawer_scene_root_translation()
+        scene_rotation_xyz = sample_close_drawer_scene_root_rotation_xyz()
         scene_root_specs = tuple(
             replace(spec, translation=scene_translation, rotation_xyz=scene_rotation_xyz)
             for spec in preset.scene_root_specs

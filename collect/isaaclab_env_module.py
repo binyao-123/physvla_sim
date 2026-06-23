@@ -105,6 +105,7 @@ class IsaacLabEnvironmentModule:
 		self._camera_paths: dict[str, str] = {}
 		self._scene_joint_articulation_ids: dict[str, int] = {}
 		self._scene_joint_pos_units: dict[str, str] = {}
+		self._scene_joint_types: dict[str, str] = {}
 		self._scene_root_baseline: dict[str, tuple[float, ...] | None] = {
 			"translate": None,
 			"orient_wxyz": None,
@@ -139,18 +140,20 @@ class IsaacLabEnvironmentModule:
 		if stage is None:
 			raise RuntimeError("USD stage is unavailable for joint drive overrides.")
 
-		drive_attrs = {
-			"damping": "drive:angular:physics:damping",
-			"stiffness": "drive:angular:physics:stiffness",
-			"max_force": "drive:angular:physics:maxForce",
-			"target_position": "drive:angular:physics:targetPosition",
-			"target_velocity": "drive:angular:physics:targetVelocity",
-		}
-
 		for spec in self.cfg.joint_drive_specs:
 			prim = stage.GetPrimAtPath(spec.prim_path)
 			if not prim.IsValid():
 				raise RuntimeError(f"Joint drive prim '{spec.prim_path}' does not exist on stage.")
+
+			joint_type = self._resolve_scene_joint_type(spec.prim_path)
+			drive_prefix = "linear" if joint_type == "prismatic" else "angular"
+			drive_attrs = {
+				"damping": f"drive:{drive_prefix}:physics:damping",
+				"stiffness": f"drive:{drive_prefix}:physics:stiffness",
+				"max_force": f"drive:{drive_prefix}:physics:maxForce",
+				"target_position": f"drive:{drive_prefix}:physics:targetPosition",
+				"target_velocity": f"drive:{drive_prefix}:physics:targetVelocity",
+			}
 
 			for field_name, attr_name in drive_attrs.items():
 				value = getattr(spec, field_name)
@@ -160,6 +163,22 @@ class IsaacLabEnvironmentModule:
 				if not attr.IsValid():
 					attr = prim.CreateAttribute(attr_name, Sdf.ValueTypeNames.Float)
 				attr.Set(float(value))
+
+	def _resolve_scene_joint_type(self, prim_path: str) -> str:
+		cached = self._scene_joint_types.get(prim_path)
+		if cached:
+			return cached
+		try:
+			import omni.usd
+
+			stage = omni.usd.get_context().get_stage()
+			prim = stage.GetPrimAtPath(prim_path) if stage is not None else None
+			type_name = prim.GetTypeName() if prim is not None and prim.IsValid() else ""
+		except Exception:
+			type_name = ""
+		joint_type = "prismatic" if "Prismatic" in str(type_name) else "revolute"
+		self._scene_joint_types[prim_path] = joint_type
+		return joint_type
 
 	def apply_joint_limit_overrides(self):
 		if not self.cfg.joint_limit_specs:
@@ -208,16 +227,19 @@ class IsaacLabEnvironmentModule:
 				raise RuntimeError(f"Joint prim '{spec.prim_path}' does not exist on stage.")
 
 			value = float(spec.position)
+			joint_type = self._resolve_scene_joint_type(spec.prim_path)
 
 			auth_attr = prim.GetAttribute("physics:position")
 			if not auth_attr.IsValid():
 				auth_attr = prim.CreateAttribute("physics:position", Sdf.ValueTypeNames.Float)
 			auth_attr.Set(value)
 
-			# Also write state:angular:physics:position so the visual pose matches
-			# immediately (before sim.reset). This is safe when called before the
-			# simulation starts or when GPU Direct API is not yet active.
-			state_attr = prim.GetAttribute("state:angular:physics:position")
+			state_attr_name = (
+				"state:linear:physics:position"
+				if joint_type == "prismatic"
+				else "state:angular:physics:position"
+			)
+			state_attr = prim.GetAttribute(state_attr_name)
 			if state_attr and state_attr.IsValid():
 				state_attr.Set(value)
 
@@ -247,13 +269,15 @@ class IsaacLabEnvironmentModule:
 		if not prim or not prim.IsValid():
 			return None
 
+		joint_type = self._resolve_scene_joint_type(prim_path)
+		drive_prefix = "linear" if joint_type == "prismatic" else "angular"
 		state_val: float | None = None
 		drive_val: float | None = None
 		auth_val: float | None = None
 		for attr_name in (
-			"state:angular:physics:position",
-			"drive:angular:physics:targetPosition",
-			"drive:angular:physics:position",
+			f"state:{drive_prefix}:physics:position",
+			f"drive:{drive_prefix}:physics:targetPosition",
+			f"drive:{drive_prefix}:physics:position",
 			"physics:position",
 		):
 			attr = prim.GetAttribute(attr_name)
@@ -263,9 +287,9 @@ class IsaacLabEnvironmentModule:
 			if value is None:
 				continue
 			val = float(value)
-			if attr_name == "state:angular:physics:position":
+			if attr_name == f"state:{drive_prefix}:physics:position":
 				state_val = val
-			elif attr_name.startswith("drive:angular"):
+			elif attr_name.startswith(f"drive:{drive_prefix}"):
 				drive_val = val
 			else:
 				auth_val = val
@@ -281,7 +305,11 @@ class IsaacLabEnvironmentModule:
 			return drive_val
 		return None
 
-	def _articulation_joint_pos_to_deg(self, joint_prim_path: str, raw: float) -> float:
+	def _articulation_joint_pos_to_registered_units(self, joint_prim_path: str, raw: float) -> float:
+		joint_type = self._resolve_scene_joint_type(joint_prim_path)
+		if joint_type == "prismatic":
+			self._scene_joint_pos_units[joint_prim_path] = "m"
+			return float(raw)
 		# IsaacLab/PhysX articulation buffers store angular DOFs in radians.
 		# Do not infer units from USD state:* attributes: those can be stale after
 		# Direct-GPU-safe tensor resets and caused raw radians to be reported as
@@ -307,7 +335,7 @@ class IsaacLabEnvironmentModule:
 					raw = self.scene_articulation.data.joint_pos[0, joint_id]
 					if hasattr(raw, "item"):
 						raw = raw.item()
-					art_deg = self._articulation_joint_pos_to_deg(prim_path, float(raw))
+					art_deg = self._articulation_joint_pos_to_registered_units(prim_path, float(raw))
 				except Exception as exc:
 					print(f"[WARN] Scene joint read failed for {prim_path}: {exc}")
 
@@ -382,7 +410,10 @@ class IsaacLabEnvironmentModule:
 		API setJointPosition / updateKinematic calls.
 		"""
 		new_specs = [
-			JointInitialPrimSpec(prim_path=spec.prim_path, position=float(spec.position))
+			JointInitialPrimSpec(
+				prim_path=spec.prim_path,
+				position=float(spec.position),
+			)
 			for spec in task_preset.joint_initial_specs
 		]
 		self.cfg.joint_initial_specs = new_specs
@@ -394,7 +425,9 @@ class IsaacLabEnvironmentModule:
 				if not joint_ids:
 					continue
 				jid = int(joint_ids[0])
-				self.scene_articulation.data.default_joint_pos[0, jid] = math.radians(float(spec.position))
+				joint_type = self._resolve_scene_joint_type(spec.prim_path)
+				target = float(spec.position) if joint_type == "prismatic" else math.radians(float(spec.position))
+				self.scene_articulation.data.default_joint_pos[0, jid] = target
 				if hasattr(self.scene_articulation.data, "default_joint_vel"):
 					self.scene_articulation.data.default_joint_vel[0, jid] = 0.0
 
@@ -456,9 +489,11 @@ class IsaacLabEnvironmentModule:
 				print(f"[WARN] Scene joint tensor reset skipped: joint '{joint_name}' not found", flush=True)
 				continue
 			joint_ids = [int(joint_ids[0])]
-			target_deg = float(spec.position)
+			target_value = float(spec.position)
+			joint_type = self._resolve_scene_joint_type(spec.prim_path)
+			raw_target = target_value if joint_type == "prismatic" else math.radians(target_value)
 			pos = torch.tensor(
-				[[math.radians(target_deg)]],
+				[[raw_target]],
 				dtype=self.scene_articulation.data.joint_pos.dtype,
 				device=device,
 			)
@@ -466,9 +501,11 @@ class IsaacLabEnvironmentModule:
 			self.scene_articulation.write_joint_state_to_sim(pos, vel, joint_ids=joint_ids)
 			self.scene_articulation.set_joint_position_target(pos, joint_ids=joint_ids)
 			if not self.cfg.quiet_logging:
+				unit = "m" if joint_type == "prismatic" else "°"
+				raw_unit = "m" if joint_type == "prismatic" else "rad"
 				print(
 					f"[TRACE] Scene joint tensor reset: {joint_name} "
-					f"target={target_deg:.2f}° raw={float(pos.item()):.4f}rad joint_id={joint_ids[0]}",
+					f"target={target_value:.4f}{unit} raw={float(pos.item()):.4f}{raw_unit} joint_id={joint_ids[0]}",
 					flush=True,
 				)
 		self.scene_articulation.write_data_to_sim()
