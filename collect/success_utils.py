@@ -9,6 +9,16 @@ if TYPE_CHECKING:
     from task_registry import TaskRolloutSuccessSpec
 
 
+def _spec_satisfied(spec: TaskRolloutSuccessSpec, deg: float | None) -> bool:
+    if deg is None:
+        return False
+    if spec.angle_gt_deg is not None and not (deg > spec.angle_gt_deg):
+        return False
+    if spec.angle_lt_deg is not None and not (deg < spec.angle_lt_deg):
+        return False
+    return spec.angle_gt_deg is not None or spec.angle_lt_deg is not None
+
+
 def evaluate_rollout_success(
     env_module: IsaacLabEnvironmentModule,
     specs: tuple[TaskRolloutSuccessSpec, ...],
@@ -20,10 +30,22 @@ def evaluate_rollout_success(
         for spec in specs
     }
     success = all(
-        deg is not None and deg > spec.angle_gt_deg
-        for spec, deg in ((s, joint_degs[s.joint_prim]) for s in specs)
+        _spec_satisfied(spec, joint_degs[spec.joint_prim]) for spec in specs
     )
     return success, joint_degs
+
+
+def evaluate_episode_success(
+    env_module: IsaacLabEnvironmentModule,
+    specs: tuple[TaskRolloutSuccessSpec, ...],
+    *,
+    episode_step_limit_hit: bool = False,
+) -> tuple[bool, dict[str, float | None]]:
+    """Episode success = joint angle specs satisfied AND completed within step limit."""
+    angle_ok, joint_degs = evaluate_rollout_success(env_module, specs)
+    if episode_step_limit_hit:
+        return False, joint_degs
+    return angle_ok, joint_degs
 
 
 def update_peak_joint_degs(

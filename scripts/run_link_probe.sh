@@ -4,8 +4,8 @@
 cd ~/workspace/physvla_sim/collect
 
 ~/isaacsim/python.sh debug_link_contact_probe.py \
-  --task_id close_laptop_lid \
+  --task_id lower_the_lamp \
   --livestream 2 \
   --mode top_contact \
-  --probe_steps 400 \
+  --episode_step_limit 800 \
   --hold_steps 120

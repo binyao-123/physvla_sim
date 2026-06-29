@@ -13,7 +13,7 @@ from isaaclab_env_module import (
     JointLimitPrimSpec,
     SceneRootPrimSpec,
 )
-from task_registry import SCENE_ARTICULATION_PRIM_PATH, TaskPreset
+from task_registry import TaskPreset, resolve_scene_articulation_prim_path
 
 if TYPE_CHECKING:
     from isaaclab.assets import ArticulationCfg
@@ -190,7 +190,8 @@ def build_scene_hinge_cfg(task_preset: TaskPreset) -> ArticulationCfg | None:
     if not task_preset.rollout_success_specs:
         return None
 
-    scene_prefix = f"{SCENE_ARTICULATION_PRIM_PATH}/"
+    scene_articulation_prim = resolve_scene_articulation_prim_path(task_preset)
+    scene_prefix = f"{scene_articulation_prim}/"
     joint_pos = {
         spec.prim_path.rsplit("/", 1)[-1]: math.radians(float(spec.position))
         for spec in task_preset.joint_initial_specs
@@ -210,7 +211,7 @@ def build_scene_hinge_cfg(task_preset: TaskPreset) -> ArticulationCfg | None:
         return None
 
     return ArticulationCfg(
-        prim_path=SCENE_ARTICULATION_PRIM_PATH,
+        prim_path=scene_articulation_prim,
         spawn=None,
         init_state=ArticulationCfg.InitialStateCfg(joint_pos=joint_pos),
         actuators=actuators,

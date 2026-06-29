@@ -40,7 +40,11 @@ from reference.opening_kinematics import (
 )
 from collection_health import HealthLimits, RecordingHealthError, check_step_payload
 from recording_utils import RecordingContext, build_step_tensors, capture_rgb_if_due
-from success_utils import evaluate_rollout_success, update_peak_joint_degs
+from success_utils import (
+    evaluate_episode_success,
+    evaluate_rollout_success,
+    update_peak_joint_degs,
+)
 from task_registry import (
     ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ,
     ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_TRANSLATION,
@@ -48,6 +52,9 @@ from task_registry import (
     CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ,
     CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION,
     CLOSE_LAPTOP_TASK_ID,
+    LOWER_LAMP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ,
+    LOWER_LAMP_HANDLE_CALIBRATION_SCENE_TRANSLATION,
+    LOWER_LAMP_TASK_ID,
     SHARED_TELEOP_PIPER,
 )
 
@@ -132,15 +139,62 @@ def _interp_positions(start_pos: np.ndarray, end_pos: np.ndarray, num_steps: int
     return [start_pos + float(t) * (end_pos - start_pos) for t in ts[1:]]
 
 
+def _dedupe_consecutive_waypoints(
+    waypoints: list[np.ndarray],
+    *,
+    tol_m: float = 0.005,
+) -> list[np.ndarray]:
+    if not waypoints:
+        return []
+    out = [np.asarray(waypoints[0], dtype=np.float64)]
+    for wp in waypoints[1:]:
+        wp = np.asarray(wp, dtype=np.float64)
+        if float(np.linalg.norm(wp - out[-1])) > tol_m:
+            out.append(wp)
+    return out
+
+
 def _build_safe_approach_path(
     ee_pos: np.ndarray,
     approach_w: np.ndarray,
     *,
     clearance_z_m: float = 0.14,
+    contact_w: np.ndarray | None = None,
+    overhead_then_descend: bool = False,
 ) -> list[np.ndarray]:
-    """Directly move to the handle approach pose; no extra upward cruise waypoint."""
-    del ee_pos, clearance_z_m
-    return [np.asarray(approach_w, dtype=np.float64)]
+    """Build approach waypoints before the final contact segment."""
+    approach_w = np.asarray(approach_w, dtype=np.float64)
+    ee_pos = np.asarray(ee_pos, dtype=np.float64)
+    if not overhead_then_descend:
+        return [approach_w.copy()]
+
+    anchor = np.asarray(contact_w if contact_w is not None else approach_w, dtype=np.float64)
+    # Clearance is measured above the handle/contact height only (not EE height).
+    z_safe = max(float(anchor[2]) + float(clearance_z_m), float(approach_w[2]) + 0.01)
+
+    waypoints: list[np.ndarray] = []
+
+    # 1) Lift vertically at current EE XY — only as high as needed to clear the handle.
+    lift_z = max(float(ee_pos[2]), z_safe)
+    lift = ee_pos.copy()
+    lift[2] = lift_z
+    if lift_z > float(ee_pos[2]) + 0.005:
+        waypoints.append(lift)
+
+    # 2) Cruise at safe height to handle XY.
+    cruise = anchor.copy()
+    cruise[2] = z_safe
+    waypoints.append(cruise)
+
+    # 3) Descend vertically to approach pose (backoff along gripper axis handled in approach_w).
+    descend = approach_w.copy()
+    descend[0] = anchor[0]
+    descend[1] = anchor[1]
+    if float(descend[2]) > z_safe - 0.005:
+        descend[2] = float(approach_w[2])
+    waypoints.append(descend)
+
+    return _dedupe_consecutive_waypoints(waypoints)
 
 
 class PushInteractionExecutor:
@@ -233,6 +287,13 @@ class PushInteractionExecutor:
             self.episode_step_limit = int(limit)
         self.episode_step_limit_hit = False
 
+    def _episode_success_now(self) -> tuple[bool, dict[str, float | None]]:
+        return evaluate_episode_success(
+            self.env_module,
+            self.success_specs,
+            episode_step_limit_hit=self.episode_step_limit_hit,
+        )
+
     def _raise_if_episode_step_limit_reached(self) -> None:
         if self.episode_step_limit is None:
             return
@@ -273,7 +334,7 @@ class PushInteractionExecutor:
             msg += f" joint={float(joint_deg):.1f}°"
         # 此处在实时打印EE位姿和锚定点位置，
         # 打印类似：[TRACE close] step=330 EE=[0.4536, -0.0686, 0.1251] anchor=[0.5515, -0.076, 0.1587] dist=0.1038m joint=104.4°
-        # print(msg, flush=True)
+        print(msg, flush=True)
 
     def _log_info(self, msg: str) -> None:
         if self.verbose:
@@ -356,6 +417,8 @@ class PushInteractionExecutor:
             calib = CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION
         elif self.task_config.task_id == ADJUST_MONITOR_TASK_ID:
             calib = ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_TRANSLATION
+        elif self.task_config.task_id == LOWER_LAMP_TASK_ID:
+            calib = LOWER_LAMP_HANDLE_CALIBRATION_SCENE_TRANSLATION
         else:
             return np.zeros(3, dtype=np.float64)
         delta = self.env_module.get_scene_root_translation_delta(calib)
@@ -367,6 +430,8 @@ class PushInteractionExecutor:
             calib = CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
         elif self.task_config.task_id == ADJUST_MONITOR_TASK_ID:
             calib = ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
+        elif self.task_config.task_id == LOWER_LAMP_TASK_ID:
+            calib = LOWER_LAMP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
         else:
             return 0.0
         return float(self.env_module.get_scene_root_yaw_delta_deg(calib))
@@ -374,6 +439,8 @@ class PushInteractionExecutor:
     def _scene_root_yaw_deg(self) -> float:
         if self.task_config.task_id == ADJUST_MONITOR_TASK_ID:
             return float(ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ[2]) + self._scene_root_yaw_delta_deg()
+        if self.task_config.task_id == LOWER_LAMP_TASK_ID:
+            return float(LOWER_LAMP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ[2]) + self._scene_root_yaw_delta_deg()
         return float(CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ[2]) + self._scene_root_yaw_delta_deg()
 
     def _geometric_map_calibrated_world_position(self, pos: np.ndarray) -> np.ndarray:
@@ -381,6 +448,11 @@ class PushInteractionExecutor:
         if self.task_config.task_id == ADJUST_MONITOR_TASK_ID:
             calib_t = np.asarray(
                 ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_TRANSLATION,
+                dtype=np.float64,
+            )
+        elif self.task_config.task_id == LOWER_LAMP_TASK_ID:
+            calib_t = np.asarray(
+                LOWER_LAMP_HANDLE_CALIBRATION_SCENE_TRANSLATION,
                 dtype=np.float64,
             )
         else:
@@ -455,7 +527,11 @@ class PushInteractionExecutor:
 
     def _map_calibrated_world_position(self, pos: np.ndarray) -> np.ndarray:
         pos = np.asarray(pos, dtype=np.float64)
-        if self.task_config.task_id not in (CLOSE_LAPTOP_TASK_ID, ADJUST_MONITOR_TASK_ID):
+        if self.task_config.task_id not in (
+            CLOSE_LAPTOP_TASK_ID,
+            ADJUST_MONITOR_TASK_ID,
+            LOWER_LAMP_TASK_ID,
+        ):
             return pos
         return self._geometric_map_calibrated_world_position(pos) + self._yaw_anchor_position_correction()
 
@@ -535,9 +611,14 @@ class PushInteractionExecutor:
             if joint_deg < lo - boundary_tol_deg or joint_deg > hi + boundary_tol_deg:
                 print(
                     f"[WARN] yaml_handle arc-fit disabled: joint={joint_deg:.2f}° "
-                    f"outside calibrated arc range [{lo:.1f}, {hi:.1f}]°; using link-local default.",
+                    f"outside calibrated arc range [{lo:.1f}, {hi:.1f}]°; "
+                    f"using mapped reference contact.",
                     flush=True,
                 )
+                if cfg.reference_contact_world is not None:
+                    return self._map_calibrated_world_position(
+                        np.asarray(cfg.reference_contact_world, dtype=np.float64)
+                    )
                 return default_contact_w
             joint_deg = float(np.clip(joint_deg, lo, hi))
 
@@ -646,6 +727,8 @@ class PushInteractionExecutor:
             cfg.push_contact_offset_link,
             quat_link,
         )
+        # Position: reference_contact_world + geometric map + yaw_anchor correction.
+        # Attitude: yaw_contact_anchors quat (see 12_HDF5提取yaml_handle标定点.md §4.1).
         contact_w = self._joint_fitted_yaml_handle_world(contact_w)
         anchor_contact = self._yaw_anchor_contact_world()
         if anchor_contact is not None:
@@ -852,7 +935,7 @@ class PushInteractionExecutor:
         )
         success_floor = self.joint_upper_limit_deg
         for spec in self.success_specs:
-            if spec.joint_prim == self.task_config.joint_prim:
+            if spec.joint_prim == self.task_config.joint_prim and spec.angle_gt_deg is not None:
                 success_floor = float(spec.angle_gt_deg) + 1.0
                 break
         target = max(ratio_target, success_floor)
@@ -1164,11 +1247,6 @@ class PushInteractionExecutor:
             idx = np.linspace(0, len(close_poses) - 1, sample_count, dtype=int)
             close_poses = [close_poses[int(i)] for i in idx]
 
-        steps_per_wp = int(
-            getattr(self.push_cfg, "close_steps_per_waypoint", None)
-            or getattr(self.push_cfg, "contact_hold_steps", 24)
-        )
-        steps_per_wp = max(8, steps_per_wp)
         close_clamp = bool(getattr(self.push_cfg, "close_clamp_joints", True))
 
         wp0 = np.asarray(trajectory[0][0], dtype=np.float64)
@@ -1176,7 +1254,7 @@ class PushInteractionExecutor:
         sampled_last = np.asarray(close_poses[-1][0], dtype=np.float64)
         self._log_info(
             f"[INFO] Close phase (sampled pose path): sampled={len(close_poses)} "
-            f"from {len(trajectory) - 1} T_rel waypoints, steps/wp={steps_per_wp}, "
+            f"from {len(trajectory) - 1} T_rel waypoints, "
             f"close_clamp_joints={close_clamp}, full_arc_delta={float(np.linalg.norm(wp_last - wp0)):.3f}m, "
             f"sampled_delta={float(np.linalg.norm(sampled_last - wp0)):.3f}m"
         )
@@ -1190,7 +1268,6 @@ class PushInteractionExecutor:
         stopped = self._follow_pose_path(
             collector,
             close_poses,
-            steps_per_wp,
             on_control_step,
             clamp_joints=close_clamp,
             close_anchor_correction=True,
@@ -1217,16 +1294,12 @@ class PushInteractionExecutor:
                     stopped = True
                     break
                 if on_control_step is not None:
-                    success_now, joint_degs = evaluate_rollout_success(
-                        self.env_module, self.success_specs
-                    )
+                    success_now, joint_degs = self._episode_success_now()
                     if on_control_step(success_now, joint_degs):
                         stopped = True
                         break
                 else:
-                    success_now, _ = evaluate_rollout_success(
-                        self.env_module, self.success_specs
-                    )
+                    success_now, _ = self._episode_success_now()
                     if success_now:
                         stopped = True
                         break
@@ -1276,6 +1349,137 @@ class PushInteractionExecutor:
             )
         return stopped
 
+    def _execute_world_z_down_push(
+        self,
+        collector: OfficialEpisodeCollector,
+        on_control_step: Callable[[bool, dict[str, float | None]], bool] | None,
+        *,
+        anchor_xy: np.ndarray,
+        hold_quat: tuple[float, float, float, float],
+        contact_w: np.ndarray | None = None,
+    ) -> bool:
+        """Push straight down in world -Z; lock XY and orientation.
+
+        When contact_w is given (skip_contact_phase), first descend to contact_z
+        minus close_z_down_contact_press_m, then push -Z by close_z_down_total_m.
+        Runs until success or episode_step_limit (no separate push/hold step budgets).
+        """
+        if self.episode_step_limit is None:
+            raise ValueError("world_z_down push requires episode_step_limit")
+
+        step_m = float(getattr(self.push_cfg, "close_z_down_step_m", 0.002))
+        total_m = float(getattr(self.push_cfg, "close_z_down_total_m", 0.08))
+        clamp = bool(getattr(self.push_cfg, "close_clamp_joints", True))
+        substeps = max(
+            1, int(getattr(self.push_cfg, "close_z_down_ik_substeps", 2))
+        )
+        press_m = float(getattr(self.push_cfg, "close_z_down_contact_press_m", 0.003))
+
+        if contact_w is not None:
+            contact_w = np.asarray(contact_w, dtype=np.float64)
+            anchor_xy = contact_w[:2]
+            touch_z = float(contact_w[2]) - press_m
+        else:
+            anchor_xy = np.asarray(anchor_xy, dtype=np.float64)[:2]
+            touch_z = None
+
+        joint_prim = self.task_config.joint_prim
+        start_pos, _ = self._read_ee_pose()
+        z = float(start_pos[2])
+
+        self._reset_ee_tracking_from_robot()
+        self._tracking_pos[0] = float(anchor_xy[0])
+        self._tracking_pos[1] = float(anchor_xy[1])
+        self._tracking_quat_wxyz = hold_quat
+        self.diff_ik_controller.reset()
+        self.diff_ik_pos_controller.reset()
+
+        log_every = 10
+        self._log_info(
+            f"[INFO] World -Z push success target: {self._format_success_spec_hint()}"
+        )
+
+        def _push_target(z_val: float) -> np.ndarray:
+            return np.array([anchor_xy[0], anchor_xy[1], z_val], dtype=np.float64)
+
+        def _log_push_progress(step_i: int, phase: str) -> None:
+            if not self.verbose or (step_i + 1) % log_every != 0:
+                return
+            joint_deg = self.env_module.read_scene_joint_angle_deg(joint_prim)
+            ee_pos, _ = self._read_ee_pose()
+            limit_text = (
+                str(self.episode_step_limit)
+                if self.episode_step_limit is not None
+                else "none"
+            )
+            self._log_info(
+                f"[INFO] -Z {phase} step {step_i + 1}: "
+                f"EE z={ee_pos[2]:.4f} xy_err="
+                f"{float(np.linalg.norm(ee_pos[:2] - anchor_xy)):.4f}m "
+                f"joint={float(joint_deg) if joint_deg is not None else float('nan'):.2f}° "
+                f"control={self.control_step_count}/{limit_text}"
+            )
+
+        def _servo_z(z_val: float) -> bool:
+            target = _push_target(z_val)
+            for _ in range(substeps):
+                self._advance_tracking_pose(target, hold_quat, max_pos_step_m=step_m)
+                self._tracking_pos[0] = float(anchor_xy[0])
+                self._tracking_pos[1] = float(anchor_xy[1])
+                arm_targets = self._ik_targets_for_pose(self._tracking_pos, hold_quat)
+                if self._control_step_ik(
+                    collector,
+                    arm_targets,
+                    gripper_open=False,
+                    on_control_step=on_control_step,
+                    clamp_joints=clamp,
+                ):
+                    return True
+            if on_control_step is None:
+                success_now, _ = self._episode_success_now()
+                if success_now:
+                    return True
+            return False
+
+        if touch_z is not None and z > touch_z + 1e-5:
+            self._log_info(
+                f"[INFO] World -Z push: pre-descend to contact "
+                f"xy={np.round(anchor_xy, 4).tolist()} z={touch_z:.4f} "
+                f"(from z={z:.4f}, press={press_m:.4f}m)"
+            )
+            pre_step = 0
+            while z > touch_z + 1e-5:
+                z = max(z - step_m, touch_z)
+                if _servo_z(z):
+                    return True
+                _log_push_progress(pre_step, "pre-descend")
+                pre_step += 1
+
+        min_z = z - total_m
+        limit_text = (
+            str(self.episode_step_limit)
+            if self.episode_step_limit is not None
+            else "none"
+        )
+        self._log_info(
+            f"[INFO] World -Z push: lock XY={np.round(anchor_xy, 4).tolist()} "
+            f"step={step_m:.4f}m total={total_m:.3f}m "
+            f"z {z:.4f} -> {min_z:.4f} "
+            f"(until success or episode_step_limit={limit_text})"
+        )
+
+        push_step = 0
+        while True:
+            if z > min_z + 1e-6:
+                z = max(z - step_m, min_z)
+                phase = "push"
+            else:
+                phase = "hold"
+            if _servo_z(z):
+                return True
+            _log_push_progress(push_step, phase)
+            push_step += 1
+
     def _execute_hinge_close_anchored(
         self,
         collector: OfficialEpisodeCollector,
@@ -1288,10 +1492,6 @@ class PushInteractionExecutor:
             return False
         return self._execute_close_phase(collector, on_control_step, trajectory=trajectory)
 
-    def _approach_steps_per_waypoint(self, num_waypoints: int) -> int:
-        budget = int(getattr(self.push_cfg, "approach_steps", 30))
-        return max(8, budget // max(1, num_waypoints))
-
     def _plan_handle_reach_poses(
         self,
         ee_pos: np.ndarray,
@@ -1302,7 +1502,15 @@ class PushInteractionExecutor:
     ) -> tuple[list[np.ndarray], list[tuple[np.ndarray, tuple[float, float, float, float]]]]:
         """Pose waypoints: cruise with slerp to contact orientation, then contact segment."""
         clearance_z = float(getattr(self.push_cfg, "approach_clearance_z_m", 0.14))
-        approach_path = _build_safe_approach_path(ee_pos, approach_w, clearance_z_m=clearance_z)
+        approach_path = _build_safe_approach_path(
+            ee_pos,
+            approach_w,
+            clearance_z_m=clearance_z,
+            contact_w=contact_w,
+            overhead_then_descend=bool(
+                getattr(self.push_cfg, "approach_overhead_then_descend", False)
+            ),
+        )
         n_contact = max(2, int(self.push_cfg.contact_hold_steps))
         contact_path = _interp_positions(approach_w, contact_w, n_contact)
 
@@ -1316,6 +1524,122 @@ class PushInteractionExecutor:
             poses.append((p, quat_w))
         return approach_path, poses
 
+    def _log_contact_phase_entry(
+        self,
+        contact_w: np.ndarray,
+        quat_w: tuple[float, float, float, float],
+        *,
+        n_contact_waypoints: int,
+        banner_title: str = "CONTACT PHASE START",
+    ) -> None:
+        """Prominent banner when approach finishes (and optionally contact servo begins)."""
+        actual_pos, actual_quat = self._read_ee_pose()
+        contact_w = np.asarray(contact_w, dtype=np.float64)
+        dist_m = float(np.linalg.norm(actual_pos - contact_w))
+        rot_err_rad = (_wxyz_to_rot(quat_w) * _wxyz_to_rot(actual_quat).inv()).magnitude()
+        rot_err_deg = math.degrees(rot_err_rad)
+
+        ee_to_contact = contact_w - actual_pos
+        push_axis_actual = self._gripper_push_axis_world(actual_quat)
+        signed_push_gap_m = float(np.dot(ee_to_contact, push_axis_actual))
+        lateral_err_m = float(
+            np.linalg.norm(ee_to_contact - signed_push_gap_m * push_axis_actual)
+        )
+
+        pos_ok = dist_m <= POSE_REACH_TOL_M
+        rot_ok = rot_err_rad <= POSE_REACH_ROT_RAD
+        reached = pos_ok and rot_ok
+        status = "REACHED" if reached else "NOT YET"
+
+        limit_text = (
+            str(self.episode_step_limit) if self.episode_step_limit is not None else "none"
+        )
+        bar = "#" * 72
+        print(f"\n{bar}", flush=True)
+        print(
+            f"  >>> {banner_title}  step={self.control_step_count}/{limit_text}  "
+            f"[{status}] <<<",
+            flush=True,
+        )
+        print(bar, flush=True)
+        print(f"  EE actual pos    : {np.round(actual_pos, 4).tolist()}", flush=True)
+        print(f"  target contact_w : {np.round(contact_w, 4).tolist()}", flush=True)
+        print(
+            f"  dist to contact  : {dist_m:.4f} m  (tol {POSE_REACH_TOL_M:.3f} m) "
+            f"{'OK' if pos_ok else 'FAIL'}",
+            flush=True,
+        )
+        print(
+            f"  rot err          : {rot_err_deg:.1f} deg  "
+            f"(tol {math.degrees(POSE_REACH_ROT_RAD):.1f} deg) "
+            f"{'OK' if rot_ok else 'FAIL'}",
+            flush=True,
+        )
+        print(
+            f"  push-axis gap    : {signed_push_gap_m:+.4f} m  "
+            f"(+ = EE short of contact)  lateral: {lateral_err_m:.4f} m",
+            flush=True,
+        )
+        if n_contact_waypoints > 0:
+            print(f"  contact waypoints: {n_contact_waypoints}", flush=True)
+        print(f"{bar}\n", flush=True)
+
+    def _log_contact_phase_done(
+        self,
+        contact_w: np.ndarray,
+        quat_w: tuple[float, float, float, float],
+    ) -> None:
+        """Prominent banner when contact servo finishes (before close phase)."""
+        actual_pos, actual_quat = self._read_ee_pose()
+        contact_w = np.asarray(contact_w, dtype=np.float64)
+        dist_m = float(np.linalg.norm(actual_pos - contact_w))
+        rot_err_rad = (_wxyz_to_rot(quat_w) * _wxyz_to_rot(actual_quat).inv()).magnitude()
+        rot_err_deg = math.degrees(rot_err_rad)
+
+        ee_to_contact = contact_w - actual_pos
+        push_axis_actual = self._gripper_push_axis_world(actual_quat)
+        signed_push_gap_m = float(np.dot(ee_to_contact, push_axis_actual))
+        lateral_err_m = float(
+            np.linalg.norm(ee_to_contact - signed_push_gap_m * push_axis_actual)
+        )
+
+        pos_ok = dist_m <= POSE_REACH_TOL_M
+        rot_ok = rot_err_rad <= POSE_REACH_ROT_RAD
+        reached = pos_ok and rot_ok
+        status = "REACHED" if reached else "NOT REACHED"
+
+        bar = "#" * 72
+        print(f"\n{bar}", flush=True)
+        print(
+            f"  <<< CONTACT PHASE DONE  step={self.control_step_count}  [{status}] <<<",
+            flush=True,
+        )
+        print(bar, flush=True)
+        print(f"  EE actual pos    : {np.round(actual_pos, 4).tolist()}", flush=True)
+        print(f"  target contact_w : {np.round(contact_w, 4).tolist()}", flush=True)
+        print(
+            f"  dist to contact  : {dist_m:.4f} m  (tol {POSE_REACH_TOL_M:.3f} m) "
+            f"{'OK' if pos_ok else 'FAIL'}",
+            flush=True,
+        )
+        print(
+            f"  rot err          : {rot_err_deg:.1f} deg  "
+            f"(tol {math.degrees(POSE_REACH_ROT_RAD):.1f} deg) "
+            f"{'OK' if rot_ok else 'FAIL'}",
+            flush=True,
+        )
+        print(
+            f"  push-axis gap    : {signed_push_gap_m:+.4f} m  lateral: {lateral_err_m:.4f} m",
+            flush=True,
+        )
+        if not reached:
+            print(
+                "  hint: handle_reached requires pos AND rot within tol; "
+                "finger pad may still be short of handle.",
+                flush=True,
+            )
+        print(f"{bar}\n", flush=True)
+
     def _execute_handle_reach(
         self,
         collector: OfficialEpisodeCollector,
@@ -1324,8 +1648,6 @@ class PushInteractionExecutor:
         quat_w: tuple[float, float, float, float],
         *,
         on_control_step: Callable[[bool, dict[str, float | None]], bool] | None,
-        approach_step_budget: int | None = None,
-        contact_steps_per_waypoint: int | None = None,
     ) -> bool:
         """Pose IK approach + contact with joint clamping. Returns True if on_control_step signals stop."""
         ee_pos = self.robot.data.body_pos_w[0, self.handles.ee_body_id].detach().cpu().numpy()
@@ -1345,38 +1667,56 @@ class PushInteractionExecutor:
         n_approach = len(approach_path)
         approach_poses = reach_poses[:n_approach]
         contact_poses = reach_poses[n_approach:]
+        skip_contact = bool(getattr(self.push_cfg, "skip_contact_phase", False))
 
-        if approach_step_budget is None:
-            approach_steps_per = self._approach_steps_per_waypoint(n_approach)
+        if skip_contact:
+            self._log_info(
+                f"[INFO] Handle reach: {n_approach} approach waypoints only "
+                f"(contact phase disabled, servo until tolerance, pose IK)"
+            )
         else:
-            approach_steps_per = max(8, int(approach_step_budget) // max(1, n_approach))
-        contact_steps_per = max(8, int(contact_steps_per_waypoint or self.push_cfg.contact_hold_steps))
-
-        self._log_info(
-            f"[INFO] Handle reach: {n_approach} approach + {len(contact_poses)} contact waypoints "
-            f"({approach_steps_per} steps/wp approach, {contact_steps_per} steps/wp contact, pose IK)"
+            self._log_info(
+                f"[INFO] Handle reach: {n_approach} approach + {len(contact_poses)} contact waypoints "
+                f"(servo until tolerance, pose IK)"
+            )
+        path_label = (
+            "Lift-cruise-descend approach path"
+            if getattr(self.push_cfg, "approach_overhead_then_descend", False)
+            else "Direct approach path"
         )
         self._log_info(
-            f"[INFO] Direct approach path ({len(approach_path)} waypoint): "
+            f"[INFO] {path_label} ({len(approach_path)} waypoint): "
             + " -> ".join(str(np.round(wp, 3).tolist()) for wp in approach_path)
         )
 
+        self.set_trace_phase("approach")
         if self._follow_pose_path(
             collector,
             approach_poses,
-            approach_steps_per,
             on_control_step,
             clamp_joints=True,
         ):
             return True
+        if skip_contact:
+            self._log_contact_phase_entry(
+                contact_w,
+                quat_w,
+                n_contact_waypoints=0,
+                banner_title="APPROACH DONE (contact phase skipped)",
+            )
+            return False
+        self._log_contact_phase_entry(
+            contact_w, quat_w, n_contact_waypoints=len(contact_poses)
+        )
+        self.set_trace_phase("contact")
         if self._follow_pose_path(
             collector,
             contact_poses,
-            contact_steps_per,
             on_control_step,
             clamp_joints=True,
         ):
             return True
+        self._log_contact_phase_done(contact_w, quat_w)
         return False
 
     def _summarize_handle_contact(
@@ -1650,8 +1990,6 @@ class PushInteractionExecutor:
             f"visual={visual}",
             f"T={report.get('control_steps', '?')}",
         ]
-        if report.get("probe_steps_limit") is not None:
-            parts.append(f"probe_steps={report.get('probe_steps_limit')}")
         if report.get("episode_step_limit") is not None:
             parts.append(f"episode_limit={report.get('episode_step_limit')}")
         if report.get("episode_step_limit_hit"):
@@ -1682,8 +2020,6 @@ class PushInteractionExecutor:
             f"close_wps={n_close}",
             f"T={self.control_step_count}",
         ]
-        if result.get("probe_steps_limit") is not None:
-            parts.append(f"probe_steps={result.get('probe_steps_limit')}")
         if result.get("episode_step_limit") is not None:
             parts.append(f"episode_limit={result.get('episode_step_limit')}")
         if result.get("episode_step_limit_hit"):
@@ -1692,17 +2028,27 @@ class PushInteractionExecutor:
             parts.append(f"{joint_prim}={float(joint_deg):.2f}deg")
         print("\n" + " | ".join(parts), flush=True)
         if not success and joint_deg is not None:
+            hint = self._format_success_spec_hint()
             print(
-                "[PUSH+CLOSE EXIT] Success needs joint_1 > 98°USD (task_registry). "
-                "Check Close push logs if lid did not move.",
+                f"[PUSH+CLOSE EXIT] Success needs {hint} (task_registry). "
+                "Check push logs if joint did not move.",
                 flush=True,
             )
+
+    def _format_success_spec_hint(self) -> str:
+        parts: list[str] = []
+        for spec in self.success_specs:
+            joint_name = spec.joint_prim.rsplit("/", 1)[-1]
+            if spec.angle_gt_deg is not None:
+                parts.append(f"{joint_name} > {spec.angle_gt_deg}°")
+            if spec.angle_lt_deg is not None:
+                parts.append(f"{joint_name} < {spec.angle_lt_deg}°")
+        return " AND ".join(parts) if parts else "rollout_success_specs"
 
     def run_yaml_handle_contact_only_probe(
         self,
         collector: OfficialEpisodeCollector,
         *,
-        max_servo_steps: int = 400,
         episode_step_limit: int | None = None,
     ) -> dict[str, object]:
         """Move to yaml handle contact only; print report and stop (no close phase)."""
@@ -1729,21 +2075,13 @@ class PushInteractionExecutor:
                 f"approach_w={np.round(approach_w, 4).tolist()}"
             )
 
-            contact_steps_per = max(8, int(self.push_cfg.contact_hold_steps))
-            approach_budget = max(
-                int(self.push_cfg.approach_steps),
-                int(max_servo_steps) - contact_steps_per * max(2, int(self.push_cfg.contact_hold_steps)),
-            )
             try:
-                self.set_trace_phase("approach")
                 self._execute_handle_reach(
                     collector,
                     approach_w,
                     contact_w,
                     quat_w,
                     on_control_step=None,
-                    approach_step_budget=approach_budget,
-                    contact_steps_per_waypoint=contact_steps_per,
                 )
             except EpisodeStepLimitExceeded as exc:
                 print(f"[WARN] yaml_handle contact-only timeout: {exc}; reporting current pose.", flush=True)
@@ -1763,7 +2101,6 @@ class PushInteractionExecutor:
             report["hinge_origin_w"] = hinge_origin_w
             report["hinge_axis_w"] = hinge_axis_w
             report["close_poses"] = []
-            report["probe_steps_limit"] = int(max_servo_steps)
             report["episode_step_limit"] = self.episode_step_limit
             report["episode_step_limit_hit"] = self.episode_step_limit_hit
             return report
@@ -1837,15 +2174,28 @@ class PushInteractionExecutor:
                 )
 
                 self._reset_close_phase_tracking()
-                self._init_close_anchor(actual_contact_pos, actual_contact_quat)
-                if self._execute_hinge_close_anchored(collector, on_step):
-                    task_success = True
+                close_strategy = str(getattr(self.push_cfg, "close_strategy", "hinge_t_rel"))
+                if close_strategy == "world_z_down":
+                    if self._execute_world_z_down_push(
+                        collector,
+                        on_step,
+                        anchor_xy=actual_contact_pos[:2],
+                        hold_quat=actual_contact_quat,
+                        contact_w=contact_w,
+                    ):
+                        task_success = True
+                    else:
+                        success_now, joint_degs = self._episode_success_now()
+                        final_joint_degs = joint_degs
+                        task_success = success_now
                 else:
-                    success_now, joint_degs = evaluate_rollout_success(
-                        self.env_module, self.success_specs
-                    )
-                    final_joint_degs = joint_degs
-                    task_success = success_now
+                    self._init_close_anchor(actual_contact_pos, actual_contact_quat)
+                    if self._execute_hinge_close_anchored(collector, on_step):
+                        task_success = True
+                    else:
+                        success_now, joint_degs = self._episode_success_now()
+                        final_joint_degs = joint_degs
+                        task_success = success_now
         except EpisodeStepLimitExceeded as exc:
             _, joint_degs = evaluate_rollout_success(
                 self.env_module, self.success_specs
@@ -1860,6 +2210,11 @@ class PushInteractionExecutor:
             final_joint_degs = joint_degs
             task_success = False
             print(f"[WARN] {label} recording health abort: {exc}; mark attempt failed.", flush=True)
+
+        episode_success, joint_degs = self._episode_success_now()
+        if joint_degs:
+            final_joint_degs = joint_degs
+        task_success = episode_success
 
         if task_success:
             self.run_home_reset(collector)
@@ -1893,7 +2248,6 @@ class PushInteractionExecutor:
         *,
         label: str,
         hinge_lever_m: float | None,
-        max_servo_steps: int,
         episode_step_limit: int | None = None,
     ) -> dict[str, object]:
         self.set_episode_step_limit(episode_step_limit)
@@ -1912,22 +2266,18 @@ class PushInteractionExecutor:
             f"approach_w={np.round(approach_w, 4).tolist()}"
         )
 
-        contact_steps_per = max(8, int(self.push_cfg.contact_hold_steps))
-        approach_budget = max(
-            int(self.push_cfg.approach_steps),
-            int(max_servo_steps) - contact_steps_per * max(2, int(self.push_cfg.contact_hold_steps)),
-        )
         close_poses: list[tuple[np.ndarray, tuple[float, float, float, float]]] = []
+
+        def on_step(success_now: bool, joint_degs: dict[str, float | None]) -> bool:
+            return success_now
+
         try:
-            self.set_trace_phase("approach")
             self._execute_handle_reach(
                 collector,
                 approach_w,
                 contact_w,
                 quat_w,
                 on_control_step=None,
-                approach_step_budget=approach_budget,
-                contact_steps_per_waypoint=contact_steps_per,
             )
 
             self.set_trace_phase("close")
@@ -1943,14 +2293,24 @@ class PushInteractionExecutor:
             )
 
             self._reset_close_phase_tracking()
-            self._init_close_anchor(actual_contact_pos, actual_contact_quat)
-            close_poses = self._build_close_trajectory_from_anchor()
-            if close_poses:
-                self._execute_hinge_close_anchored(
+            close_strategy = str(getattr(self.push_cfg, "close_strategy", "hinge_t_rel"))
+            if close_strategy == "world_z_down":
+                self._execute_world_z_down_push(
                     collector,
-                    on_control_step=None,
-                    trajectory=close_poses,
+                    on_control_step=on_step,
+                    anchor_xy=actual_contact_pos[:2],
+                    hold_quat=actual_contact_quat,
+                    contact_w=contact_w,
                 )
+            else:
+                self._init_close_anchor(actual_contact_pos, actual_contact_quat)
+                close_poses = self._build_close_trajectory_from_anchor()
+                if close_poses:
+                    self._execute_hinge_close_anchored(
+                        collector,
+                        on_control_step=on_step,
+                        trajectory=close_poses,
+                    )
         except EpisodeStepLimitExceeded as exc:
             actual_contact_pos, actual_contact_quat = self._read_ee_pose()
             contact_drift = float(np.linalg.norm(actual_contact_pos - contact_w))
@@ -1970,12 +2330,10 @@ class PushInteractionExecutor:
                 self.sampling_config.hinge.axis,
             )
 
-        success_now, joint_degs = evaluate_rollout_success(self.env_module, self.success_specs)
-        if self.episode_step_limit_hit:
-            success_now = False
+        success_now, joint_degs = self._episode_success_now()
         joint_deg = joint_degs.get(self.task_config.joint_prim)
-        # Probe should always leave the arm in a known pose, including timeout/threshold failures.
-        self.run_home_reset(collector)
+        if success_now:
+            self.run_home_reset(collector)
         if self.verbose:
             if joint_deg is not None:
                 print(
@@ -2002,7 +2360,6 @@ class PushInteractionExecutor:
             "contact_drift_m": contact_drift,
             "contact_rot_drift_deg": math.degrees(rot_drift),
             "control_steps": self.control_step_count,
-            "probe_steps_limit": int(max_servo_steps),
             "episode_step_limit": self.episode_step_limit,
             "episode_step_limit_hit": self.episode_step_limit_hit,
         }
@@ -2011,7 +2368,6 @@ class PushInteractionExecutor:
         self,
         collector: OfficialEpisodeCollector,
         *,
-        max_servo_steps: int = 400,
         episode_step_limit: int | None = None,
     ) -> dict[str, object]:
         """Livestream debug: yaml handle approach + contact + hinge-relative close."""
@@ -2032,7 +2388,6 @@ class PushInteractionExecutor:
                 quat_w,
                 label="yaml_handle",
                 hinge_lever_m=lever_m,
-                max_servo_steps=max_servo_steps,
                 episode_step_limit=episode_step_limit,
             )
         finally:
@@ -2042,7 +2397,6 @@ class PushInteractionExecutor:
         self,
         collector: OfficialEpisodeCollector,
         *,
-        max_servo_steps: int = 400,
         episode_step_limit: int | None = None,
     ) -> dict[str, object]:
         """Legacy livestream debug: touch HDF5 approach + contact + hinge-relative close."""
@@ -2068,7 +2422,6 @@ class PushInteractionExecutor:
                 quat_w,
                 label="Articulation (HDF5)",
                 hinge_lever_m=ref.hinge_lever_m,
-                max_servo_steps=max_servo_steps,
                 episode_step_limit=episode_step_limit,
             )
         finally:
@@ -2079,7 +2432,7 @@ class PushInteractionExecutor:
         collector: OfficialEpisodeCollector,
         *,
         local_offset: tuple[float, float, float] = (0.0, 0.0, 0.2),
-        max_servo_steps: int = 400,
+        episode_step_limit: int | None = None,
         hold_control_steps: int = 90,
     ) -> tuple[np.ndarray, np.ndarray, float]:
         """Move EE to link-local offset (default +Z 20 cm) to verify prim frame."""
@@ -2107,11 +2460,12 @@ class PushInteractionExecutor:
 
         self.sim_step_count = 0
         self.control_step_count = 0
+        self.set_episode_step_limit(episode_step_limit)
         self._reset_ee_tracking_from_robot()
         self.diff_ik_controller.reset()
         self.diff_ik_pos_controller.reset()
 
-        self._move_to_position(collector, target_w, max_servo_steps, on_control_step=None)
+        self._move_to_position(collector, target_w, on_control_step=None)
 
         for _ in range(hold_control_steps):
             ee_pos = self.robot.data.body_pos_w[0, self.handles.ee_body_id].detach().cpu().numpy()
@@ -2130,7 +2484,7 @@ class PushInteractionExecutor:
         self,
         collector: OfficialEpisodeCollector,
         *,
-        max_servo_steps: int = 400,
+        episode_step_limit: int | None = None,
         hold_control_steps: int = 120,
     ) -> tuple[ContactCandidate | None, np.ndarray, np.ndarray, float]:
         """Move EE to top-ranked mesh contact approach point (scene.usd workspace)."""
@@ -2174,23 +2528,34 @@ class PushInteractionExecutor:
 
         self.sim_step_count = 0
         self.control_step_count = 0
+        self.set_episode_step_limit(episode_step_limit)
         self._reset_ee_tracking_from_robot()
         self.diff_ik_controller.reset()
         self.diff_ik_pos_controller.reset()
 
         clearance_z = float(getattr(self.push_cfg, "approach_clearance_z_m", 0.14))
-        approach_path = _build_safe_approach_path(ee_pos, target_w, clearance_z_m=clearance_z)
-        steps_per_wp = max(4, int(max_servo_steps) // max(1, len(approach_path) + 1))
+        approach_path = _build_safe_approach_path(
+            ee_pos,
+            target_w,
+            clearance_z_m=clearance_z,
+            contact_w=contact_w,
+            overhead_then_descend=bool(
+                getattr(self.push_cfg, "approach_overhead_then_descend", False)
+            ),
+        )
+        path_label = (
+            "Lift-cruise-descend approach path"
+            if getattr(self.push_cfg, "approach_overhead_then_descend", False)
+            else "Direct approach path"
+        )
         print(
-            f"[INFO] Direct approach path ({len(approach_path)} waypoint): "
+            f"[INFO] {path_label} ({len(approach_path)} waypoint): "
             + " -> ".join(str(np.round(wp, 3).tolist()) for wp in approach_path)
         )
-        self._follow_position_path(collector, approach_path, steps_per_wp, on_control_step=None)
+        self._follow_position_path(collector, approach_path, on_control_step=None)
 
         contact_path = _interp_positions(target_w, contact_w, max(2, self.push_cfg.contact_hold_steps))
-        self._follow_position_path(
-            collector, contact_path, max(4, self.push_cfg.contact_hold_steps), on_control_step=None
-        )
+        self._follow_position_path(collector, contact_path, on_control_step=None)
 
         for _ in range(hold_control_steps):
             arm_targets = self._ik_targets_for_position(contact_w)
@@ -2481,19 +2846,18 @@ class PushInteractionExecutor:
         self._maybe_trace_ee_handle()
         if on_control_step is None:
             return False
-        success_now, joint_degs = evaluate_rollout_success(self.env_module, self.success_specs)
+        success_now, joint_degs = self._episode_success_now()
         return on_control_step(success_now, joint_degs)
 
     def _move_to_position(
         self,
         collector: OfficialEpisodeCollector,
         target_pos: np.ndarray,
-        max_steps: int,
         on_control_step: Callable[[bool, dict[str, float | None]], bool] | None,
     ) -> bool:
         """Position-only servo (hold wrist orientation) — stable approach like keyboard teleop."""
         target_pos = np.asarray(target_pos, dtype=np.float64)
-        for _ in range(max_steps):
+        while True:
             ee_pos = self.robot.data.body_pos_w[0, self.handles.ee_body_id].detach().cpu().numpy()
             if float(np.linalg.norm(target_pos - ee_pos)) <= POSITION_REACH_TOL_M:
                 return False
@@ -2502,14 +2866,12 @@ class PushInteractionExecutor:
             arm_targets = self._ik_targets_for_position(self._tracking_pos)
             if self._control_step_ik(collector, arm_targets, gripper_open=False, on_control_step=on_control_step):
                 return True
-        return False
 
     def _move_to_pose(
         self,
         collector: OfficialEpisodeCollector,
         target_pos: np.ndarray,
         target_quat_wxyz: tuple[float, float, float, float],
-        max_steps: int,
         on_control_step: Callable[[bool, dict[str, float | None]], bool] | None,
         *,
         clamp_joints: bool = False,
@@ -2521,7 +2883,7 @@ class PushInteractionExecutor:
         target_pos = np.asarray(target_pos, dtype=np.float64)
         pos_tol = POSE_REACH_TOL_M if pos_tol_m is None else float(pos_tol_m)
         rot_tol = POSE_REACH_ROT_RAD if rot_tol_rad is None else float(rot_tol_rad)
-        for _ in range(max_steps):
+        while True:
             servo_target_pos = (
                 self._apply_close_contact_anchor_correction(target_pos)
                 if close_anchor_correction
@@ -2546,17 +2908,15 @@ class PushInteractionExecutor:
                 clamp_joints=clamp_joints,
             ):
                 return True
-        return False
 
     def _follow_position_path(
         self,
         collector: OfficialEpisodeCollector,
         waypoints: list[np.ndarray],
-        steps_per_waypoint: int,
         on_control_step: Callable[[bool, dict[str, float | None]], bool] | None,
     ) -> bool:
         for waypoint in waypoints:
-            if self._move_to_position(collector, waypoint, steps_per_waypoint, on_control_step):
+            if self._move_to_position(collector, waypoint, on_control_step):
                 return True
         return False
 
@@ -2564,7 +2924,6 @@ class PushInteractionExecutor:
         self,
         collector: OfficialEpisodeCollector,
         poses: list[tuple[np.ndarray, tuple[float, float, float, float]]],
-        steps_per_waypoint: int,
         on_control_step: Callable[[bool, dict[str, float | None]], bool] | None,
         *,
         clamp_joints: bool = False,
@@ -2575,7 +2934,6 @@ class PushInteractionExecutor:
                 collector,
                 pos,
                 quat,
-                steps_per_waypoint,
                 on_control_step,
                 clamp_joints=clamp_joints,
                 close_anchor_correction=close_anchor_correction,

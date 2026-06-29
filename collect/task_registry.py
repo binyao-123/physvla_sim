@@ -42,6 +42,10 @@ class TaskJointDriveSpec:
     max_force: float | None = None
     target_position: float | None = None
     target_velocity: float | None = None
+    # PhysX joint friction (N·m for revolute); resists motion, holds pose without spring-back.
+    joint_friction: float | None = None
+    # When True, drive target tracks current angle each step (ratchet / real-lamp hold).
+    follow_current_position: bool = False
 
 
 @dataclass(frozen=True)
@@ -68,9 +72,10 @@ class TaskSceneRootSpec:
 
 @dataclass(frozen=True)
 class TaskRolloutSuccessSpec:
-    """仿真 Rollout 单关节成功条件：角度（度）大于 angle_gt_deg。"""
+    """Rollout joint success: deg > angle_gt_deg and/or deg < angle_lt_deg (either may be omitted)."""
     joint_prim: str
-    angle_gt_deg: float
+    angle_gt_deg: float | None = None
+    angle_lt_deg: float | None = None
 
 
 @dataclass(frozen=True)
@@ -126,6 +131,13 @@ class TaskRandomizationSpec:
 
 
 SCENE_ARTICULATION_PRIM_PATH = "/World/generated"
+
+
+def resolve_scene_articulation_prim_path(task_preset: TaskPreset) -> str:
+    """Per-task scene articulation root (e.g. /World/generated or /World/mobility_isaac)."""
+    if task_preset.scene_root_specs:
+        return str(task_preset.scene_root_specs[0].prim_path)
+    return SCENE_ARTICULATION_PRIM_PATH
 
 
 # ---------------------------------------------------------------------------
@@ -233,6 +245,9 @@ CLOSE_LAPTOP_LANGUAGE_INSTRUCTION = "close the laptop lid."
 
 ADJUST_MONITOR_TASK_ID = "adjust_the_monitor"
 ADJUST_MONITOR_LANGUAGE_INSTRUCTION = "adjust the display."
+
+LOWER_LAMP_TASK_ID = "lower_the_lamp"
+LOWER_LAMP_LANGUAGE_INSTRUCTION = "lower the desk lamp."
 
 # ---------------------------------------------------------------------------
 # *******************************随机初始化参数*******************************
@@ -407,7 +422,35 @@ ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_TRANSLATION = (
     0.0,
     0.2326,
 )
-ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ = ADJUST_MONITOR_SCENE_ROOT_ROTATION_XYZ
+ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ = (0.0, 0.0, 180.0)
+
+'''调低台灯采集任务'''
+LOWER_LAMP_SCENE_ROOT_PRIM_PATH = "/World/mobility_isaac"
+LOWER_LAMP_JOINT_PRIM_PATH = "/World/mobility_isaac/joints/joint_0"
+LOWER_LAMP_JOINT_4_PRIM_PATH = "/World/mobility_isaac/joints/joint_4"
+LOWER_LAMP_LINK_PRIM_PATH = "/World/mobility_isaac/link_0"
+
+# 先固定初始化参数，待键盘采集/yaml 锚定后再打开物理位姿随机化。
+LOWER_LAMP_JOINT_INITIAL_BASE_DEG = -17
+LOWER_LAMP_JOINT_INITIAL_RANDOM_RANGE_DEG = 2 #-15到-20
+LOWER_LAMP_JOINT_4_INITIAL_DEG = -15.0
+LOWER_LAMP_SCENE_ROOT_BASE_TRANSLATION = (
+    0.4,
+    -0.08,
+    0.37,
+)
+LOWER_LAMP_SCENE_ROOT_RANDOM_X_RANGE_M = 0.05
+LOWER_LAMP_SCENE_ROOT_RANDOM_Y_RANGE_M = 0.05
+LOWER_LAMP_SCENE_ROOT_ROTATION_XYZ = (0.0, 0.0, 90.0)
+LOWER_LAMP_SCENE_ROOT_RANDOM_YAW_RANGE_DEG = 10.0
+LOWER_LAMP_SCENE_ROOT_SCALE = (0.4, 0.4, 0.4)
+
+LOWER_LAMP_HANDLE_CALIBRATION_SCENE_TRANSLATION = (
+    0.4,
+    -0.08,
+    0.37,
+)
+LOWER_LAMP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ = (0.0, 0.0, 90.0)
 
 
 # ---------------------------------------------------------------------------
@@ -511,6 +554,60 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         randomization=ROBOTWIN2_COMMON_RANDOMIZATION,
         **_shared_teleop_kwargs(),
     ),
+    LOWER_LAMP_TASK_ID: TaskPreset(
+        task_id=LOWER_LAMP_TASK_ID,
+        description="Keyboard teleoperation for lowering the desk lamp (mobility_isaac joint_0).",
+        usd_path=_tasks_scene_usd("lower_the_lamp", "data", "scene.usd"),
+        env_name="LowerLampTask",
+        dataset_file="./datasets/lower_the_lamp.hdf5",
+        language_instruction=LOWER_LAMP_LANGUAGE_INSTRUCTION,
+        sensitivity=2.0,
+        joint_drive_specs=(
+            TaskJointDriveSpec(
+                prim_path=LOWER_LAMP_JOINT_PRIM_PATH,
+                damping=1000.0,     
+                stiffness=0.0,
+                max_force=5.0,
+            ),
+        ),
+        joint_limit_specs=(
+            TaskJointLimitSpec(
+                prim_path=LOWER_LAMP_JOINT_PRIM_PATH,
+                lower_limit=-30.0,
+                upper_limit=30.0,
+            ),
+            TaskJointLimitSpec(
+                prim_path=LOWER_LAMP_JOINT_4_PRIM_PATH,
+                lower_limit=-15.0,
+            ),
+        ),
+        joint_initial_specs=(
+            TaskJointInitialSpec(
+                prim_path=LOWER_LAMP_JOINT_PRIM_PATH,
+                position=LOWER_LAMP_JOINT_INITIAL_BASE_DEG,
+            ),
+            TaskJointInitialSpec(
+                prim_path=LOWER_LAMP_JOINT_4_PRIM_PATH,
+                position=LOWER_LAMP_JOINT_4_INITIAL_DEG,
+            ),
+        ),
+        scene_root_specs=(
+            TaskSceneRootSpec(
+                prim_path=LOWER_LAMP_SCENE_ROOT_PRIM_PATH,
+                translation=LOWER_LAMP_SCENE_ROOT_BASE_TRANSLATION,
+                rotation_xyz=LOWER_LAMP_SCENE_ROOT_ROTATION_XYZ,
+                scale=LOWER_LAMP_SCENE_ROOT_SCALE,
+            ),
+        ),
+        rollout_success_specs=(
+            TaskRolloutSuccessSpec(
+                joint_prim=LOWER_LAMP_JOINT_PRIM_PATH,
+                angle_lt_deg=-25.0,
+            ),
+        ),
+        randomization=ROBOTWIN2_COMMON_RANDOMIZATION,
+        **_shared_teleop_kwargs(),
+    ),
 }
 
 
@@ -588,6 +685,39 @@ def sample_adjust_monitor_scene_root_rotation_xyz() -> tuple[float, float, float
     return (rx, ry, rz + yaw_delta)
 
 
+def sample_lower_lamp_joint_initial_deg() -> float:
+    """Each call: x ~ U[-range, +range], return base + x."""
+    x = random.uniform(
+        -LOWER_LAMP_JOINT_INITIAL_RANDOM_RANGE_DEG,
+        LOWER_LAMP_JOINT_INITIAL_RANDOM_RANGE_DEG,
+    )
+    return LOWER_LAMP_JOINT_INITIAL_BASE_DEG + x
+
+
+def sample_lower_lamp_scene_root_translation() -> tuple[float, float, float]:
+    """Each call: scene root translation = base + (dx, dy, 0)."""
+    base_x, base_y, base_z = LOWER_LAMP_SCENE_ROOT_BASE_TRANSLATION
+    dx = random.uniform(
+        -LOWER_LAMP_SCENE_ROOT_RANDOM_X_RANGE_M,
+        LOWER_LAMP_SCENE_ROOT_RANDOM_X_RANGE_M,
+    )
+    dy = random.uniform(
+        -LOWER_LAMP_SCENE_ROOT_RANDOM_Y_RANGE_M,
+        LOWER_LAMP_SCENE_ROOT_RANDOM_Y_RANGE_M,
+    )
+    return (base_x + dx, base_y + dy, base_z)
+
+
+def sample_lower_lamp_scene_root_rotation_xyz() -> tuple[float, float, float]:
+    """Each call: scene root rotation = base + (0, 0, yaw_delta)."""
+    rx, ry, rz = LOWER_LAMP_SCENE_ROOT_ROTATION_XYZ
+    yaw_delta = random.uniform(
+        -LOWER_LAMP_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
+        LOWER_LAMP_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
+    )
+    return (rx, ry, rz + yaw_delta)
+
+
 def get_task_preset(task_id: str) -> TaskPreset:
     if task_id not in TASK_PRESETS:
         known = ", ".join(sorted(TASK_PRESETS.keys()))
@@ -616,6 +746,25 @@ def get_task_preset(task_id: str) -> TaskPreset:
         )
         scene_translation = sample_adjust_monitor_scene_root_translation()
         scene_rotation_xyz = sample_adjust_monitor_scene_root_rotation_xyz()
+        scene_root_specs = tuple(
+            replace(spec, translation=scene_translation, rotation_xyz=scene_rotation_xyz)
+            for spec in preset.scene_root_specs
+        )
+        return replace(
+            preset,
+            joint_initial_specs=joint_initial_specs,
+            scene_root_specs=scene_root_specs,
+        )
+    elif task_id == LOWER_LAMP_TASK_ID:
+        angle_deg = sample_lower_lamp_joint_initial_deg()
+        joint_initial_specs = tuple(
+            replace(spec, position=angle_deg)
+            if spec.prim_path == LOWER_LAMP_JOINT_PRIM_PATH
+            else spec
+            for spec in preset.joint_initial_specs
+        )
+        scene_translation = sample_lower_lamp_scene_root_translation()
+        scene_rotation_xyz = sample_lower_lamp_scene_root_rotation_xyz()
         scene_root_specs = tuple(
             replace(spec, translation=scene_translation, rotation_xyz=scene_rotation_xyz)
             for spec in preset.scene_root_specs

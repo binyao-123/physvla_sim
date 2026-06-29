@@ -32,7 +32,6 @@ parser = argparse.ArgumentParser(description="Debug link_1 contact sampling and 
 parser.add_argument("--task_id", type=str, default="close_laptop_lid")
 parser.add_argument("--list_tasks", action="store_true")
 parser.add_argument("--task_config", type=str, default=None)
-parser.add_argument("--probe_steps", type=int, default=400)
 parser.add_argument(
     "--episode_step_limit",
     type=int,
@@ -258,7 +257,7 @@ def reset_scene() -> None:
     joint_sim_s = f"{float(joint_sim):.2f}°" if joint_sim is not None else "n/a"
     print(
         "[INFO] Probe init: "
-        f"mode={args_cli.mode} probe_steps={int(args_cli.probe_steps)} "
+        f"mode={args_cli.mode} "
         f"episode_step_limit={int(args_cli.episode_step_limit)} "
         f"scene_xyz={scene_xyz} scene_yaw={scene_yaw}° joint_target={joint_target:.2f}° "
         f"joint_sim={joint_sim_s} DR=({format_randomization_sample(sample)})",
@@ -388,7 +387,6 @@ def main_loop() -> bool:
         else:
             probe_result = executor.run_yaml_handle_contact_only_probe(
                 collector,
-                max_servo_steps=int(args_cli.probe_steps),
                 episode_step_limit=int(args_cli.episode_step_limit),
             )
             LAST_HANDLE_CONTACT_REPORT = probe_result
@@ -415,13 +413,11 @@ def main_loop() -> bool:
             if args_cli.mode == "articulation_push":
                 probe_result = executor.run_articulation_calibrated_probe(
                     collector,
-                    max_servo_steps=int(args_cli.probe_steps),
                     episode_step_limit=int(args_cli.episode_step_limit),
                 )
             else:
                 probe_result = executor.run_yaml_handle_probe(
                     collector,
-                    max_servo_steps=int(args_cli.probe_steps),
                     episode_step_limit=int(args_cli.episode_step_limit),
                 )
             LAST_PROBE_RESULT = probe_result
@@ -481,13 +477,13 @@ def main_loop() -> bool:
                 executor.run_link_local_axis_probe(
                     collector,
                     local_offset=tuple(float(v) for v in args_cli.local_offset),
-                    max_servo_steps=int(args_cli.probe_steps),
+                    episode_step_limit=int(args_cli.episode_step_limit),
                     hold_control_steps=int(args_cli.hold_steps),
                 )
             else:
                 executor.run_top_contact_probe(
                     collector,
-                    max_servo_steps=int(args_cli.probe_steps),
+                    episode_step_limit=int(args_cli.episode_step_limit),
                     hold_control_steps=int(args_cli.hold_steps),
                 )
             draw_link_debug(link_pos_np, link_quat, probe_w, candidates, top_candidate=top)

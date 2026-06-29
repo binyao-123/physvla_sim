@@ -1,10 +1,10 @@
 #!/bin/bash
-# adjust_the_monitor auto-collect with watchdog (yaml_handle push, VLM: "adjust the display.")
+# lower_the_lamp auto-collect with watchdog (yaml_handle push, VLM: "lower the desk lamp.")
 # Restarts after CUDA/render fatal errors or wrist-camera mount failures.
 set -euo pipefail
 
 COLLECT_DIR="${COLLECT_DIR:-$HOME/workspace/physvla_sim/collect}"
-TASK_ID="${TASK_ID:-adjust_the_monitor}"
+TASK_ID="${TASK_ID:-lower_the_lamp}"
 WORKER_ID="${WORKER_ID:-main}"
 DATASET_ROOT="${DATASET_ROOT:-$COLLECT_DIR/datasets}"
 DATASET_DIR="${DATASET_DIR:-$DATASET_ROOT/$TASK_ID}"

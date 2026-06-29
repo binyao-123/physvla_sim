@@ -40,6 +40,17 @@ class PushConfig:
     max_servo_steps_per_phase: int = 250
     close_steps_per_waypoint: int | None = None
     approach_clearance_z_m: float = 0.14
+    # When True: cruise to handle XY at z+clearance, then descend vertically to approach_w.
+    approach_overhead_then_descend: bool = False
+    # When True: stop after approach waypoints; skip contact servo segment.
+    skip_contact_phase: bool = False
+    # hinge_t_rel | world_z_down (lock XY, push -Z)
+    close_strategy: str = "hinge_t_rel"
+    close_z_down_step_m: float = 0.002
+    close_z_down_total_m: float = 0.08
+    close_z_down_ik_substeps: int = 2
+    # Extra descent below planned contact_z before load push (m).
+    close_z_down_contact_press_m: float = 0.003
 
 
 @dataclass
@@ -220,6 +231,13 @@ def _parse_push(raw: dict[str, Any]) -> PushConfig:
             else None
         ),
         approach_clearance_z_m=float(raw.get("approach_clearance_z_m", 0.14)),
+        approach_overhead_then_descend=bool(raw.get("approach_overhead_then_descend", False)),
+        skip_contact_phase=bool(raw.get("skip_contact_phase", False)),
+        close_strategy=str(raw.get("close_strategy", "hinge_t_rel")),
+        close_z_down_step_m=float(raw.get("close_z_down_step_m", 0.002)),
+        close_z_down_total_m=float(raw.get("close_z_down_total_m", 0.08)),
+        close_z_down_ik_substeps=int(raw.get("close_z_down_ik_substeps", 2)),
+        close_z_down_contact_press_m=float(raw.get("close_z_down_contact_press_m", 0.003)),
     )
 
 

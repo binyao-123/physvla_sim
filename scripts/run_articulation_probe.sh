@@ -1,14 +1,12 @@
 #!/bin/bash
-# yaml_handle_push: approach + contact + T_rel close push
-# 成功条件: joint_1 > 0° (task_registry rollout_success_specs)
+# yaml_handle_push: approach + world -Z push until joint_0 < -25°
 cd ~/workspace/physvla_sim/collect
 
 ~/isaacsim/python.sh debug_link_contact_probe.py \
-  --task_id adjust_the_monitor \
+  --task_id lower_the_lamp \
   --livestream 2 \
   --mode yaml_handle_push \
-  --probe_steps 400 \
-  --episode_step_limit 800 \
+  --episode_step_limit 700 \
   --hold_steps 180 \
   --trace-ee-handle \
   --trace-interval 30 \
