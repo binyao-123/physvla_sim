@@ -19,8 +19,17 @@ def evaluate_rollout_success(
         spec.joint_prim: env_module.read_scene_joint_angle_deg(spec.joint_prim)
         for spec in specs
     }
+    def _spec_success(spec: TaskRolloutSuccessSpec, deg: float | None) -> bool:
+        if deg is None:
+            return False
+        if spec.angle_gt_deg is not None and not (deg > spec.angle_gt_deg):
+            return False
+        if spec.angle_lt_deg is not None and not (deg < spec.angle_lt_deg):
+            return False
+        return True
+
     success = all(
-        deg is not None and deg > spec.angle_gt_deg
+        _spec_success(spec, deg)
         for spec, deg in ((s, joint_degs[s.joint_prim]) for s in specs)
     )
     return success, joint_degs

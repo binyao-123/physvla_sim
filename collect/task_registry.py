@@ -68,9 +68,10 @@ class TaskSceneRootSpec:
 
 @dataclass(frozen=True)
 class TaskRolloutSuccessSpec:
-    """仿真 Rollout 单关节成功条件：角度（度）大于 angle_gt_deg。"""
+    """仿真 Rollout 单关节成功条件：角度（度）满足 gt/lt 阈值。"""
     joint_prim: str
-    angle_gt_deg: float
+    angle_gt_deg: float | None = None
+    angle_lt_deg: float | None = None
 
 
 @dataclass(frozen=True)
@@ -233,6 +234,9 @@ CLOSE_LAPTOP_LANGUAGE_INSTRUCTION = "close the laptop lid."
 
 CLOSE_MICROWAVE_TASK_ID = "close_the_microwave"
 CLOSE_MICROWAVE_LANGUAGE_INSTRUCTION = "close the microwave door."
+
+ADJUST_FAUCET_TASK_ID = "adjust_the_faucet"
+ADJUST_FAUCET_LANGUAGE_INSTRUCTION = "adjust the faucet."
 
 # ---------------------------------------------------------------------------
 # *******************************随机初始化参数*******************************
@@ -411,6 +415,40 @@ CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_TRANSLATION = (
 CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ = (0.0, 0.0, 0.0)
 
 
+'''调节水龙头采集任务'''
+ADJUST_FAUCET_SCENE_ROOT_PRIM_PATH = "/World/mobility_isaac"
+ADJUST_FAUCET_JOINT_PRIM_PATH = "/World/mobility_isaac/joints/joint_0"
+ADJUST_FAUCET_LINK_PRIM_PATH = "/World/mobility_isaac/link_0"
+
+# 基准初始化角度：水龙头旋钮初始角度；随机范围 base±10°（与 yaw 耦合见 sample_adjust_faucet_episode_initial）。
+ADJUST_FAUCET_JOINT_INITIAL_BASE_DEG = 30.0  #30
+ADJUST_FAUCET_JOINT_INITIAL_RANDOM_RANGE_DEG = 10.0
+
+# 基准初始化坐标；X/Y 随机化范围 [0.50, 0.60] × [-0.15, 0.15]。
+ADJUST_FAUCET_SCENE_ROOT_BASE_TRANSLATION = (
+    0.55,
+    0.0,
+    0.088,
+)
+ADJUST_FAUCET_SCENE_ROOT_RANDOM_X_RANGE_M = 0.05
+ADJUST_FAUCET_SCENE_ROOT_RANDOM_Y_RANGE_M = 0.15
+
+# 基准初始化 yaw；Z 轴 yaw 随机区间 [-15, 15]°，与 joint 耦合：Δjoint = -Δyaw。
+ADJUST_FAUCET_SCENE_ROOT_ROTATION_XYZ = (0.0, 0.0, 90.0)
+ADJUST_FAUCET_SCENE_ROOT_RANDOM_YAW_RANGE_DEG = 15.0
+
+# 基准初始化尺寸
+ADJUST_FAUCET_SCENE_ROOT_SCALE = (0.175, 0.175, 0.175)
+
+# 标定水龙头模型基于该坐标平移；后续 yaml 锚定值按该位姿标定。
+ADJUST_FAUCET_HANDLE_CALIBRATION_SCENE_TRANSLATION = (
+    0.55,
+    0.0,
+    0.088,
+)
+ADJUST_FAUCET_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ = (0.0, 0.0, 90.0)
+
+
 # ---------------------------------------------------------------------------
 # 已注册任务
 # ---------------------------------------------------------------------------
@@ -509,6 +547,53 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         randomization=ROBOTWIN2_COMMON_RANDOMIZATION,
         **_shared_teleop_kwargs(),
     ),
+    ADJUST_FAUCET_TASK_ID: TaskPreset(
+        task_id=ADJUST_FAUCET_TASK_ID,
+        description="Keyboard teleoperation for adjusting the faucet handle (mobility_isaac joint_0).",
+        usd_path=_tasks_scene_usd("adjust_the_faucet", "data", "scene.usd"),
+        env_name="AdjustFaucetTask",
+        dataset_file="./datasets/adjust_the_faucet.hdf5",
+        language_instruction=ADJUST_FAUCET_LANGUAGE_INSTRUCTION,
+        sensitivity=2.0,
+        joint_drive_specs=(
+            TaskJointDriveSpec(
+                prim_path=ADJUST_FAUCET_JOINT_PRIM_PATH,
+                damping=0.3,   #0.3
+                stiffness=0.0,
+                max_force=3.5,  #3.5
+            ),
+        ),
+        joint_limit_specs=(
+            TaskJointLimitSpec(
+                prim_path=ADJUST_FAUCET_JOINT_PRIM_PATH,
+                lower_limit=-90.0,
+                upper_limit=90.0,
+            ),
+        ),
+        joint_initial_specs=(
+            TaskJointInitialSpec(
+                prim_path=ADJUST_FAUCET_JOINT_PRIM_PATH,
+                position=ADJUST_FAUCET_JOINT_INITIAL_BASE_DEG,
+            ),
+        ),
+        scene_root_specs=(
+            TaskSceneRootSpec(
+                prim_path=ADJUST_FAUCET_SCENE_ROOT_PRIM_PATH,
+                translation=ADJUST_FAUCET_SCENE_ROOT_BASE_TRANSLATION,
+                rotation_xyz=ADJUST_FAUCET_SCENE_ROOT_ROTATION_XYZ,
+                scale=ADJUST_FAUCET_SCENE_ROOT_SCALE,
+            ),
+        ),
+        rollout_success_specs=(
+            TaskRolloutSuccessSpec(
+                joint_prim=ADJUST_FAUCET_JOINT_PRIM_PATH,
+                angle_lt_deg=0.0,
+            ),
+        ),
+        # RobotWin2 视觉 DR：背景场景 / 杂物 / 相机 / 光照（与笔记本、微波炉一致）。
+        randomization=ROBOTWIN2_COMMON_RANDOMIZATION,
+        **_shared_teleop_kwargs(),
+    ),
 }
 
 # ---------------------------------------------------------------------------
@@ -580,6 +665,43 @@ def sample_close_microwave_scene_root_rotation_xyz() -> tuple[float, float, floa
     return (rx, ry, rz + yaw_delta)
 
 
+def sample_adjust_faucet_scene_root_translation() -> tuple[float, float, float]:
+    """Each call: scene root translation = base + (dx, dy, 0)."""
+    base_x, base_y, base_z = ADJUST_FAUCET_SCENE_ROOT_BASE_TRANSLATION
+    dx = random.uniform(
+        -ADJUST_FAUCET_SCENE_ROOT_RANDOM_X_RANGE_M,
+        ADJUST_FAUCET_SCENE_ROOT_RANDOM_X_RANGE_M,
+    )
+    dy = random.uniform(
+        -ADJUST_FAUCET_SCENE_ROOT_RANDOM_Y_RANGE_M,
+        ADJUST_FAUCET_SCENE_ROOT_RANDOM_Y_RANGE_M,
+    )
+    return (base_x + dx, base_y + dy, base_z)
+
+
+def sample_adjust_faucet_episode_initial() -> tuple[float, tuple[float, float, float], tuple[float, float, float]]:
+    """Sample faucet episode pose with yaw↔joint equivalence.
+
+    Calibrated at yaw=90°, joint=30°. When joint_rand=0, yaw+joint stays constant:
+    yaw=100° with joint=20° matches the calibration handle pose.
+    When joint_rand≠0, the hinge is offset by joint_rand; arc lookup uses the live hinge
+    angle and geometric yaw mapping (see interaction_executor._yaw_joint_equivalent_arc_deg).
+    """
+    scene_translation = sample_adjust_faucet_scene_root_translation()
+    rx, ry, rz = ADJUST_FAUCET_SCENE_ROOT_ROTATION_XYZ
+    yaw_delta = random.uniform(
+        -ADJUST_FAUCET_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
+        ADJUST_FAUCET_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
+    )
+    scene_rotation_xyz = (rx, ry, rz + yaw_delta)
+    joint_rand = random.uniform(
+        -ADJUST_FAUCET_JOINT_INITIAL_RANDOM_RANGE_DEG,
+        ADJUST_FAUCET_JOINT_INITIAL_RANDOM_RANGE_DEG,
+    )
+    joint_deg = ADJUST_FAUCET_JOINT_INITIAL_BASE_DEG + joint_rand - yaw_delta
+    return joint_deg, scene_translation, scene_rotation_xyz
+
+
 def get_task_preset(task_id: str) -> TaskPreset:
     if task_id not in TASK_PRESETS:
         known = ", ".join(sorted(TASK_PRESETS.keys()))
@@ -608,6 +730,20 @@ def get_task_preset(task_id: str) -> TaskPreset:
         )
         scene_translation = sample_close_microwave_scene_root_translation()
         scene_rotation_xyz = sample_close_microwave_scene_root_rotation_xyz()
+        scene_root_specs = tuple(
+            replace(spec, translation=scene_translation, rotation_xyz=scene_rotation_xyz)
+            for spec in preset.scene_root_specs
+        )
+        return replace(
+            preset,
+            joint_initial_specs=joint_initial_specs,
+            scene_root_specs=scene_root_specs,
+        )
+    elif task_id == ADJUST_FAUCET_TASK_ID:
+        angle_deg, scene_translation, scene_rotation_xyz = sample_adjust_faucet_episode_initial()
+        joint_initial_specs = tuple(
+            replace(spec, position=angle_deg) for spec in preset.joint_initial_specs
+        )
         scene_root_specs = tuple(
             replace(spec, translation=scene_translation, rotation_xyz=scene_rotation_xyz)
             for spec in preset.scene_root_specs

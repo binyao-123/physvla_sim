@@ -185,6 +185,11 @@ def _parse_sampling(raw: dict[str, Any]) -> SamplingConfig:
         ),
         push_contact_joint_fit_range_deg=fit_range,
         push_contact_joint_arc_points=arc_points,
+        push_contact_joint_arc_target_deg=(
+            float(raw["push_contact_joint_arc_target_deg"])
+            if raw.get("push_contact_joint_arc_target_deg") is not None
+            else None
+        ),
         yaw_contact_anchors=yaw_anchors,
     )
 

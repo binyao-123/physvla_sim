@@ -5,10 +5,10 @@
 cd ~/workspace/physvla_sim/collect
 
 ~/isaacsim/python.sh debug_link_contact_probe.py \
-  --task_id close_the_microwave \
+  --task_id adjust_the_faucet \
   --livestream 2 \
   --mode yaml_handle_push \
-  --episode_step_limit 350 \
+  --episode_step_limit 250 \
   --repeat \
   --max-attempts 10 \
   --repeat-delay 1.0

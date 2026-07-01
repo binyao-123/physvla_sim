@@ -1,16 +1,17 @@
 #!/bin/bash
 # Launch multiple isolated auto-collection watchdog workers on one host/GPU.
+# adjust_the_faucet: parallel auto-collect (yaml_handle push + full DR).
 set -euo pipefail
 
 ROOT_DIR="${ROOT_DIR:-$HOME/workspace/physvla_sim}"
 COLLECT_DIR="${COLLECT_DIR:-$ROOT_DIR/collect}"
-TASK_ID="${TASK_ID:-close_the_microwave}"
+TASK_ID="${TASK_ID:-adjust_the_faucet}"
 NUM_WORKERS="${NUM_WORKERS:-3}"
 TARGET_DEMOS_TOTAL="${TARGET_DEMOS_TOTAL:-10000}"
-BATCH_SIZE="${BATCH_SIZE:-300}"
+BATCH_SIZE="${BATCH_SIZE:-15}"
 BASE_SEED="${BASE_SEED:-42}"
 RESTART_SLEEP_SEC="${RESTART_SLEEP_SEC:-10}"
-EPISODE_STEP_LIMIT="${EPISODE_STEP_LIMIT:-300}"
+EPISODE_STEP_LIMIT="${EPISODE_STEP_LIMIT:-250}"
 POST_RESET_WARMUP_SEC="${POST_RESET_WARMUP_SEC:-0.2}"
 COLLECTOR_TIMEOUT_SEC="${COLLECTOR_TIMEOUT_SEC:-21600}"
 STOP_AFTER_RUN_TARGET="${STOP_AFTER_RUN_TARGET:-1}"

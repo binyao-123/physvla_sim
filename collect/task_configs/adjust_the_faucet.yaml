@@ -1,0 +1,84 @@
+task_id: adjust_the_faucet
+interaction_mode: push
+
+interaction:
+  link_prim: /World/mobility_isaac/link_0
+  joint_prim: /World/mobility_isaac/joints/joint_0
+  joint_type: revolute
+
+sampling:
+  assets:
+    subdir: faucet
+    mesh: textured_objs/new_1.obj
+    movable_link: link_0
+    base_link: link_1
+    mesh_origin: [-0.0055465, 0.0, 0.3008855436751808]
+  hinge:
+    origin: [0.0055465, 0.0, -0.3008855436751808]
+    # 水龙头旋钮在 XY 平面内走圆弧，Z 基本不变；规划时沿世界 Z 轴拟合水平圆弧。
+    axis: [0.0, 0.0, 1.0]
+  num_fps_points: 15
+  num_yaw_perturbations: 8
+  max_yaw_perturb_deg: 30.0
+  approach_offset_m: 0.04
+  contact_offset_m: 0.02
+  min_hinge_distance_percentile: 0.0
+  horizontal_grasp: true
+  max_contact_link_local_y_m: 0.25
+  max_contact_delta_y_from_link_m: 0.15
+  use_push_anchor_fallback: true
+  use_scene_approach_direction: true
+  approach_direction_world: [0.0, -1.0, 0.0]
+  min_approach_direction_dot: 0.08
+  min_contact_world_x_m: 0.10
+  max_contact_world_x_m: 0.80
+  min_contact_world_z_m: 0.05
+  max_contact_world_z_m: 0.35
+  max_contact_dist_from_link_m: 1.2
+  push_anchor_dist_m: 0.06
+  # ─── Handle 世界坐标标定（keyboard HDF5 直接测量） ───
+  # 来源1: adjust_the_faucet_20260701_155603.hdf5 demo_0，joint=0°，末尾稳定 hold 段 tail=90/371。
+  #   stable_pos_std_mm=[0.0, 0.0, 0.0]
+  #   EE world pos = [0.410150, -0.003900, 0.145966]（Z 手动 +10mm → 0.155966，补偿 IK 落点偏低）
+  #   EE world quat(wxyz) = [-0.726478, 0.000005, -0.687190, 0.000191]
+  # 来源2: adjust_the_faucet_20260701_143054.hdf5 demo_0，joint=30°，末尾稳定 hold 段 tail=70/281。
+  #   stable_pos_std_mm=[0.0, 0.0, 0.0]
+  #   EE world pos = [0.375285, 0.000493, 0.153722]
+  #   EE world quat(wxyz) = [-0.729779, 0.000840, -0.683683, -0.000424]
+  # 来源3: adjust_the_faucet_20260701_144306.hdf5 demo_0，joint=60°，末尾稳定 hold 段 tail=90/598。
+  #   stable_pos_std_mm=[0.0, 0.0, 0.0]
+  #   EE world pos = [0.362238, 0.028430, 0.153949]（Z 手动 +12mm → 0.165949，补偿 IK 落点偏低）
+  #   EE world quat(wxyz) = [-0.729615, 0.017513, -0.683466, -0.015139]
+  # scene root translation=[0.55,0,0.088], yaw=90°, scale=[0.175,0.175,0.175]
+  # push_contact_offset_link 来自 yaml_handle_contact 探针稳定段:
+  # actual EE pos_link = [-0.1924, 0.0562, -0.0465] @ joint=60°
+  push_contact_offset_link: [-0.1924, 0.0562, -0.0465]
+  contact_quat_link: [-0.729779, 0.000840, -0.683683, -0.000424]
+  reference_contact_world: [0.375285, 0.000493, 0.163722]
+  push_contact_reference_joint_deg: 30.0
+  push_contact_joint_arc_points:
+    - [0.0, 0.410150, -0.003900, 0.165966]
+    - [30.0, 0.375285, 0.000493, 0.163722]
+    - [60.0, 0.362238, 0.028430, 0.165949]
+  push_contact_joint_fit_range_deg: [0.0, 60.0]
+  # push 圆弧规划终点（可低于标定样本）；成功仍由 joint < 0° 判定，过 0° 即停。
+  push_contact_joint_arc_target_deg: -30.0
+  # yaw 随机化用 yaw↔joint 换算（Δjoint=-Δyaw），无需多 yaw 标定；此处仅保留 yaw=90° 参考。
+  yaw_contact_anchors:
+    - [90.0, 0.375285, 0.000493, 0.163722, -0.729779, 0.000840, -0.683683, -0.000424]
+
+push:
+  push_strategy: yaml_handle
+  close_ratio: 0.93
+  close_sampled_waypoints: 12
+  close_auto_flip_hinge_axis: true
+  close_expected_delta_dir_world: [1.0, 0.0, 0.0]
+  close_step_deg_usd: 1.0
+  close_clamp_joints: true
+  close_push_ee_step_m: 0.005
+  close_ik_substeps: 12
+  max_approach_distance_m: 1.5
+  approach_steps: 80
+  contact_hold_steps: 24
+  approach_backoff_m: 0.04
+  approach_clearance_z_m: 0.14

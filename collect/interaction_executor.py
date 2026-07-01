@@ -49,6 +49,10 @@ from task_registry import (
     CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ,
     CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_TRANSLATION,
     CLOSE_MICROWAVE_TASK_ID,
+    ADJUST_FAUCET_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ,
+    ADJUST_FAUCET_HANDLE_CALIBRATION_SCENE_TRANSLATION,
+    ADJUST_FAUCET_JOINT_INITIAL_BASE_DEG,
+    ADJUST_FAUCET_TASK_ID,
     SHARED_TELEOP_PIPER,
 )
 
@@ -73,17 +77,50 @@ class EpisodeStepLimitExceeded(RuntimeError):
     """Raised when one collection/probe episode exceeds its control-step budget."""
 
 
+class EeHandleDistExceeded(RuntimeError):
+    """EE drifted too far from the live contact anchor during push/close."""
+
+    def __init__(self, dist_m: float, phase: str):
+        self.dist_m = float(dist_m)
+        self.phase = str(phase)
+        super().__init__(
+            f"EE-handle dist {self.dist_m * 1000:.1f}mm exceeds "
+            f"{EE_HANDLE_ABORT_DIST_M * 1000:.0f}mm (phase={self.phase})"
+        )
+
+
 # Keyboard teleop matched defaults (150830 demo: EE max step ~0.0067 m).
 KEYBOARD_EE_POS_STEP_M = 0.005
 KEYBOARD_JOINT_STEP_RAD = 0.02
 POSITION_REACH_TOL_M = 0.012
-POSE_REACH_TOL_M = 0.015
+CALIBRATED_XY_ARC_TASK_IDS = frozenset({CLOSE_MICROWAVE_TASK_ID, ADJUST_FAUCET_TASK_ID})
+
+
+def _interp_extrap_scalar(x: float, xs: np.ndarray, ys: np.ndarray) -> float:
+    """Linear extrapolation outside the calibrated joint sample range."""
+    if x <= float(xs[0]):
+        slope = (ys[1] - ys[0]) / max(float(xs[1] - xs[0]), 1e-9)
+        return float(ys[0] + (x - float(xs[0])) * slope)
+    if x >= float(xs[-1]):
+        slope = (ys[-1] - ys[-2]) / max(float(xs[-1] - xs[-2]), 1e-9)
+        return float(ys[-1] + (x - float(xs[-1])) * slope)
+    return float(np.interp(x, xs, ys))
+
+POSE_REACH_TOL_M = 0.01
 POSE_REACH_ROT_RAD = 0.15
+# Abort push/close when EE drifts farther than this from the live contact anchor.
+EE_HANDLE_ABORT_DIST_M = 0.03
 # Close-phase contact servo: keep EE near the surface point captured at first contact.
 CLOSE_CONTACT_ANCHOR_GAIN = 0.8
 CLOSE_CONTACT_ANCHOR_MAX_CORRECTION_M = 0.1
 # Short articulation tasks need contact correction to activate before the EE drifts far off the handle.
 CLOSE_CONTACT_ANCHOR_DEADBAND_M = 0.02
+# Calibrated XY arc tasks need tighter anchor pull-in; otherwise ~7mm gaps are ignored.
+CLOSE_CONTACT_ANCHOR_DEADBAND_CALIBRATED_M = 0.005
+# For calibrated close, use gentler correction to reduce high-frequency IK jitter,
+# but keep enough pull-in so EE does not drift away from handle arc.
+CLOSE_CONTACT_ANCHOR_GAIN_CALIBRATED = 0.3
+CLOSE_CONTACT_ANCHOR_MAX_CORRECTION_CALIBRATED_M = 0.03
 # Piper URDF: joint7 origin is 0.1358 m along gripper_base +Z (closed-gripper pad estimate).
 GRIPPER_FINGER_ORIGIN_OFFSET_M = 0.1358
 # Scene joint_1 USD scale (task_registry close_laptop): 15°≈laptop open 90°, 104°≈closed 0°.
@@ -271,6 +308,32 @@ class PushInteractionExecutor:
     ) -> bool:
         return success_now
 
+    def _current_ee_handle_target_world(self) -> tuple[np.ndarray, str] | None:
+        """Live anchor world target for EE distance checks during push/close only."""
+        if self._trace_phase != "close":
+            return None
+        joint_deg = self.env_module.read_scene_joint_angle_deg(self.task_config.joint_prim)
+        if joint_deg is None:
+            return None
+        handle_w = self._close_contact_anchor_world_at_joint(float(joint_deg))
+        if handle_w is None:
+            return None
+        return np.asarray(handle_w, dtype=np.float64), "anchor"
+
+    def _current_ee_handle_dist_m(self) -> float | None:
+        target = self._current_ee_handle_target_world()
+        if target is None:
+            return None
+        handle_w, _ = target
+        ee_pos, _ = self._read_ee_pose()
+        return float(np.linalg.norm(ee_pos - handle_w))
+
+    def _raise_if_ee_handle_dist_exceeded(self) -> None:
+        dist_m = self._current_ee_handle_dist_m()
+        if dist_m is None or dist_m <= EE_HANDLE_ABORT_DIST_M:
+            return
+        raise EeHandleDistExceeded(dist_m, self._trace_phase)
+
     def _maybe_trace_ee_handle(self) -> None:
         """Periodic EE vs handle/contact-anchor world position (probe / debug)."""
         if not self.trace_ee_handle:
@@ -301,7 +364,17 @@ class PushInteractionExecutor:
             msg += f" joint={float(joint_deg):.1f}°"
         # 此处在实时打印EE位姿和锚定点位置，
         # 打印类似：[TRACE close] step=330 EE=[0.4536, -0.0686, 0.1251] anchor=[0.5515, -0.076, 0.1587] dist=0.1038m joint=104.4°
-        # print(msg, flush=True)
+        if self.verbose:
+            print(msg, flush=True)
+
+    def _announce_phase_transition(self, from_phase: str, to_phase: str, *, detail: str = "") -> None:
+        """Always-on phase boundary log (approach -> push/close)."""
+        suffix = f" | {detail}" if detail else ""
+        print(
+            f"[INFO] Phase transition: {from_phase} -> {to_phase} "
+            f"at control_step={self.control_step_count}{suffix}",
+            flush=True,
+        )
 
     def _log_debug(self, msg: str) -> None:
         if self.verbose:
@@ -382,44 +455,67 @@ class PushInteractionExecutor:
         )
         return contact_w, quat_w, ref
 
-    def _scene_root_translation_delta_world(self) -> np.ndarray:
-        """Map yaml world-calibrated handle points when /World/generated moves."""
+    def _calibration_scene_translation(self) -> tuple[float, float, float] | None:
         if self.task_config.task_id == CLOSE_LAPTOP_TASK_ID:
-            calib = CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION
-        elif self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID:
-            calib = CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_TRANSLATION
-        else:
+            return CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION
+        if self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID:
+            return CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_TRANSLATION
+        if self.task_config.task_id == ADJUST_FAUCET_TASK_ID:
+            return ADJUST_FAUCET_HANDLE_CALIBRATION_SCENE_TRANSLATION
+        return None
+
+    def _calibration_scene_rotation_xyz(self) -> tuple[float, float, float] | None:
+        if self.task_config.task_id == CLOSE_LAPTOP_TASK_ID:
+            return CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
+        if self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID:
+            return CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
+        if self.task_config.task_id == ADJUST_FAUCET_TASK_ID:
+            return ADJUST_FAUCET_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
+        return None
+
+    def _scene_root_translation_delta_world(self) -> np.ndarray:
+        """Map yaml world-calibrated handle points when the scene root moves."""
+        calib = self._calibration_scene_translation()
+        if calib is None:
             return np.zeros(3, dtype=np.float64)
         delta = self.env_module.get_scene_root_translation_delta(calib)
         return np.asarray(delta, dtype=np.float64)
 
     def _scene_root_yaw_delta_deg(self) -> float:
         """Yaw delta for mapping world-calibrated handle points under Z rotation randomization."""
-        if self.task_config.task_id == CLOSE_LAPTOP_TASK_ID:
-            calib = CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
-        elif self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID:
-            calib = CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
-        else:
+        calib = self._calibration_scene_rotation_xyz()
+        if calib is None:
             return 0.0
         return float(self.env_module.get_scene_root_yaw_delta_deg(calib))
 
     def _scene_root_yaw_deg(self) -> float:
-        if self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID:
-            return float(CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ[2]) + self._scene_root_yaw_delta_deg()
-        return float(CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ[2]) + self._scene_root_yaw_delta_deg()
+        calib = self._calibration_scene_rotation_xyz()
+        if calib is None:
+            calib = CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
+        return float(calib[2]) + self._scene_root_yaw_delta_deg()
+
+    def _yaw_joint_equivalent_arc_deg(self, joint_deg: float) -> float:
+        """Map runtime faucet joint to yaml arc sample index.
+
+        Yaml arc keys are hinge angles recorded at calibration yaw=90°.
+        - yaw-only DR (joint_rand≈0): joint is coupled as base-Δyaw, so undo that with +Δyaw.
+        - joint_rand≠0: use the live hinge angle; yaw is handled by geometric world mapping only.
+        """
+        if self.task_config.task_id != ADJUST_FAUCET_TASK_ID:
+            return float(joint_deg)
+        yaw_delta = self._scene_root_yaw_delta_deg()
+        joint_rand_implied = float(joint_deg) + yaw_delta - ADJUST_FAUCET_JOINT_INITIAL_BASE_DEG
+        if abs(joint_rand_implied) < 0.5:
+            return float(joint_deg) + yaw_delta
+        return float(joint_deg)
 
     def _geometric_map_calibrated_world_position(self, pos: np.ndarray) -> np.ndarray:
         pos = np.asarray(pos, dtype=np.float64)
-        if self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID:
-            calib_t = np.asarray(
-                CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_TRANSLATION,
-                dtype=np.float64,
-            )
-        else:
-            calib_t = np.asarray(
-                CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION,
-                dtype=np.float64,
-            )
+        calib_translation = self._calibration_scene_translation()
+        calib_t = np.asarray(
+            calib_translation or CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION,
+            dtype=np.float64,
+        )
         delta_t = self._scene_root_translation_delta_world()
         current_t = calib_t + delta_t
         yaw_rad = math.radians(self._scene_root_yaw_delta_deg())
@@ -487,9 +583,13 @@ class PushInteractionExecutor:
 
     def _map_calibrated_world_position(self, pos: np.ndarray) -> np.ndarray:
         pos = np.asarray(pos, dtype=np.float64)
-        if self.task_config.task_id not in (CLOSE_LAPTOP_TASK_ID, CLOSE_MICROWAVE_TASK_ID):
+        if self.task_config.task_id not in (CLOSE_LAPTOP_TASK_ID, CLOSE_MICROWAVE_TASK_ID, ADJUST_FAUCET_TASK_ID):
             return pos
-        return self._geometric_map_calibrated_world_position(pos) + self._yaw_anchor_position_correction()
+        mapped = self._geometric_map_calibrated_world_position(pos)
+        if self.task_config.task_id == ADJUST_FAUCET_TASK_ID:
+            # Faucet: yaw↔joint coupling replaces per-yaw yaml anchors.
+            return mapped
+        return mapped + self._yaw_anchor_position_correction()
 
     def _joint_fitted_yaml_handle_world(self, default_contact_w: np.ndarray) -> np.ndarray:
         """Optional hinge-arc handle model from calibrated EE touch samples.
@@ -553,7 +653,7 @@ class PushInteractionExecutor:
         joint_read_deg = self.env_module.read_scene_joint_angle_deg(self.task_config.joint_prim)
         if joint_read_deg is None:
             return default_contact_w
-        joint_deg = float(joint_read_deg)
+        joint_deg = self._yaw_joint_equivalent_arc_deg(float(joint_read_deg))
 
         ref_deg = float(cfg.push_contact_reference_joint_deg)
         if abs(joint_deg - ref_deg) < 0.5:
@@ -932,7 +1032,7 @@ class PushInteractionExecutor:
         self, contact_pos_world: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray]:
         """Close planning hinge frame: explicit laptop geometry from contact + lever."""
-        if self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID:
+        if self.task_config.task_id in CALIBRATED_XY_ARC_TASK_IDS:
             return self._horizontal_hinge_world_frame_from_expected_delta(contact_pos_world)
         return self._explicit_laptop_hinge_world_frame(contact_pos_world)
 
@@ -1028,21 +1128,49 @@ class PushInteractionExecutor:
         self.diff_ik_controller.reset()
         self.diff_ik_pos_controller.reset()
 
+    def _close_target_is_less_than(self) -> bool:
+        return any(
+            spec.joint_prim == self.task_config.joint_prim and spec.angle_lt_deg is not None
+            for spec in self.success_specs
+        )
+
+    def _close_target_is_less_than(self) -> bool:
+        return any(
+            spec.joint_prim == self.task_config.joint_prim and spec.angle_lt_deg is not None
+            for spec in self.success_specs
+        )
+
+    def _close_target_is_less_than(self) -> bool:
+        return any(
+            spec.joint_prim == self.task_config.joint_prim and spec.angle_lt_deg is not None
+            for spec in self.success_specs
+        )
+
     def _resolve_close_target_deg(self, joint_deg: float) -> float:
         """ArticuBot T_rel target: close_ratio, bumped to rollout success threshold if needed."""
         arc_points = tuple(getattr(self.sampling_config, "push_contact_joint_arc_points", ()) or ())
-        if self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID and arc_points:
-            # Microwave close uses the calibrated handle arc directly; success still
+        if self.task_config.task_id in CALIBRATED_XY_ARC_TASK_IDS and arc_points:
+            # Calibrated XY arc tasks use YAML handle samples directly; success still
             # stops early from live joint readback, so do not plan from registry over-push limits.
-            return max(float(p[0]) for p in arc_points)
+            sample_degs = [float(p[0]) for p in arc_points]
+            if self._close_target_is_less_than():
+                arc_target = getattr(
+                    self.sampling_config, "push_contact_joint_arc_target_deg", None
+                )
+                if arc_target is not None:
+                    return float(arc_target)
+                return min(sample_degs)
+            return max(sample_degs)
         ratio_target = joint_deg + self.push_cfg.close_ratio * (
             self.joint_upper_limit_deg - joint_deg
         )
         success_floor = self.joint_upper_limit_deg
         for spec in self.success_specs:
-            if spec.joint_prim == self.task_config.joint_prim:
+            if spec.joint_prim != self.task_config.joint_prim:
+                continue
+            if spec.angle_gt_deg is not None:
                 success_floor = float(spec.angle_gt_deg) + 1.0
-                break
+            break
         target = max(ratio_target, success_floor)
         return min(target, self.joint_upper_limit_deg)
 
@@ -1153,8 +1281,10 @@ class PushInteractionExecutor:
             )
             return poses
 
-        if self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID:
-            self._log_info("[WARN] Microwave calibrated close arc unavailable; aborting close instead of falling back to T_rel.")
+        if self.task_config.task_id in CALIBRATED_XY_ARC_TASK_IDS:
+            self._log_info(
+                "[WARN] Calibrated XY arc close unavailable; aborting close instead of falling back to T_rel."
+            )
             return []
 
         poses = compute_articulation_ee_trajectory(
@@ -1191,7 +1321,7 @@ class PushInteractionExecutor:
         n_wp: int,
     ) -> list[tuple[np.ndarray, tuple[float, float, float, float]]]:
         """Close path from calibrated [joint, x, y, z] handle arc points."""
-        if self.task_config.task_id != CLOSE_MICROWAVE_TASK_ID:
+        if self.task_config.task_id not in CALIBRATED_XY_ARC_TASK_IDS:
             return []
         arc_points = tuple(getattr(self.sampling_config, "push_contact_joint_arc_points", ()) or ())
         if len(arc_points) < 3:
@@ -1206,7 +1336,7 @@ class PushInteractionExecutor:
             return []
         _, info = init_eval
         sample_degs = np.asarray(info["sample_degs"], dtype=np.float64)
-        target = float(np.clip(joint_target, sample_degs[0], sample_degs[-1]))
+        target = float(joint_target)
         joint_targets = np.linspace(float(joint_init), target, max(2, int(n_wp)))
 
         poses: list[tuple[np.ndarray, tuple[float, float, float, float]]] = []
@@ -1217,12 +1347,17 @@ class PushInteractionExecutor:
             pos, _ = evaluated
             poses.append((pos, contact_quat_w))
 
+        z_source = (
+            "contact_anchor"
+            if self._close_anchor is not None and self._close_target_is_less_than()
+            else "yaml"
+        )
         self._log_info(
             f"[INFO] Calibrated close arc fit: samples={[round(float(v), 2) for v in sample_degs.tolist()]} "
             f"target={target:.2f}° "
             f"center_xy={[round(float(info['center_u']), 4), round(float(info['center_v']), 4)]} "
             f"radius={float(info['radius']):.4f} "
-            f"z_source=yaml"
+            f"z_source={z_source}"
         )
         return poses
 
@@ -1233,7 +1368,7 @@ class PushInteractionExecutor:
         if self._close_anchor is None:
             raise RuntimeError("Call _init_close_anchor before close phase.")
         anchor = self._close_anchor
-        if self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID:
+        if self.task_config.task_id in CALIBRATED_XY_ARC_TASK_IDS:
             evaluated = self._calibrated_arc_position_at_joint(float(theta_deg))
             if evaluated is not None:
                 pos, _ = evaluated
@@ -1274,13 +1409,18 @@ class PushInteractionExecutor:
         )
         sample_degs = np.asarray([deg for deg, _ in samples], dtype=np.float64)
         sample_world = np.asarray([pos for _, pos in samples], dtype=np.float64)
+        arc_target = getattr(cfg, "push_contact_joint_arc_target_deg", None)
+        eval_min = float(sample_degs[0])
+        if arc_target is not None and self._close_target_is_less_than():
+            eval_min = min(eval_min, float(arc_target))
         boundary_tol_deg = 0.75
+        arc_joint = self._yaw_joint_equivalent_arc_deg(float(joint_deg))
         if (
-            float(joint_deg) < float(sample_degs[0]) - boundary_tol_deg
-            or float(joint_deg) > float(sample_degs[-1]) + boundary_tol_deg
+            arc_joint < eval_min - boundary_tol_deg
+            or arc_joint > float(sample_degs[-1]) + boundary_tol_deg
         ):
             return None
-        used_joint = float(np.clip(float(joint_deg), float(sample_degs[0]), float(sample_degs[-1])))
+        used_joint = arc_joint
 
         x_dir, y_neg_dir = self._generated_root_yaw_frame()
         y_pos_dir = -y_neg_dir
@@ -1297,14 +1437,17 @@ class PushInteractionExecutor:
         sample_angles = np.unwrap(
             np.arctan2(sample_plane[:, 1] - center_v, sample_plane[:, 0] - center_u)
         )
-        theta = float(np.interp(used_joint, sample_degs, sample_angles))
+        theta = _interp_extrap_scalar(used_joint, sample_degs, sample_angles)
         plane = np.array(
             [center_u + radius * math.cos(theta), center_v + radius * math.sin(theta)],
             dtype=np.float64,
         )
         pos = x_dir * plane[0] + y_pos_dir * plane[1]
-        # Use the calibrated z from YAML, not the lower IK-achieved contact z.
-        pos[2] = float(np.interp(used_joint, sample_degs, sample_world[:, 2]))
+        if self._close_anchor is not None and self._close_target_is_less_than():
+            # Push phase: XY arc only; keep EE Z fixed at first contact.
+            pos[2] = float(np.asarray(self._close_anchor["contact_pos_w"], dtype=np.float64)[2])
+        else:
+            pos[2] = float(np.interp(used_joint, sample_degs, sample_world[:, 2]))
         info: dict[str, object] = {
             "sample_degs": sample_degs.copy(),
             "used_joint": used_joint,
@@ -1372,7 +1515,7 @@ class PushInteractionExecutor:
         """Surface point captured at contact, rotated by the live scene hinge angle."""
         if self._close_anchor is None:
             return None
-        if self.task_config.task_id == CLOSE_MICROWAVE_TASK_ID:
+        if self.task_config.task_id in CALIBRATED_XY_ARC_TASK_IDS:
             evaluated = self._calibrated_arc_position_at_joint(float(joint_deg))
             if evaluated is not None:
                 pos, _ = evaluated
@@ -1407,13 +1550,28 @@ class PushInteractionExecutor:
         ee_pos, _ = self._read_ee_pose()
         error = anchor_now - ee_pos
         error_norm = float(np.linalg.norm(error))
-        if error_norm <= CLOSE_CONTACT_ANCHOR_DEADBAND_M:
+        deadband_m = (
+            CLOSE_CONTACT_ANCHOR_DEADBAND_CALIBRATED_M
+            if self.task_config.task_id in CALIBRATED_XY_ARC_TASK_IDS
+            else CLOSE_CONTACT_ANCHOR_DEADBAND_M
+        )
+        if error_norm <= deadband_m:
             return np.asarray(nominal_target_pos, dtype=np.float64)
 
-        correction = CLOSE_CONTACT_ANCHOR_GAIN * error
+        correction_gain = (
+            CLOSE_CONTACT_ANCHOR_GAIN_CALIBRATED
+            if self.task_config.task_id in CALIBRATED_XY_ARC_TASK_IDS
+            else CLOSE_CONTACT_ANCHOR_GAIN
+        )
+        correction_limit = (
+            CLOSE_CONTACT_ANCHOR_MAX_CORRECTION_CALIBRATED_M
+            if self.task_config.task_id in CALIBRATED_XY_ARC_TASK_IDS
+            else CLOSE_CONTACT_ANCHOR_MAX_CORRECTION_M
+        )
+        correction = correction_gain * error
         correction_norm = float(np.linalg.norm(correction))
-        if correction_norm > CLOSE_CONTACT_ANCHOR_MAX_CORRECTION_M:
-            correction *= CLOSE_CONTACT_ANCHOR_MAX_CORRECTION_M / max(correction_norm, 1e-9)
+        if correction_norm > correction_limit:
+            correction *= correction_limit / max(correction_norm, 1e-9)
 
         corrected = np.asarray(nominal_target_pos, dtype=np.float64) + correction
         if self.trace_ee_handle and self.control_step_count % self.trace_ee_handle_interval == 0:
@@ -1642,8 +1800,8 @@ class PushInteractionExecutor:
         on_control_step: Callable[[bool, dict[str, float | None]], bool] | None,
         trajectory: list[tuple[np.ndarray, tuple[float, float, float, float]]],
     ) -> bool | None:
-        """Microwave: track calibrated arc until success or episode step budget runs out."""
-        if self.task_config.task_id != CLOSE_MICROWAVE_TASK_ID or self._close_anchor is None:
+        """Track calibrated XY handle arc until success or episode step budget runs out."""
+        if self.task_config.task_id not in CALIBRATED_XY_ARC_TASK_IDS or self._close_anchor is None:
             return None
         if len(tuple(getattr(self.sampling_config, "push_contact_joint_arc_points", ()) or ())) < 3:
             return None
@@ -1655,6 +1813,7 @@ class PushInteractionExecutor:
         target_quat = anchor["contact_quat_w"]
         pos_step = float(getattr(self.push_cfg, "close_push_ee_step_m", self.max_ee_pos_step_m))
         lead_deg = max(float(getattr(self.push_cfg, "close_step_deg_usd", 1.0)), 0.5)
+        direction = 1.0 if joint_target >= joint_init else -1.0
 
         first = np.asarray(trajectory[0][0], dtype=np.float64)
         last = np.asarray(trajectory[-1][0], dtype=np.float64)
@@ -1662,7 +1821,8 @@ class PushInteractionExecutor:
         budget_text = str(remaining) if remaining is not None else "unlimited"
         self._log_info(
             f"[INFO] Close phase (continuous calibrated arc): remaining_steps={budget_text}, "
-            f"joint {joint_init:.2f}°->{joint_target:.2f}°, close_clamp_joints={close_clamp}, "
+            f"joint {joint_init:.2f}°->{joint_target:.2f}° (direction={'+' if direction > 0 else '-'}), "
+            f"close_clamp_joints={close_clamp}, "
             f"arc_delta={float(np.linalg.norm(last - first)):.3f}m"
         )
 
@@ -1672,12 +1832,20 @@ class PushInteractionExecutor:
         step_i = 0
         log_interval = max(1, (remaining or 200) // 4)
         joint_prim = self.task_config.joint_prim
+        # Drive commanded joint monotonically along planned arc so execution does not
+        # stall when live joint readback gets stuck.
+        joint_cmd_state = float(joint_init)
 
         while remaining is None or step_i < remaining:
             joint_live = self.env_module.read_scene_joint_angle_deg(joint_prim)
             if joint_live is None:
                 joint_live = joint_init
-            joint_cmd = min(joint_target, max(joint_init, float(joint_live)) + lead_deg)
+            joint_live = float(joint_live)
+            if direction > 0:
+                joint_cmd_state = min(joint_target, joint_cmd_state + lead_deg)
+            else:
+                joint_cmd_state = max(joint_target, joint_cmd_state - lead_deg)
+            joint_cmd = float(joint_cmd_state)
 
             evaluated = self._calibrated_arc_position_at_joint(joint_cmd)
             if evaluated is None:
@@ -1728,7 +1896,29 @@ class PushInteractionExecutor:
     ) -> bool:
         trajectory = trajectory if trajectory is not None else self._build_close_trajectory_from_anchor()
         if len(trajectory) < 2:
+            if self._close_anchor is not None:
+                anchor = self._close_anchor
+                print(
+                    "[WARN] Push phase aborted: calibrated close trajectory unavailable "
+                    f"(joint {float(anchor['joint_init_deg']):.1f}° -> "
+                    f"{float(anchor['joint_target_deg']):.1f}°)",
+                    flush=True,
+                )
             return False
+
+        if self._close_anchor is not None:
+            anchor = self._close_anchor
+            arc_mode = (
+                "calibrated XY arc"
+                if self.task_config.task_id in CALIBRATED_XY_ARC_TASK_IDS
+                else "T_rel"
+            )
+            print(
+                f"[INFO] Push phase ({arc_mode}): {len(trajectory)} waypoints, "
+                f"joint {float(anchor['joint_init_deg']):.1f}° -> "
+                f"{float(anchor['joint_target_deg']):.1f}°",
+                flush=True,
+            )
 
         stopped = self._execute_sampled_pose_path_close(
             collector, on_control_step, trajectory=trajectory
@@ -2197,12 +2387,14 @@ class PushInteractionExecutor:
             parts.append(f"{joint_prim}={float(joint_deg):.2f}deg")
         print("\n" + " | ".join(parts), flush=True)
         if not success and joint_deg is not None:
-            success_hints = [
-                f"{spec.joint_prim} > {float(spec.angle_gt_deg):.1f}°"
-                for spec in self.success_specs
-                if getattr(spec, "joint_prim", None) is not None
-                and getattr(spec, "angle_gt_deg", None) is not None
-            ]
+            success_hints = []
+            for spec in self.success_specs:
+                if getattr(spec, "joint_prim", None) is None:
+                    continue
+                if getattr(spec, "angle_gt_deg", None) is not None:
+                    success_hints.append(f"{spec.joint_prim} > {float(spec.angle_gt_deg):.1f}°")
+                if getattr(spec, "angle_lt_deg", None) is not None:
+                    success_hints.append(f"{spec.joint_prim} < {float(spec.angle_lt_deg):.1f}°")
             success_msg = ", ".join(success_hints) if success_hints else "task_registry success spec"
             print(
                 f"[PUSH+CLOSE EXIT] Success needs {success_msg} (task_registry). "
@@ -2337,12 +2529,20 @@ class PushInteractionExecutor:
             ):
                 task_success = True
             else:
-                self.set_trace_phase("close")
                 actual_contact_pos, actual_contact_quat = self._read_ee_pose()
                 contact_drift = float(np.linalg.norm(actual_contact_pos - contact_w))
                 rot_drift = (
                     _wxyz_to_rot(quat_w) * _wxyz_to_rot(actual_contact_quat).inv()
                 ).magnitude()
+                self._announce_phase_transition(
+                    "approach",
+                    "push",
+                    detail=(
+                        f"contact_drift={contact_drift:.4f}m "
+                        f"rot={math.degrees(rot_drift):.1f}deg"
+                    ),
+                )
+                self.set_trace_phase("close")
                 self._log_info(
                     f"[INFO] Contact anchor: planned={np.round(contact_w, 4).tolist()} "
                     f"actual={np.round(actual_contact_pos, 4).tolist()} "
@@ -2365,6 +2565,10 @@ class PushInteractionExecutor:
         except EpisodeStepLimitExceeded as exc:
             task_success, final_joint_degs = self._episode_success()
             print(f"[WARN] {label} episode timeout: {exc}; mark attempt failed.", flush=True)
+        except EeHandleDistExceeded as exc:
+            task_success, final_joint_degs = self._episode_success()
+            task_success = False
+            print(f"[WARN] {label} EE drift abort: {exc}; mark attempt failed.", flush=True)
         except RecordingHealthError as exc:
             task_success, final_joint_degs = self._episode_success()
             task_success = False
@@ -2454,12 +2658,20 @@ class PushInteractionExecutor:
                     f"skip close phase at step={self.control_step_count}."
                 )
             else:
-                self.set_trace_phase("close")
                 actual_contact_pos, actual_contact_quat = self._read_ee_pose()
                 contact_drift = float(np.linalg.norm(actual_contact_pos - contact_w))
                 rot_drift = (
                     _wxyz_to_rot(quat_w) * _wxyz_to_rot(actual_contact_quat).inv()
                 ).magnitude()
+                self._announce_phase_transition(
+                    "approach",
+                    "push",
+                    detail=(
+                        f"contact_drift={contact_drift:.4f}m "
+                        f"rot={math.degrees(rot_drift):.1f}deg"
+                    ),
+                )
+                self.set_trace_phase("close")
                 self._log_info(
                     f"[INFO] Contact anchor: planned={np.round(contact_w, 4).tolist()} "
                     f"actual={np.round(actual_contact_pos, 4).tolist()} "
@@ -2489,6 +2701,13 @@ class PushInteractionExecutor:
                 _wxyz_to_rot(quat_w) * _wxyz_to_rot(actual_contact_quat).inv()
             ).magnitude()
             print(f"[WARN] {label} probe step budget exhausted: {exc}", flush=True)
+        except EeHandleDistExceeded as exc:
+            actual_contact_pos, actual_contact_quat = self._read_ee_pose()
+            contact_drift = float(np.linalg.norm(actual_contact_pos - contact_w))
+            rot_drift = (
+                _wxyz_to_rot(quat_w) * _wxyz_to_rot(actual_contact_quat).inv()
+            ).magnitude()
+            print(f"[WARN] {label} probe EE drift abort: {exc}", flush=True)
 
         anchor = self._close_anchor
         if anchor is not None:
@@ -3025,6 +3244,7 @@ class PushInteractionExecutor:
         if self.recording_health_failed:
             raise RecordingHealthError(self._recording_health_reason)
         self._maybe_trace_ee_handle()
+        self._raise_if_ee_handle_dist_exceeded()
         if on_control_step is None:
             return False
         success_now, joint_degs = evaluate_rollout_success(self.env_module, self.success_specs)

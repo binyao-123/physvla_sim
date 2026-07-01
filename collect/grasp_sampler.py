@@ -73,6 +73,8 @@ class SamplingConfig:
     push_contact_joint_fit_world: tuple[float, float, float] | None = None
     push_contact_joint_fit_range_deg: tuple[float, float] | None = None
     push_contact_joint_arc_points: tuple[tuple[float, float, float, float], ...] = ()
+    # Optional push arc endpoint below/above calibrated samples (e.g. -30° for extra close lead).
+    push_contact_joint_arc_target_deg: float | None = None
     # Optional yaw anchors [yaw_deg, x, y, z, qw, qx, qy, qz] for calibrated EE/handle contact.
     yaw_contact_anchors: tuple[tuple[float, float, float, float, float, float, float, float], ...] = ()
 
