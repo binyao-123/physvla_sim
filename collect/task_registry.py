@@ -238,6 +238,9 @@ CLOSE_MICROWAVE_LANGUAGE_INSTRUCTION = "close the microwave door."
 ADJUST_FAUCET_TASK_ID = "adjust_the_faucet"
 ADJUST_FAUCET_LANGUAGE_INSTRUCTION = "adjust the faucet."
 
+ADJUST_MONITOR_TASK_ID = "adjust_the_monitor"
+ADJUST_MONITOR_LANGUAGE_INSTRUCTION = "adjust the display."
+
 # ---------------------------------------------------------------------------
 # *******************************随机初始化参数*******************************
 # ---------------------------------------------------------------------------
@@ -448,6 +451,13 @@ ADJUST_FAUCET_HANDLE_CALIBRATION_SCENE_TRANSLATION = (
 )
 ADJUST_FAUCET_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ = (0.0, 0.0, 90.0)
 
+# 调节显示器键盘采集任务：使用显示器分支已经标定的固定初始状态。
+# 不进行关节、场景根节点或视觉域随机化。
+ADJUST_MONITOR_JOINT_INITIAL_DEG = -17.0
+ADJUST_MONITOR_SCENE_ROOT_TRANSLATION = (0.45, 0.0, 0.2326)
+ADJUST_MONITOR_SCENE_ROOT_ROTATION_XYZ = (0.0, 0.0, 180.0)
+ADJUST_MONITOR_SCENE_ROOT_SCALE = (0.275, 0.275, 0.275)
+
 
 # ---------------------------------------------------------------------------
 # 已注册任务
@@ -465,9 +475,9 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         joint_drive_specs=(
             TaskJointDriveSpec(
                 prim_path="/World/generated/joints/joint_1",
-                damping=80.0,
+                damping=100.0,
                 stiffness=0.0,
-                max_force=10.0,
+                max_force=0.8,
             ),
         ),
         joint_limit_specs=(
@@ -501,6 +511,51 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         randomization=ROBOTWIN2_COMMON_RANDOMIZATION,
         **_shared_teleop_kwargs(),
     ),
+    ADJUST_MONITOR_TASK_ID: TaskPreset(
+        task_id=ADJUST_MONITOR_TASK_ID,
+        description="Keyboard teleoperation for adjusting the monitor (generated URDF hinge).",
+        usd_path=_tasks_scene_usd("adjust_the_display", "data", "scene.usd"),
+        env_name="AdjustMonitorTask",
+        dataset_file="./datasets/adjust_the_monitor.hdf5",
+        language_instruction=ADJUST_MONITOR_LANGUAGE_INSTRUCTION,
+        sensitivity=2.0,
+        joint_drive_specs=(
+            TaskJointDriveSpec(
+                prim_path="/World/generated/joints/joint_1",
+                damping=1500.0,
+                stiffness=0.0,
+                max_force=2.4,
+            ),
+        ),
+        joint_limit_specs=(
+            TaskJointLimitSpec(
+                prim_path="/World/generated/joints/joint_1",
+                lower_limit=-22.71,
+                upper_limit=10.0,
+            ),
+        ),
+        joint_initial_specs=(
+            TaskJointInitialSpec(
+                prim_path="/World/generated/joints/joint_1",
+                position=ADJUST_MONITOR_JOINT_INITIAL_DEG,
+            ),
+        ),
+        scene_root_specs=(
+            TaskSceneRootSpec(
+                prim_path=SCENE_ARTICULATION_PRIM_PATH,
+                translation=ADJUST_MONITOR_SCENE_ROOT_TRANSLATION,
+                rotation_xyz=ADJUST_MONITOR_SCENE_ROOT_ROTATION_XYZ,
+                scale=ADJUST_MONITOR_SCENE_ROOT_SCALE,
+            ),
+        ),
+        rollout_success_specs=(
+            TaskRolloutSuccessSpec(
+                joint_prim="/World/generated/joints/joint_1",
+                angle_gt_deg=-2.0,
+            ),
+        ),
+        **_shared_teleop_kwargs(),
+    ),
     CLOSE_MICROWAVE_TASK_ID: TaskPreset(
         task_id=CLOSE_MICROWAVE_TASK_ID,
         description="Keyboard teleoperation for closing the microwave door (generated URDF hinge).",
@@ -514,7 +569,7 @@ TASK_PRESETS: dict[str, TaskPreset] = {
                 prim_path="/World/generated/joints/joint_1",
                 damping=5.0,
                 stiffness=0.0,
-                max_force=3.0,
+                max_force=0.1,
             ),
         ),
         joint_limit_specs=(
@@ -560,7 +615,7 @@ TASK_PRESETS: dict[str, TaskPreset] = {
                 prim_path=ADJUST_FAUCET_JOINT_PRIM_PATH,
                 damping=0.3,   #0.3
                 stiffness=0.0,
-                max_force=3.5,  #3.5
+                max_force=0.04,  #3.5
             ),
         ),
         joint_limit_specs=(

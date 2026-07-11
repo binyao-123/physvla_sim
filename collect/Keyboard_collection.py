@@ -13,6 +13,9 @@ from isaaclab.app import AppLauncher
 SERVER_DIR = Path(__file__).resolve().parents[1] / "Server"
 if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
+DYN_DIR = Path(__file__).resolve().parents[1] / "Augment_code" / "dyn"
+if str(DYN_DIR) not in sys.path:
+    sys.path.insert(0, str(DYN_DIR))
 
 from isaaclab_env_module import (
     CameraPrimSpec,
@@ -77,6 +80,12 @@ from isaaclab.controllers import DifferentialIKController, DifferentialIKControl
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 
 from episode_collector import OfficialEpisodeCollector
+from force_logging import ForceCsvLogger
+from piper_contact_force import (
+    create_piper_finger_force_sensors,
+    read_piper_finger_force_sample,
+    update_finger_force_sensors,
+)
 from recording_utils import resize_rgb_for_policy_storage
 from env_setup import PIPER_CFG
 
@@ -177,6 +186,17 @@ robot_cfg = robot_cfg.replace(
 )
 
 robot = env_module.create_robot(robot_cfg)
+
+stage = omni.usd.get_context().get_stage()
+if stage is None:
+    raise RuntimeError("USD stage is unavailable; cannot initialize gripper contact sensors.")
+
+finger_force_sensors, force_task_config = create_piper_finger_force_sensors(
+    task_preset.task_id,
+    task_preset.robot_prim_path,
+    stage,
+)
+
 env_module.initialize_robot_home_pose()
 
 device = sim.device
@@ -336,6 +356,20 @@ language_instruction_length = torch.tensor(
     [len(instruction_bytes)], dtype=torch.int32, device=device
 )
 
+# Keep force logs beside this run's session HDF5 file:
+# datasets/close_laptop_lid/force_logs/...
+force_log_dir = Path(collector.dataset_file).expanduser().resolve().parent / "force_logs"
+force_logger = ForceCsvLogger(
+    force_log_dir,
+    task_id=task_preset.task_id,
+    contact_prim_paths=force_task_config.contact_prim_paths,
+)
+force_log_path = force_logger.start(demo_slot=1)
+print(
+    f"[INFO] Force log: {force_log_path} "
+    "(world-frame Fx/Fy/Fz and norm in N; link7/link8 contacts with the laptop only)."
+)
+
 
 def capture_initial_state_for_episode():
     initial_state = {
@@ -388,6 +422,10 @@ try:
     while simulation_app.is_running() and not should_exit:
         if should_reset or should_skip:
             finalize_mode = "save" if should_reset else "skip"
+            force_outcome = "saved" if finalize_mode == "save" else "skipped"
+            closed_force_log = force_logger.close(outcome=force_outcome)
+            if closed_force_log is not None:
+                print(f"[INFO] Force log {force_outcome}: {closed_force_log}")
 
             if finalize_mode == "save":
                 if last_obs_dict is not None and last_state_dict is not None:
@@ -418,6 +456,8 @@ try:
 
             sim.reset()
             robot.reset()
+            for finger_sensor in finger_force_sensors.values():
+                finger_sensor.reset()
             if sensor_cameras:
                 for sensor in sensor_cameras.values():
                     sensor.reset()
@@ -442,6 +482,8 @@ try:
             collector.reset_episode()
             episode_start_wall_time = time.perf_counter()
             capture_initial_state_for_episode()
+            force_log_path = force_logger.start(demo_slot=completed_demo_slots + 1)
+            print(f"[INFO] Force log: {force_log_path}")
             last_obs_dict = None
             last_state_dict = None
             last_rgb_wrist = None
@@ -451,7 +493,9 @@ try:
             should_reset = False
             should_skip = False
 
+        did_control_step = False
         if sim_step_count % control_decimation == 0:
+            did_control_step = True
             control_step_count += 1
 
             if control_step_count % 30 == 0:
@@ -584,6 +628,30 @@ try:
 
         sim.step(render=True)
         robot.update(sim.cfg.dt)
+        update_finger_force_sensors(finger_force_sensors, sim.cfg.dt)
+
+        if did_control_step:
+            link7_force_n, link8_force_n, total_force_n, in_contact = read_piper_finger_force_sample(
+                finger_force_sensors
+            )
+            total_force_norm_n = sum(component * component for component in total_force_n) ** 0.5
+            force_logger.log(
+                sim_time_sec=(sim_step_count + 1) * sim_dt,
+                wall_time_sec=time.perf_counter() - episode_start_wall_time,
+                left_force_n=link7_force_n,
+                right_force_n=link8_force_n,
+                total_force_n=total_force_n,
+                in_contact=in_contact,
+            )
+            if control_step_count % control_hz == 0:
+                print(
+                    "[FORCE] "
+                    f"link7=({link7_force_n[0]:+.3f}, {link7_force_n[1]:+.3f}, {link7_force_n[2]:+.3f})N "
+                    f"link8=({link8_force_n[0]:+.3f}, {link8_force_n[1]:+.3f}, {link8_force_n[2]:+.3f})N "
+                    f"total=({total_force_n[0]:+.3f}, {total_force_n[1]:+.3f}, {total_force_n[2]:+.3f})N "
+                    f"|F|={total_force_norm_n:.3f}N contact={int(in_contact)}",
+                    flush=True,
+                )
         sim_step_count += 1
 
 except KeyboardInterrupt:
@@ -595,6 +663,12 @@ if should_exit:
 
 if dock_task is not None and not dock_task.done():
     dock_task.cancel()
+
+if force_logger.path is not None:
+    force_outcome = "interrupted" if should_exit else "stopped"
+    closed_force_log = force_logger.close(outcome=force_outcome)
+    if closed_force_log is not None:
+        print(f"[INFO] Force log {force_outcome}: {closed_force_log}")
 
 if collector.has_data() and last_obs_dict is not None and last_state_dict is not None:
     try:
