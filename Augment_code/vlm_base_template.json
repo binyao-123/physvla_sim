@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.2",
+  "template_version": "v1.2",
+  "scale_refs_from": "fitr_bench.json",
+  "categories": {
+    "Laptop": {
+      "category_dir": "Laptop_urdf",
+      "vlm_tasks": ["scale", "has_handle"]
+    },
+    "Display": {
+      "category_dir": "Display_urdf",
+      "vlm_tasks": ["scale", "has_handle"]
+    },
+    "Microwave": {
+      "category_dir": "Microwave_urdf",
+      "vlm_tasks": ["scale", "has_handle"]
+    },
+    "Drawer": {
+      "category_dir": "table_urdf",
+      "vlm_tasks": ["scale", "has_handle"]
+    },
+    "Lamp": {
+      "category_dir": "lamp_urdf",
+      "vlm_tasks": ["scale"]
+    },
+    "Faucet": {
+      "category_dir": "Faucet_urdf",
+      "vlm_tasks": ["scale"]
+    },
+    "Knife": {
+      "category_dir": "Knife_urdf",
+      "vlm_tasks": ["scale"]
+    },
+    "Dishwasher": {
+      "category_dir": "Dishwasher_urdf",
+      "vlm_tasks": ["scale", "has_handle"]
+    },
+    "Door": {
+      "category_dir": "Door_urdf",
+      "vlm_tasks": ["scale", "has_handle", "door_type"],
+      "stiffness_by_door_type": {
+        "normal": 0.0,
+        "self_closing": 100.0
+      }
+    },
+    "Refrigerator": {
+      "category_dir": "Refrigerator_urdf",
+      "vlm_tasks": ["scale", "has_handle"]
+    },
+    "Scissors": {
+      "category_dir": "Scissors_urdf",
+      "vlm_tasks": ["scale"]
+    },
+    "StorageFurniture": {
+      "category_dir": "StorageFurniture_urdf",
+      "vlm_tasks": ["scale", "has_handle"]
+    }
+  }
+}

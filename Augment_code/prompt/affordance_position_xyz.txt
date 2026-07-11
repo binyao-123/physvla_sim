@@ -1,0 +1,64 @@
+# FITR VLM Prompt — Affordance contact position (position_xyz)
+# prompt_version: 1.0
+# task_id: affordance_position_xyz
+# output_field: affordances[].position_xyz
+# applies_to: FITR-Bench assets (Phi_aff VLM baseline)
+# placeholders: {category}, {asset_id}, {affordance_block}
+# image: category scale image (e.g. images/0.png or rendered_0.png)
+# metric: L2 error vs GT position_xyz in asset calibration frame, converted to cm via scale_gt
+
+[SYSTEM]
+You analyze rendered images of articulated objects for robot interaction planning.
+Given each movable joint's metadata (link name, motion type, contact axis, handle flag),
+estimate the 3D contact point position_xyz in the asset calibration coordinate frame.
+The contact point is where a robot end-effector should push or pull to actuate that joint
+(e.g. door handle, drawer pull, laptop lid edge, faucet lever).
+Reply with JSON only. No markdown or explanation.
+
+[USER]
+Category: {category}
+Asset ID: {asset_id}
+
+Coordinate frame (calibration / URDF base frame):
+- Origin near the object base; axes are orthonormal.
+- Units are normalized asset coordinates (not centimeters).
+- Typical component values are roughly between -1.5 and 1.5.
+- position_xyz is the 3D point ON the movable link surface where contact should occur.
+- Each affordance includes the movable link's axis-aligned bbox in this same frame.
+- Your position_xyz should usually lie inside or very close to that link_bbox.
+
+Affordances to estimate (one position per joint):
+{affordance_block}
+
+Use the image to locate each contact point on the visible movable part.
+Respect contact_axis_xyz as the outward interaction direction (push/pull normal in the XY plane).
+If has_handle is true, place position_xyz on the visible protruding handle when possible.
+If has_handle is false, place it on the best graspable edge or front face for that motion.
+Use link_bbox_min_xyz / link_bbox_max_xyz as coordinate guidance, but still rely on the image:
+- contact_axis_xyz is the interaction direction, not a direct rule for choosing min/max coordinate signs.
+- For revolute joints, prefer a point on that contact-axis-facing side that is far from joint_origin_xyz.
+- If has_handle is true, keep the point on the visible handle/handle-side area rather than at the bbox center.
+
+Reply with one JSON object only. The object must contain:
+- "affordances": an object keyed by the exact quoted joint_name values listed above.
+- For each joint, include "position_xyz" as three numeric floats and "confidence".
+- A top-level "confidence" float.
+
+Rules:
+- Include every joint_name listed above as a quoted JSON key.
+- position_xyz: three floats [x, y, z] in the calibration frame.
+- confidence: 0.0-1.0 per joint; overall confidence at top level.
+- Estimate fresh coordinates for this asset. Do not reuse a template coordinate across assets.
+
+[AFFORDANCE_LINE]
+- joint_name: {joint_name}
+  link_name: {link_name}
+  motion_type: {motion_type}
+  contact_axis_xyz: [{axis_x}, {axis_y}, {axis_z}]
+  has_handle: {has_handle}
+  link_bbox_min_xyz: [{bbox_min}]
+  link_bbox_max_xyz: [{bbox_max}]
+  link_bbox_center_xyz: [{bbox_center}]
+  link_bbox_size_xyz: [{bbox_size}]
+  joint_origin_xyz: [{joint_origin}]
+  joint_axis_xyz: [{joint_axis}]

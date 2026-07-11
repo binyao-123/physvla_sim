@@ -1,0 +1,18 @@
+{
+  "output_root": "physvla_sim/Augment_code/affordance/contact_overlay",
+  "generated": "first asset per category (sorted asset id)",
+  "assets": [
+    {"category": "Laptop", "asset_id": "10005", "image": "rendered_0.png", "fit_score": 0.99},
+    {"category": "Display", "asset_id": "3385", "image": "0.png", "fit_score": 1.0},
+    {"category": "Microwave", "asset_id": "3456", "image": "0.png", "fit_score": 1.0},
+    {"category": "Drawer", "asset_id": "19179", "image": "0.png", "fit_score": 1.0, "note": "source image: parts_render/0.png"},
+    {"category": "Lamp", "asset_id": "13310", "image": "0.png", "fit_score": 0.66, "note": "source image: parts_render/0.png; low fit — review carefully"},
+    {"category": "Faucet", "asset_id": "1007", "image": "0.png", "fit_score": 0.78},
+    {"category": "Knife", "asset_id": "1029", "image": "0.png", "fit_score": 1.0},
+    {"category": "Dishwasher", "asset_id": "11453", "image": "0.png", "fit_score": 1.0},
+    {"category": "Door", "asset_id": "13242", "image": "0.png", "fit_score": 1.0},
+    {"category": "Refrigerator", "asset_id": "10007", "image": "0.png", "fit_score": 1.0, "note": "door_1 joint commented out in URDF; joint_0/joint_1 may coincide"},
+    {"category": "Scissors", "asset_id": "10449", "image": "0.png", "fit_score": 0.83},
+    {"category": "StorageFurniture", "asset_id": "35059", "image": "0.png", "fit_score": 1.0}
+  ]
+}

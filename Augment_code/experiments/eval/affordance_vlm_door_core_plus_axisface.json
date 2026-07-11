@@ -1,0 +1,88 @@
+{
+  "results_path": "experiments/vlm_affordance_results_axisface.jsonl",
+  "bench_path": "/home/ubuntu/workspace/physvla_sim/Augment_code/fitr_bench.json",
+  "model": "qwen-vl-plus",
+  "preserved_only": false,
+  "n_errors": 3,
+  "mae_cm": 92.61258766949759,
+  "per_category": {
+    "Door": {
+      "n": 3,
+      "mae_cm": 92.61258766949759
+    }
+  },
+  "details": [
+    {
+      "category": "Door",
+      "asset_id": "8850",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.569,
+        -0.499,
+        0.05
+      ],
+      "gt_xyz": [
+        0.6,
+        -1.0,
+        0.1
+      ],
+      "error_cm": 134.91855555111758,
+      "preserved": true,
+      "has_handle_gt": true,
+      "contact_axis_gt": [
+        -0.8,
+        -0.5,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "8867",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        0.3476,
+        -0.0125,
+        0.0525
+      ],
+      "gt_xyz": [
+        -0.2,
+        -0.2,
+        0.3
+      ],
+      "error_cm": 69.24569983760725,
+      "preserved": true,
+      "has_handle_gt": true,
+      "contact_axis_gt": [
+        0.7,
+        -0.7,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "9280",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        0.378,
+        -0.0,
+        -0.0
+      ],
+      "gt_xyz": [
+        -0.3,
+        0.0,
+        -0.1
+      ],
+      "error_cm": 73.6735076197679,
+      "preserved": true,
+      "has_handle_gt": true,
+      "contact_axis_gt": [
+        0.0,
+        -1.0,
+        0.0
+      ]
+    }
+  ]
+}

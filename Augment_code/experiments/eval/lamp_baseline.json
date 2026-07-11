@@ -1,0 +1,721 @@
+{
+  "results_path": "experiments/vlm_results_baseline.jsonl",
+  "bench_path": "/home/ubuntu/workspace/physvla_sim/Augment_code/fitr_bench.json",
+  "bench_assets": 36,
+  "evaluated_ok": 18,
+  "scale": {
+    "n": 18,
+    "mae_cm": 21.299999999999997,
+    "mape_pct": 21.703112697644045,
+    "smape_pct": 24.926960984187474,
+    "rmse_cm": 48.16009182346359,
+    "max_abs_cm": 172.5,
+    "max_pct": 80.23255813953489,
+    "max_smape_pct": 133.98058252427185,
+    "scale_factor_mae": 10.67760456266017
+  },
+  "has_handle": {
+    "n": 19,
+    "correct": 15,
+    "accuracy": 0.7894736842105263,
+    "tp": 2,
+    "fp": 0,
+    "fn": 4,
+    "tn": 13,
+    "precision": 1.0,
+    "recall": 0.3333333333333333,
+    "f1": 0.5
+  },
+  "door_type": {
+    "n": 3,
+    "correct": 2,
+    "accuracy": 0.6666666666666666
+  },
+  "by_category": {
+    "Dishwasher": {
+      "scale": {
+        "n": 3,
+        "mae_cm": 20.299999999999997,
+        "mape_pct": 25.56456825906541,
+        "smape_pct": 30.593939084371396,
+        "rmse_cm": 23.688323424562288,
+        "max_abs_cm": 35.39999999999999,
+        "max_pct": 43.920595533498755,
+        "max_smape_pct": 56.279809220985676
+      },
+      "has_handle_acc": 1.0,
+      "has_handle_f1": null,
+      "has_handle_n": 4,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [],
+      "failed": []
+    },
+    "Display": {
+      "scale": {
+        "n": 3,
+        "mae_cm": 5.166666666666667,
+        "mape_pct": 10.343004513217279,
+        "smape_pct": 10.06013841662562,
+        "rmse_cm": 5.575242894559244,
+        "max_abs_cm": 8.0,
+        "max_pct": 16.0,
+        "max_smape_pct": 14.814814814814813
+      },
+      "has_handle_acc": 1.0,
+      "has_handle_f1": null,
+      "has_handle_n": 3,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [],
+      "failed": []
+    },
+    "Door": {
+      "scale": {
+        "n": 3,
+        "mae_cm": 93.5,
+        "mape_pct": 43.1535628332469,
+        "smape_pct": 65.55008859406347,
+        "rmse_cm": 115.21031493172244,
+        "max_abs_cm": 172.5,
+        "max_pct": 80.23255813953489,
+        "max_smape_pct": 133.98058252427185
+      },
+      "has_handle_acc": 0.6666666666666666,
+      "has_handle_f1": 0.8,
+      "has_handle_n": 3,
+      "door_type_acc": 0.6666666666666666,
+      "door_type_n": 3,
+      "missing": [],
+      "failed": []
+    },
+    "Drawer": {
+      "scale": {
+        "n": 0
+      },
+      "has_handle_acc": null,
+      "has_handle_f1": null,
+      "has_handle_n": 0,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [
+        "19179",
+        "19203",
+        "21467"
+      ],
+      "failed": []
+    },
+    "Faucet": {
+      "scale": {
+        "n": 3,
+        "mae_cm": 5.733333333333333,
+        "mape_pct": 37.53472222222222,
+        "smape_pct": 29.881704748014908,
+        "rmse_cm": 6.6518167944304265,
+        "max_abs_cm": 10.5,
+        "max_pct": 75.0,
+        "max_smape_pct": 54.54545454545454
+      },
+      "has_handle_acc": 0.0,
+      "has_handle_f1": 0.0,
+      "has_handle_n": 3,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [],
+      "failed": []
+    },
+    "Knife": {
+      "scale": {
+        "n": 3,
+        "mae_cm": 1.3999999999999997,
+        "mape_pct": 9.614881850175967,
+        "smape_pct": 9.36915480476446,
+        "rmse_cm": 1.6451950239004087,
+        "max_abs_cm": 2.1999999999999993,
+        "max_pct": 16.92307692307692,
+        "max_smape_pct": 15.602836879432619
+      },
+      "has_handle_acc": 1.0,
+      "has_handle_f1": null,
+      "has_handle_n": 3,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [],
+      "failed": []
+    },
+    "Lamp": {
+      "scale": {
+        "n": 3,
+        "mae_cm": 1.6999999999999982,
+        "mape_pct": 4.0079365079365035,
+        "smape_pct": 4.1067402572849865,
+        "rmse_cm": 1.9433647796197857,
+        "max_abs_cm": 2.799999999999997,
+        "max_pct": 5.833333333333327,
+        "max_smape_pct": 6.008583690987118
+      },
+      "has_handle_acc": 1.0,
+      "has_handle_f1": null,
+      "has_handle_n": 3,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [],
+      "failed": []
+    },
+    "Laptop": {
+      "scale": {
+        "n": 0
+      },
+      "has_handle_acc": null,
+      "has_handle_f1": null,
+      "has_handle_n": 0,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [
+        "10223",
+        "9604",
+        "9682"
+      ],
+      "failed": []
+    },
+    "Microwave": {
+      "scale": {
+        "n": 0
+      },
+      "has_handle_acc": null,
+      "has_handle_f1": null,
+      "has_handle_n": 0,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [
+        "3456",
+        "3458",
+        "3461"
+      ],
+      "failed": []
+    },
+    "Refrigerator": {
+      "scale": {
+        "n": 0
+      },
+      "has_handle_acc": null,
+      "has_handle_f1": null,
+      "has_handle_n": 0,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [
+        "10007",
+        "9978",
+        "9985"
+      ],
+      "failed": []
+    },
+    "Scissors": {
+      "scale": {
+        "n": 0
+      },
+      "has_handle_acc": null,
+      "has_handle_f1": null,
+      "has_handle_n": 0,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [
+        "10449",
+        "10471",
+        "10514"
+      ],
+      "failed": []
+    },
+    "StorageFurniture": {
+      "scale": {
+        "n": 0
+      },
+      "has_handle_acc": null,
+      "has_handle_f1": null,
+      "has_handle_n": 0,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [
+        "35059",
+        "39030",
+        "41002"
+      ],
+      "failed": []
+    }
+  },
+  "details": [
+    {
+      "category": "Dishwasher",
+      "asset_id": "11453",
+      "L_pred_cm": 65.0,
+      "L_gt_cm": 59.5,
+      "L_norm_gt": 2.0,
+      "scale_gt": 29.75,
+      "confidence": 0.95,
+      "L_abs_err_cm": 5.5,
+      "L_pct_err": 9.243697478991598,
+      "L_smape_pct": 8.835341365461847,
+      "scale_pred": 32.5,
+      "scale_abs_err": 2.75,
+      "has_handle_joint_0_pred": false,
+      "has_handle_joint_0_gt": false
+    },
+    {
+      "category": "Dishwasher",
+      "asset_id": "11710",
+      "L_pred_cm": 65.0,
+      "L_gt_cm": 85.0,
+      "L_norm_gt": 2.0,
+      "scale_gt": 42.5,
+      "confidence": 0.95,
+      "L_abs_err_cm": 20.0,
+      "L_pct_err": 23.52941176470588,
+      "L_smape_pct": 26.666666666666668,
+      "scale_pred": 32.5,
+      "scale_abs_err": 10.0,
+      "has_handle_joint_0_pred": false,
+      "has_handle_joint_0_gt": false
+    },
+    {
+      "category": "Dishwasher",
+      "asset_id": "11763",
+      "L_pred_cm": 45.2,
+      "L_gt_cm": 80.6,
+      "L_norm_gt": 2.0,
+      "scale_gt": 40.3,
+      "confidence": 0.95,
+      "L_abs_err_cm": 35.39999999999999,
+      "L_pct_err": 43.920595533498755,
+      "L_smape_pct": 56.279809220985676,
+      "scale_pred": 22.6,
+      "scale_abs_err": 17.699999999999996,
+      "has_handle_joint_0_pred": false,
+      "has_handle_joint_0_gt": false,
+      "has_handle_joint_1_pred": false,
+      "has_handle_joint_1_gt": false
+    },
+    {
+      "category": "Display",
+      "asset_id": "3386",
+      "L_pred_cm": 42.5,
+      "L_gt_cm": 47.0,
+      "L_norm_gt": 2.0,
+      "scale_gt": 23.5,
+      "confidence": 0.95,
+      "L_abs_err_cm": 4.5,
+      "L_pct_err": 9.574468085106384,
+      "L_smape_pct": 10.05586592178771,
+      "scale_pred": 21.25,
+      "scale_abs_err": 2.25,
+      "has_handle_joint_0_pred": false,
+      "has_handle_joint_0_gt": false
+    },
+    {
+      "category": "Display",
+      "asset_id": "3393",
+      "L_pred_cm": 58.0,
+      "L_gt_cm": 55.0,
+      "L_norm_gt": 2.0,
+      "scale_gt": 27.5,
+      "confidence": 0.95,
+      "L_abs_err_cm": 3.0,
+      "L_pct_err": 5.454545454545454,
+      "L_smape_pct": 5.3097345132743365,
+      "scale_pred": 29.0,
+      "scale_abs_err": 1.5,
+      "has_handle_joint_0_pred": false,
+      "has_handle_joint_0_gt": false
+    },
+    {
+      "category": "Display",
+      "asset_id": "4523",
+      "L_pred_cm": 58.0,
+      "L_gt_cm": 50.0,
+      "L_norm_gt": 2.0,
+      "scale_gt": 25.0,
+      "confidence": 0.95,
+      "L_abs_err_cm": 8.0,
+      "L_pct_err": 16.0,
+      "L_smape_pct": 14.814814814814813,
+      "scale_pred": 29.0,
+      "scale_abs_err": 4.0,
+      "has_handle_joint_0_pred": false,
+      "has_handle_joint_0_gt": false
+    },
+    {
+      "category": "Door",
+      "asset_id": "8850",
+      "L_pred_cm": 204.0,
+      "L_gt_cm": 212.0,
+      "L_norm_gt": 2.0,
+      "scale_gt": 106.0,
+      "confidence": 0.95,
+      "L_abs_err_cm": 8.0,
+      "L_pct_err": 3.7735849056603774,
+      "L_smape_pct": 3.8461538461538463,
+      "scale_pred": 102.0,
+      "scale_abs_err": 4.0,
+      "has_handle_joint_0_pred": true,
+      "has_handle_joint_0_gt": true,
+      "door_type_pred": "normal",
+      "door_type_gt": "normal"
+    },
+    {
+      "category": "Door",
+      "asset_id": "8867",
+      "L_pred_cm": 120.0,
+      "L_gt_cm": 220.0,
+      "L_norm_gt": 2.0,
+      "scale_gt": 110.0,
+      "confidence": 0.95,
+      "L_abs_err_cm": 100.0,
+      "L_pct_err": 45.45454545454545,
+      "L_smape_pct": 58.82352941176471,
+      "scale_pred": 60.0,
+      "scale_abs_err": 50.0,
+      "has_handle_joint_0_pred": false,
+      "has_handle_joint_0_gt": true,
+      "door_type_pred": "normal",
+      "door_type_gt": "normal"
+    },
+    {
+      "category": "Door",
+      "asset_id": "9280",
+      "L_pred_cm": 42.5,
+      "L_gt_cm": 215.0,
+      "L_norm_gt": 2.0,
+      "scale_gt": 107.5,
+      "confidence": 0.95,
+      "L_abs_err_cm": 172.5,
+      "L_pct_err": 80.23255813953489,
+      "L_smape_pct": 133.98058252427185,
+      "scale_pred": 21.25,
+      "scale_abs_err": 86.25,
+      "has_handle_joint_0_pred": true,
+      "has_handle_joint_0_gt": true,
+      "door_type_pred": "normal",
+      "door_type_gt": "self_closing"
+    },
+    {
+      "category": "Faucet",
+      "asset_id": "148",
+      "L_pred_cm": 24.5,
+      "L_gt_cm": 14.0,
+      "L_norm_gt": 2.0,
+      "scale_gt": 7.0,
+      "confidence": 0.95,
+      "L_abs_err_cm": 10.5,
+      "L_pct_err": 75.0,
+      "L_smape_pct": 54.54545454545454,
+      "scale_pred": 12.25,
+      "scale_abs_err": 5.25,
+      "has_handle_joint_0_pred": false,
+      "has_handle_joint_0_gt": true
+    },
+    {
+      "category": "Faucet",
+      "asset_id": "149",
+      "L_pred_cm": 28.5,
+      "L_gt_cm": 32.0,
+      "L_norm_gt": 2.0,
+      "scale_gt": 16.0,
+      "confidence": 0.98,
+      "L_abs_err_cm": 3.5,
+      "L_pct_err": 10.9375,
+      "L_smape_pct": 11.570247933884298,
+      "scale_pred": 14.25,
+      "scale_abs_err": 1.75,
+      "has_handle_joint_0_pred": false,
+      "has_handle_joint_0_gt": true
+    },
+    {
+      "category": "Faucet",
+      "asset_id": "988",
+      "L_pred_cm": 15.2,
+      "L_gt_cm": 12.0,
+      "L_norm_gt": 2.0,
+      "scale_gt": 6.0,
+      "confidence": 0.98,
+      "L_abs_err_cm": 3.1999999999999993,
+      "L_pct_err": 26.66666666666666,
+      "L_smape_pct": 23.529411764705877,
+      "scale_pred": 7.6,
+      "scale_abs_err": 1.5999999999999996,
+      "has_handle_joint_0_pred": false,
+      "has_handle_joint_0_gt": true
+    },
+    {
+      "category": "Knife",
+      "asset_id": "103",
+      "L_pred_cm": 15.2,
+      "L_gt_cm": 17.0,
+      "L_norm_gt": 2.0,
+      "scale_gt": 8.5,
+      "confidence": 0.95,
+      "L_abs_err_cm": 1.8000000000000007,
+      "L_pct_err": 10.58823529411765,
+      "L_smape_pct": 11.180124223602487,
+      "scale_pred": 7.6,
+      "scale_abs_err": 0.9000000000000004,
+      "has_handle_joint_0_pred": false,
+      "has_handle_joint_0_gt": false
+    },
+    {
+      "category": "Knife",
+      "asset_id": "395",
+      "L_pred_cm": 15.2,
+      "L_gt_cm": 15.0,
+      "L_norm_gt": 2.0,
+      "scale_gt": 7.5,
+      "confidence": 0.98,
+      "L_abs_err_cm": 0.1999999999999993,
+      "L_pct_err": 1.3333333333333286,
+      "L_smape_pct": 1.3245033112582734,
+      "scale_pred": 7.6,
+      "scale_abs_err": 0.09999999999999964,
+      "has_handle_joint_0_pred": false,
+      "has_handle_joint_0_gt": false
+    },
+    {
+      "category": "Knife",
+      "asset_id": "834",
+      "L_pred_cm": 15.2,
+      "L_gt_cm": 13.0,
+      "L_norm_gt": 2.0,
+      "scale_gt": 6.5,
+      "confidence": 0.95,
+      "L_abs_err_cm": 2.1999999999999993,
+      "L_pct_err": 16.92307692307692,
+      "L_smape_pct": 15.602836879432619,
+      "scale_pred": 7.6,
+      "scale_abs_err": 1.0999999999999996,
+      "has_handle_joint_0_pred": false,
+      "has_handle_joint_0_gt": false
+    },
+    {
+      "category": "Lamp",
+      "asset_id": "13928",
+      "L_pred_cm": 42.5,
+      "L_gt_cm": 42.0,
+      "L_norm_gt": 1.55603,
+      "scale_gt": 26.991768,
+      "confidence": 0.98,
+      "L_abs_err_cm": 0.5,
+      "L_pct_err": 1.1904761904761905,
+      "L_smape_pct": 1.183431952662722,
+      "scale_pred": 27.313098076515235,
+      "scale_abs_err": 0.3213300765152347,
+      "has_handle_joint_0_pred": false,
+      "has_handle_joint_0_gt": false
+    },
+    {
+      "category": "Lamp",
+      "asset_id": "14372",
+      "L_pred_cm": 45.2,
+      "L_gt_cm": 48.0,
+      "L_norm_gt": 1.709342,
+      "scale_gt": 28.080981,
+      "confidence": 0.95,
+      "L_abs_err_cm": 2.799999999999997,
+      "L_pct_err": 5.833333333333327,
+      "L_smape_pct": 6.008583690987118,
+      "scale_pred": 26.442923651323145,
+      "scale_abs_err": 1.6380573486768562,
+      "has_handle_joint_0_pred": false,
+      "has_handle_joint_0_gt": false
+    },
+    {
+      "category": "Lamp",
+      "asset_id": "14563",
+      "L_pred_cm": 34.2,
+      "L_gt_cm": 36.0,
+      "L_norm_gt": 1.65518,
+      "scale_gt": 21.7499,
+      "confidence": 0.95,
+      "L_abs_err_cm": 1.7999999999999972,
+      "L_pct_err": 4.999999999999992,
+      "L_smape_pct": 5.12820512820512,
+      "scale_pred": 20.662405297309054,
+      "scale_abs_err": 1.0874947026909467,
+      "has_handle_joint_1_pred": false,
+      "has_handle_joint_1_gt": false
+    }
+  ],
+  "has_handle_rows": [
+    {
+      "category": "Dishwasher",
+      "asset_id": "11453",
+      "joint_name": "joint_0",
+      "pred": false,
+      "gt": false,
+      "ok": true
+    },
+    {
+      "category": "Dishwasher",
+      "asset_id": "11710",
+      "joint_name": "joint_0",
+      "pred": false,
+      "gt": false,
+      "ok": true
+    },
+    {
+      "category": "Dishwasher",
+      "asset_id": "11763",
+      "joint_name": "joint_0",
+      "pred": false,
+      "gt": false,
+      "ok": true
+    },
+    {
+      "category": "Dishwasher",
+      "asset_id": "11763",
+      "joint_name": "joint_1",
+      "pred": false,
+      "gt": false,
+      "ok": true
+    },
+    {
+      "category": "Display",
+      "asset_id": "3386",
+      "joint_name": "joint_0",
+      "pred": false,
+      "gt": false,
+      "ok": true
+    },
+    {
+      "category": "Display",
+      "asset_id": "3393",
+      "joint_name": "joint_0",
+      "pred": false,
+      "gt": false,
+      "ok": true
+    },
+    {
+      "category": "Display",
+      "asset_id": "4523",
+      "joint_name": "joint_0",
+      "pred": false,
+      "gt": false,
+      "ok": true
+    },
+    {
+      "category": "Door",
+      "asset_id": "8850",
+      "joint_name": "joint_0",
+      "pred": true,
+      "gt": true,
+      "ok": true
+    },
+    {
+      "category": "Door",
+      "asset_id": "8867",
+      "joint_name": "joint_0",
+      "pred": false,
+      "gt": true,
+      "ok": false
+    },
+    {
+      "category": "Door",
+      "asset_id": "9280",
+      "joint_name": "joint_0",
+      "pred": true,
+      "gt": true,
+      "ok": true
+    },
+    {
+      "category": "Faucet",
+      "asset_id": "148",
+      "joint_name": "joint_0",
+      "pred": false,
+      "gt": true,
+      "ok": false
+    },
+    {
+      "category": "Faucet",
+      "asset_id": "149",
+      "joint_name": "joint_0",
+      "pred": false,
+      "gt": true,
+      "ok": false
+    },
+    {
+      "category": "Faucet",
+      "asset_id": "988",
+      "joint_name": "joint_0",
+      "pred": false,
+      "gt": true,
+      "ok": false
+    },
+    {
+      "category": "Knife",
+      "asset_id": "103",
+      "joint_name": "joint_0",
+      "pred": false,
+      "gt": false,
+      "ok": true
+    },
+    {
+      "category": "Knife",
+      "asset_id": "395",
+      "joint_name": "joint_0",
+      "pred": false,
+      "gt": false,
+      "ok": true
+    },
+    {
+      "category": "Knife",
+      "asset_id": "834",
+      "joint_name": "joint_0",
+      "pred": false,
+      "gt": false,
+      "ok": true
+    },
+    {
+      "category": "Lamp",
+      "asset_id": "13928",
+      "joint_name": "joint_0",
+      "pred": false,
+      "gt": false,
+      "ok": true
+    },
+    {
+      "category": "Lamp",
+      "asset_id": "14372",
+      "joint_name": "joint_0",
+      "pred": false,
+      "gt": false,
+      "ok": true
+    },
+    {
+      "category": "Lamp",
+      "asset_id": "14563",
+      "joint_name": "joint_1",
+      "pred": false,
+      "gt": false,
+      "ok": true
+    }
+  ],
+  "door_type_rows": [
+    {
+      "category": "Door",
+      "asset_id": "8850",
+      "pred": "normal",
+      "gt": "normal",
+      "ok": true
+    },
+    {
+      "category": "Door",
+      "asset_id": "8867",
+      "pred": "normal",
+      "gt": "normal",
+      "ok": true
+    },
+    {
+      "category": "Door",
+      "asset_id": "9280",
+      "pred": "normal",
+      "gt": "self_closing",
+      "ok": false
+    }
+  ]
+}

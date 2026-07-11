@@ -1,0 +1,1417 @@
+{
+  "bench_path": "/home/ubuntu/workspace/physvla_sim/Augment_code/fitr_bench.json",
+  "dataset_root": "/home/ubuntu/workspace/physvla_sim/datasets/data_normalized",
+  "method": "geometry_contact_point",
+  "metric": "L2 position error (cm) = ||pred-gt||_2 * scale_gt",
+  "preserved_only": true,
+  "contact": {
+    "n": 57,
+    "mae_cm": 1.4841167181044426,
+    "rmse_cm": 2.4850979679264142,
+    "max_cm": 12.63851576766038,
+    "median_cm": 0.9369756456664439
+  },
+  "contact_preserved_subset": {
+    "n": 57,
+    "mae_cm": 1.4841167181044426,
+    "rmse_cm": 2.4850979679264142,
+    "max_cm": 12.63851576766038,
+    "median_cm": 0.9369756456664439
+  },
+  "by_category": {
+    "Dishwasher": {
+      "contact": {
+        "n": 4,
+        "mae_cm": 0.9245266835508451,
+        "rmse_cm": 1.0267603043013211,
+        "max_cm": 1.4532212412505594,
+        "median_cm": 1.0110625565089506
+      },
+      "contact_preserved": {
+        "n": 4,
+        "mae_cm": 0.9245266835508451,
+        "rmse_cm": 1.0267603043013211,
+        "max_cm": 1.4532212412505594,
+        "median_cm": 1.0110625565089506
+      },
+      "n_affordances": 4,
+      "n_preserved_affordances": 4,
+      "skipped_null_gt": 0,
+      "skipped_filter": 16,
+      "errors_compute": []
+    },
+    "Display": {
+      "contact": {
+        "n": 3,
+        "mae_cm": 0.7658504744125619,
+        "rmse_cm": 0.7778178826829156,
+        "max_cm": 0.8825136195585029,
+        "median_cm": 0.8398172280518853
+      },
+      "contact_preserved": {
+        "n": 3,
+        "mae_cm": 0.7658504744125619,
+        "rmse_cm": 0.7778178826829156,
+        "max_cm": 0.8825136195585029,
+        "median_cm": 0.8398172280518853
+      },
+      "n_affordances": 3,
+      "n_preserved_affordances": 3,
+      "skipped_null_gt": 0,
+      "skipped_filter": 17,
+      "errors_compute": []
+    },
+    "Door": {
+      "contact": {
+        "n": 3,
+        "mae_cm": 7.666618037585731,
+        "rmse_cm": 8.4611409386465,
+        "max_cm": 12.63851576766038,
+        "median_cm": 6.005887625666272
+      },
+      "contact_preserved": {
+        "n": 3,
+        "mae_cm": 7.666618037585731,
+        "rmse_cm": 8.4611409386465,
+        "max_cm": 12.63851576766038,
+        "median_cm": 6.005887625666272
+      },
+      "n_affordances": 3,
+      "n_preserved_affordances": 3,
+      "skipped_null_gt": 0,
+      "skipped_filter": 17,
+      "errors_compute": []
+    },
+    "Drawer": {
+      "contact": {
+        "n": 12,
+        "mae_cm": 0.9384819168838536,
+        "rmse_cm": 1.0356439812398488,
+        "max_cm": 1.8986889429442142,
+        "median_cm": 0.9129292042275646
+      },
+      "contact_preserved": {
+        "n": 12,
+        "mae_cm": 0.9384819168838536,
+        "rmse_cm": 1.0356439812398488,
+        "max_cm": 1.8986889429442142,
+        "median_cm": 0.9129292042275646
+      },
+      "n_affordances": 12,
+      "n_preserved_affordances": 12,
+      "skipped_null_gt": 0,
+      "skipped_filter": 17,
+      "errors_compute": []
+    },
+    "Faucet": {
+      "contact": {
+        "n": 5,
+        "mae_cm": 0.4834184342984683,
+        "rmse_cm": 0.5332187794144159,
+        "max_cm": 0.6808602515289015,
+        "median_cm": 0.6589317026824554
+      },
+      "contact_preserved": {
+        "n": 5,
+        "mae_cm": 0.4834184342984683,
+        "rmse_cm": 0.5332187794144159,
+        "max_cm": 0.6808602515289015,
+        "median_cm": 0.6589317026824554
+      },
+      "n_affordances": 5,
+      "n_preserved_affordances": 5,
+      "skipped_null_gt": 0,
+      "skipped_filter": 17,
+      "errors_compute": []
+    },
+    "Knife": {
+      "contact": {
+        "n": 3,
+        "mae_cm": 0.3345373804001639,
+        "rmse_cm": 0.3527020535229887,
+        "max_cm": 0.48163988956402864,
+        "median_cm": 0.31094469224847676
+      },
+      "contact_preserved": {
+        "n": 3,
+        "mae_cm": 0.3345373804001639,
+        "rmse_cm": 0.3527020535229887,
+        "max_cm": 0.48163988956402864,
+        "median_cm": 0.31094469224847676
+      },
+      "n_affordances": 3,
+      "n_preserved_affordances": 3,
+      "skipped_null_gt": 0,
+      "skipped_filter": 17,
+      "errors_compute": []
+    },
+    "Lamp": {
+      "contact": {
+        "n": 9,
+        "mae_cm": 1.0771825564406123,
+        "rmse_cm": 1.1957841236914666,
+        "max_cm": 1.7264264003331657,
+        "median_cm": 1.1210317248232855
+      },
+      "contact_preserved": {
+        "n": 9,
+        "mae_cm": 1.0771825564406123,
+        "rmse_cm": 1.1957841236914666,
+        "max_cm": 1.7264264003331657,
+        "median_cm": 1.1210317248232855
+      },
+      "n_affordances": 9,
+      "n_preserved_affordances": 9,
+      "skipped_null_gt": 0,
+      "skipped_filter": 17,
+      "errors_compute": []
+    },
+    "Laptop": {
+      "contact": {
+        "n": 3,
+        "mae_cm": 0.428695037866931,
+        "rmse_cm": 0.48694026820059855,
+        "max_cm": 0.755221013287046,
+        "median_cm": 0.27114821034260966
+      },
+      "contact_preserved": {
+        "n": 3,
+        "mae_cm": 0.428695037866931,
+        "rmse_cm": 0.48694026820059855,
+        "max_cm": 0.755221013287046,
+        "median_cm": 0.27114821034260966
+      },
+      "n_affordances": 3,
+      "n_preserved_affordances": 3,
+      "skipped_null_gt": 0,
+      "skipped_filter": 17,
+      "errors_compute": []
+    },
+    "Microwave": {
+      "contact": {
+        "n": 3,
+        "mae_cm": 1.1073253658207511,
+        "rmse_cm": 1.1420634693607217,
+        "max_cm": 1.439033695284095,
+        "median_cm": 1.1277141647434423
+      },
+      "contact_preserved": {
+        "n": 3,
+        "mae_cm": 1.1073253658207511,
+        "rmse_cm": 1.1420634693607217,
+        "max_cm": 1.439033695284095,
+        "median_cm": 1.1277141647434423
+      },
+      "n_affordances": 3,
+      "n_preserved_affordances": 3,
+      "skipped_null_gt": 0,
+      "skipped_filter": 17,
+      "errors_compute": []
+    },
+    "Refrigerator": {
+      "contact": {
+        "n": 6,
+        "mae_cm": 3.7261511333901645,
+        "rmse_cm": 3.9673808624630644,
+        "max_cm": 5.500204223779447,
+        "median_cm": 3.4898278099642677
+      },
+      "contact_preserved": {
+        "n": 6,
+        "mae_cm": 3.7261511333901645,
+        "rmse_cm": 3.9673808624630644,
+        "max_cm": 5.500204223779447,
+        "median_cm": 3.4898278099642677
+      },
+      "n_affordances": 6,
+      "n_preserved_affordances": 6,
+      "skipped_null_gt": 0,
+      "skipped_filter": 17,
+      "errors_compute": []
+    },
+    "Scissors": {
+      "contact": {
+        "n": 3,
+        "mae_cm": 0.20414685039099578,
+        "rmse_cm": 0.2143951708440515,
+        "max_cm": 0.2966215221983227,
+        "median_cm": 0.16242121490125608
+      },
+      "contact_preserved": {
+        "n": 3,
+        "mae_cm": 0.20414685039099578,
+        "rmse_cm": 0.2143951708440515,
+        "max_cm": 0.2966215221983227,
+        "median_cm": 0.16242121490125608
+      },
+      "n_affordances": 3,
+      "n_preserved_affordances": 3,
+      "skipped_null_gt": 0,
+      "skipped_filter": 17,
+      "errors_compute": []
+    },
+    "StorageFurniture": {
+      "contact": {
+        "n": 3,
+        "mae_cm": 1.214867258637784,
+        "rmse_cm": 1.2211313492999363,
+        "max_cm": 1.3891629764718019,
+        "median_cm": 1.1379529845296783
+      },
+      "contact_preserved": {
+        "n": 3,
+        "mae_cm": 1.214867258637784,
+        "rmse_cm": 1.2211313492999363,
+        "max_cm": 1.3891629764718019,
+        "median_cm": 1.1379529845296783
+      },
+      "n_affordances": 3,
+      "n_preserved_affordances": 3,
+      "skipped_null_gt": 0,
+      "skipped_filter": 17,
+      "errors_compute": []
+    }
+  },
+  "details": [
+    {
+      "category": "Dishwasher",
+      "asset_id": "11453",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 29.75,
+      "pred_xyz": [
+        -0.961038,
+        -0.605021,
+        0.329032
+      ],
+      "gt_xyz": [
+        -1.0,
+        -0.6,
+        0.3
+      ],
+      "error_cm": 1.4532212412505594,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Dishwasher",
+      "asset_id": "11622",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 31.15,
+      "pred_xyz": [
+        -0.53471,
+        -8.6e-05,
+        0.967038
+      ],
+      "gt_xyz": [
+        -0.5,
+        0.0,
+        0.97
+      ],
+      "error_cm": 1.0851494673514572,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Dishwasher",
+      "asset_id": "11710",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 42.5,
+      "pred_xyz": [
+        -0.698223,
+        1e-06,
+        0.995069
+      ],
+      "gt_xyz": [
+        -0.7,
+        0.0,
+        1.0
+      ],
+      "error_cm": 0.22276037993491976,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Dishwasher",
+      "asset_id": "11763",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 40.3,
+      "pred_xyz": [
+        -0.42325,
+        -2.4e-05,
+        0.999987
+      ],
+      "gt_xyz": [
+        -0.4,
+        0.0,
+        1.0
+      ],
+      "error_cm": 0.9369756456664439,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Display",
+      "asset_id": "3386",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 23.5,
+      "pred_xyz": [
+        -0.021883,
+        -0.728253,
+        0.099831
+      ],
+      "gt_xyz": [
+        0.0,
+        -0.7,
+        0.1
+      ],
+      "error_cm": 0.8398172280518853,
+      "source": "panel_tilt_top_center"
+    },
+    {
+      "category": "Display",
+      "asset_id": "3393",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 27.5,
+      "pred_xyz": [
+        -0.021884,
+        -0.388539,
+        0.079516
+      ],
+      "gt_xyz": [
+        0.0,
+        -0.4,
+        0.1
+      ],
+      "error_cm": 0.8825136195585029,
+      "source": "panel_tilt_top_center"
+    },
+    {
+      "category": "Display",
+      "asset_id": "4523",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 25.0,
+      "pred_xyz": [
+        3.2e-05,
+        -0.510353,
+        0.120548
+      ],
+      "gt_xyz": [
+        0.0,
+        -0.5,
+        0.1
+      ],
+      "error_cm": 0.5752205756272973,
+      "source": "panel_tilt_top_center"
+    },
+    {
+      "category": "Door",
+      "asset_id": "8850",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 106.0,
+      "pred_xyz": [
+        0.570317,
+        -0.981735,
+        0.078237
+      ],
+      "gt_xyz": [
+        0.6,
+        -1.0,
+        0.1
+      ],
+      "error_cm": 4.355450719430539,
+      "source": "door_hinge_max_lever"
+    },
+    {
+      "category": "Door",
+      "asset_id": "8867",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 110.0,
+      "pred_xyz": [
+        -0.097043,
+        -0.154494,
+        0.323023
+      ],
+      "gt_xyz": [
+        -0.2,
+        -0.2,
+        0.3
+      ],
+      "error_cm": 12.63851576766038,
+      "source": "door_hinge_max_lever"
+    },
+    {
+      "category": "Door",
+      "asset_id": "9280",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 107.5,
+      "pred_xyz": [
+        -0.328022,
+        -0.021795,
+        -0.05686
+      ],
+      "gt_xyz": [
+        -0.3,
+        0.0,
+        -0.1
+      ],
+      "error_cm": 6.005887625666272,
+      "source": "door_hinge_max_lever"
+    },
+    {
+      "category": "Drawer",
+      "asset_id": "19179",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 22.315193,
+      "pred_xyz": [
+        -1.137937,
+        0.032081,
+        -0.265977
+      ],
+      "gt_xyz": [
+        -1.1,
+        0.0,
+        -0.3
+      ],
+      "error_cm": 1.3437324775323332,
+      "source": "prismatic_front_center"
+    },
+    {
+      "category": "Drawer",
+      "asset_id": "19179",
+      "joint_name": "joint_1",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 22.315193,
+      "pred_xyz": [
+        -1.110024,
+        0.030697,
+        0.228161
+      ],
+      "gt_xyz": [
+        -1.1,
+        0.0,
+        0.2
+      ],
+      "error_cm": 0.9561294125951475,
+      "source": "prismatic_front_center"
+    },
+    {
+      "category": "Drawer",
+      "asset_id": "19203",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 19.858055,
+      "pred_xyz": [
+        0.447687,
+        0.561241,
+        -0.500491
+      ],
+      "gt_xyz": [
+        0.4,
+        0.6,
+        -0.5
+      ],
+      "error_cm": 1.2203499669304325,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Drawer",
+      "asset_id": "19203",
+      "joint_name": "joint_1",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 19.858055,
+      "pred_xyz": [
+        0.485217,
+        0.56342,
+        -0.514338
+      ],
+      "gt_xyz": [
+        0.5,
+        0.6,
+        -0.5
+      ],
+      "error_cm": 0.8336154467974656,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Drawer",
+      "asset_id": "19203",
+      "joint_name": "joint_2",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 19.858055,
+      "pred_xyz": [
+        0.413263,
+        -0.579394,
+        -0.500456
+      ],
+      "gt_xyz": [
+        0.4,
+        -0.6,
+        -0.5
+      ],
+      "error_cm": 0.48671373380672983,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Drawer",
+      "asset_id": "19203",
+      "joint_name": "joint_3",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 19.858055,
+      "pred_xyz": [
+        0.439036,
+        -0.586259,
+        -0.514338
+      ],
+      "gt_xyz": [
+        0.4,
+        -0.6,
+        -0.5
+      ],
+      "error_cm": 0.8697289958599818,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Drawer",
+      "asset_id": "19203",
+      "joint_name": "joint_4",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 19.858055,
+      "pred_xyz": [
+        -0.462221,
+        -0.544624,
+        -0.500491
+      ],
+      "gt_xyz": [
+        -0.5,
+        -0.5,
+        -0.5
+      ],
+      "error_cm": 1.1611097133579427,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Drawer",
+      "asset_id": "19203",
+      "joint_name": "joint_5",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 19.858055,
+      "pred_xyz": [
+        -0.455358,
+        -0.536005,
+        -0.51984
+      ],
+      "gt_xyz": [
+        -0.5,
+        -0.5,
+        -0.5
+      ],
+      "error_cm": 1.2051228093433115,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Drawer",
+      "asset_id": "19203",
+      "joint_name": "joint_6",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 19.858055,
+      "pred_xyz": [
+        -0.383057,
+        0.595495,
+        -0.500491
+      ],
+      "gt_xyz": [
+        -0.4,
+        0.6,
+        -0.5
+      ],
+      "error_cm": 0.3482818408939821,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Drawer",
+      "asset_id": "19203",
+      "joint_name": "joint_7",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 19.858055,
+      "pred_xyz": [
+        -0.385236,
+        0.602875,
+        -0.514338
+      ],
+      "gt_xyz": [
+        -0.4,
+        0.6,
+        -0.5
+      ],
+      "error_cm": 0.4126557176870764,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Drawer",
+      "asset_id": "21467",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 41.491641,
+      "pred_xyz": [
+        0.311597,
+        0.004318,
+        0.102714
+      ],
+      "gt_xyz": [
+        0.3,
+        0.0,
+        0.1
+      ],
+      "error_cm": 0.5256539448576268,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Drawer",
+      "asset_id": "21467",
+      "joint_name": "joint_1",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 41.491641,
+      "pred_xyz": [
+        0.327043,
+        -0.00714,
+        0.136218
+      ],
+      "gt_xyz": [
+        0.3,
+        0.0,
+        0.1
+      ],
+      "error_cm": 1.8986889429442142,
+      "source": "prismatic_front_center"
+    },
+    {
+      "category": "Faucet",
+      "asset_id": "148",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 7.0,
+      "pred_xyz": [
+        0.178236,
+        -0.000105,
+        0.617174
+      ],
+      "gt_xyz": [
+        0.2,
+        0.0,
+        0.6
+      ],
+      "error_cm": 0.19406911359873846,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Faucet",
+      "asset_id": "149",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 16.0,
+      "pred_xyz": [
+        0.300179,
+        0.940363,
+        -0.408764
+      ],
+      "gt_xyz": [
+        0.3,
+        0.9,
+        -0.4
+      ],
+      "error_cm": 0.6608622742568973,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Faucet",
+      "asset_id": "149",
+      "joint_name": "joint_1",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 16.0,
+      "pred_xyz": [
+        0.291535,
+        -0.940364,
+        -0.410484
+      ],
+      "gt_xyz": [
+        0.3,
+        -0.9,
+        -0.4
+      ],
+      "error_cm": 0.6808602515289015,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Faucet",
+      "asset_id": "149",
+      "joint_name": "joint_2",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 16.0,
+      "pred_xyz": [
+        -0.458965,
+        8.5e-05,
+        0.39651
+      ],
+      "gt_xyz": [
+        -0.5,
+        0.0,
+        0.4
+      ],
+      "error_cm": 0.6589317026824554,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Faucet",
+      "asset_id": "988",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 6.0,
+      "pred_xyz": [
+        -0.390999,
+        -0.001795,
+        0.835907
+      ],
+      "gt_xyz": [
+        -0.4,
+        0.0,
+        0.8
+      ],
+      "error_cm": 0.22236882942534864,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Knife",
+      "asset_id": "103",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 8.5,
+      "pred_xyz": [
+        0.0,
+        0.953277,
+        -0.032058
+      ],
+      "gt_xyz": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "error_cm": 0.48163988956402864,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Knife",
+      "asset_id": "395",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 7.5,
+      "pred_xyz": [
+        0.036891,
+        0.981739,
+        0.204946
+      ],
+      "gt_xyz": [
+        0.0,
+        1.0,
+        0.2
+      ],
+      "error_cm": 0.31094469224847676,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Knife",
+      "asset_id": "834",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 6.5,
+      "pred_xyz": [
+        -0.000989,
+        0.983112,
+        0.07229
+      ],
+      "gt_xyz": [
+        0.0,
+        1.0,
+        0.1
+      ],
+      "error_cm": 0.2110275593879862,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Lamp",
+      "asset_id": "13928",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 26.991768,
+      "pred_xyz": [
+        0.039292,
+        -0.005008,
+        0.438719
+      ],
+      "gt_xyz": [
+        0.0,
+        0.0,
+        0.4
+      ],
+      "error_cm": 1.495086258119964,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Lamp",
+      "asset_id": "13928",
+      "joint_name": "joint_1",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 26.991768,
+      "pred_xyz": [
+        -0.121703,
+        0.097385,
+        0.536174
+      ],
+      "gt_xyz": [
+        -0.1,
+        0.1,
+        0.5
+      ],
+      "error_cm": 1.1408346902162205,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Lamp",
+      "asset_id": "13928",
+      "joint_name": "joint_2",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 26.991768,
+      "pred_xyz": [
+        -0.098525,
+        0.001356,
+        0.158516
+      ],
+      "gt_xyz": [
+        -0.1,
+        0.0,
+        0.2
+      ],
+      "error_cm": 1.1210317248232855,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Lamp",
+      "asset_id": "13928",
+      "joint_name": "joint_3",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 26.991768,
+      "pred_xyz": [
+        -0.098525,
+        0.001356,
+        0.158516
+      ],
+      "gt_xyz": [
+        -0.1,
+        0.0,
+        0.2
+      ],
+      "error_cm": 1.1210317248232855,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Lamp",
+      "asset_id": "14372",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 28.080981,
+      "pred_xyz": [
+        -0.950152,
+        -0.002901,
+        0.335869
+      ],
+      "gt_xyz": [
+        -1.0,
+        0.0,
+        0.3
+      ],
+      "error_cm": 1.7264264003331657,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Lamp",
+      "asset_id": "14372",
+      "joint_name": "joint_1",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 28.080981,
+      "pred_xyz": [
+        -0.950152,
+        -0.002901,
+        0.335869
+      ],
+      "gt_xyz": [
+        -1.0,
+        0.0,
+        0.3
+      ],
+      "error_cm": 1.7264264003331657,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Lamp",
+      "asset_id": "14372",
+      "joint_name": "joint_2",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 28.080981,
+      "pred_xyz": [
+        -0.584496,
+        -0.019159,
+        0.582258
+      ],
+      "gt_xyz": [
+        -0.6,
+        0.0,
+        0.6
+      ],
+      "error_cm": 0.8527652824299363,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Lamp",
+      "asset_id": "14563",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 21.7499,
+      "pred_xyz": [
+        0.211503,
+        0.00218,
+        0.599027
+      ],
+      "gt_xyz": [
+        0.2,
+        0.0,
+        0.6
+      ],
+      "error_cm": 0.25552026344324386,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Lamp",
+      "asset_id": "14563",
+      "joint_name": "joint_1",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 21.7499,
+      "pred_xyz": [
+        0.211503,
+        0.00218,
+        0.599027
+      ],
+      "gt_xyz": [
+        0.2,
+        0.0,
+        0.6
+      ],
+      "error_cm": 0.25552026344324386,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Laptop",
+      "asset_id": "10223",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 18.0,
+      "pred_xyz": [
+        7.1e-05,
+        0.085974,
+        -0.505494
+      ],
+      "gt_xyz": [
+        0.0,
+        0.1,
+        -0.5
+      ],
+      "error_cm": 0.27114821034260966,
+      "source": "panel_tilt_top_center"
+    },
+    {
+      "category": "Laptop",
+      "asset_id": "9604",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 15.5,
+      "pred_xyz": [
+        0.000162,
+        -0.598871,
+        -0.583283
+      ],
+      "gt_xyz": [
+        0.0,
+        -0.6,
+        -0.6
+      ],
+      "error_cm": 0.25971588997113715,
+      "source": "panel_tilt_top_center"
+    },
+    {
+      "category": "Laptop",
+      "asset_id": "9682",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 15.25,
+      "pred_xyz": [
+        2.7e-05,
+        -0.640744,
+        -0.52815
+      ],
+      "gt_xyz": [
+        0.0,
+        -0.6,
+        -0.5
+      ],
+      "error_cm": 0.755221013287046,
+      "source": "panel_tilt_top_center"
+    },
+    {
+      "category": "Microwave",
+      "asset_id": "3456",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 21.0,
+      "pred_xyz": [
+        -0.838005,
+        -0.620417,
+        0.631977
+      ],
+      "gt_xyz": [
+        -0.8,
+        -0.6,
+        0.6
+      ],
+      "error_cm": 1.1277141647434423,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Microwave",
+      "asset_id": "3458",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 22.5,
+      "pred_xyz": [
+        -0.568907,
+        -0.612393,
+        0.502509
+      ],
+      "gt_xyz": [
+        -0.6,
+        -0.6,
+        0.5
+      ],
+      "error_cm": 0.7552282374347158,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Microwave",
+      "asset_id": "3461",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 23.0,
+      "pred_xyz": [
+        -0.648631,
+        -0.575075,
+        0.630469
+      ],
+      "gt_xyz": [
+        -0.6,
+        -0.6,
+        0.6
+      ],
+      "error_cm": 1.439033695284095,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Refrigerator",
+      "asset_id": "10007",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 87.5,
+      "pred_xyz": [
+        -0.284294,
+        0.345567,
+        0.340352
+      ],
+      "gt_xyz": [
+        -0.3,
+        0.3,
+        0.3
+      ],
+      "error_cm": 5.500204223779447,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Refrigerator",
+      "asset_id": "10007",
+      "joint_name": "joint_1",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 87.5,
+      "pred_xyz": [
+        -0.284294,
+        0.345567,
+        0.340352
+      ],
+      "gt_xyz": [
+        -0.3,
+        0.3,
+        0.3
+      ],
+      "error_cm": 5.500204223779447,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Refrigerator",
+      "asset_id": "9978",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 88.5,
+      "pred_xyz": [
+        -0.292228,
+        0.304922,
+        0.922953
+      ],
+      "gt_xyz": [
+        -0.3,
+        0.3,
+        0.9
+      ],
+      "error_cm": 2.1884213664267795,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Refrigerator",
+      "asset_id": "9978",
+      "joint_name": "joint_1",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 88.5,
+      "pred_xyz": [
+        -0.292228,
+        0.304922,
+        0.922953
+      ],
+      "gt_xyz": [
+        -0.3,
+        0.3,
+        0.9
+      ],
+      "error_cm": 2.1884213664267795,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Refrigerator",
+      "asset_id": "9985",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 90.0,
+      "pred_xyz": [
+        -0.31471,
+        0.297556,
+        0.935794
+      ],
+      "gt_xyz": [
+        -0.3,
+        0.3,
+        0.9
+      ],
+      "error_cm": 3.4898278099642677,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Refrigerator",
+      "asset_id": "9985",
+      "joint_name": "joint_1",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 90.0,
+      "pred_xyz": [
+        -0.31471,
+        0.297556,
+        0.935794
+      ],
+      "gt_xyz": [
+        -0.3,
+        0.3,
+        0.9
+      ],
+      "error_cm": 3.4898278099642677,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Scissors",
+      "asset_id": "10449",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 8.5,
+      "pred_xyz": [
+        0.985456,
+        -0.002145,
+        -0.489533
+      ],
+      "gt_xyz": [
+        1.0,
+        0.0,
+        -0.5
+      ],
+      "error_cm": 0.15339781407340852,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Scissors",
+      "asset_id": "10471",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 7.5,
+      "pred_xyz": [
+        0.996896,
+        -0.000661,
+        -0.260578
+      ],
+      "gt_xyz": [
+        1.0,
+        0.0,
+        -0.3
+      ],
+      "error_cm": 0.2966215221983227,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "Scissors",
+      "asset_id": "10514",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 9.0,
+      "pred_xyz": [
+        0.985456,
+        -0.002145,
+        -0.489533
+      ],
+      "gt_xyz": [
+        1.0,
+        0.0,
+        -0.5
+      ],
+      "error_cm": 0.16242121490125608,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "StorageFurniture",
+      "asset_id": "35059",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 20.0,
+      "pred_xyz": [
+        -0.73803,
+        -0.443557,
+        0.838483
+      ],
+      "gt_xyz": [
+        -0.7,
+        -0.4,
+        0.8
+      ],
+      "error_cm": 1.3891629764718019,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "StorageFurniture",
+      "asset_id": "39030",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 25.0,
+      "pred_xyz": [
+        -0.35729,
+        -0.615596,
+        0.997874
+      ],
+      "gt_xyz": [
+        -0.4,
+        -0.6,
+        1.0
+      ],
+      "error_cm": 1.1379529845296783,
+      "source": "revolute_max_lever"
+    },
+    {
+      "category": "StorageFurniture",
+      "asset_id": "41002",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "preserved": true,
+      "scale_gt": 23.5,
+      "pred_xyz": [
+        -0.53125,
+        0.729167,
+        0.979168
+      ],
+      "gt_xyz": [
+        -0.5,
+        0.7,
+        1.0
+      ],
+      "error_cm": 1.117485814911872,
+      "source": "revolute_max_lever"
+    }
+  ]
+}

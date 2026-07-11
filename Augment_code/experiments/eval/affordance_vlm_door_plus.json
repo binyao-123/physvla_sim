@@ -1,0 +1,496 @@
+{
+  "results_path": "/home/ubuntu/workspace/physvla_sim/Augment_code/experiments/vlm_affordance_results.jsonl",
+  "bench_path": "/home/ubuntu/workspace/physvla_sim/Augment_code/fitr_bench.json",
+  "model": "qwen-vl-plus",
+  "preserved_only": false,
+  "n_errors": 20,
+  "mae_cm": 78.49013297037585,
+  "per_category": {
+    "Door": {
+      "n": 20,
+      "mae_cm": 78.49013297037585
+    }
+  },
+  "details": [
+    {
+      "category": "Door",
+      "asset_id": "13242",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        -0.4,
+        0.0,
+        0.0
+      ],
+      "error_cm": 15.293943132397926,
+      "preserved": false,
+      "has_handle_gt": true,
+      "contact_axis_gt": [
+        0.0,
+        -1.0,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "8850",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        0.6,
+        -1.0,
+        0.1
+      ],
+      "error_cm": 142.60841489898132,
+      "preserved": true,
+      "has_handle_gt": true,
+      "contact_axis_gt": [
+        -0.8,
+        -0.5,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "8861",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        -0.6,
+        -1.0,
+        0.0
+      ],
+      "error_cm": 111.17373790603607,
+      "preserved": false,
+      "has_handle_gt": true,
+      "contact_axis_gt": [
+        0.0,
+        -1.0,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "8863",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        0.9,
+        -0.7,
+        0.0
+      ],
+      "error_cm": 127.1589394231092,
+      "preserved": false,
+      "has_handle_gt": false,
+      "contact_axis_gt": [
+        -0.6,
+        -0.8,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "8864",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        0.3,
+        -0.2,
+        0.4
+      ],
+      "error_cm": 75.70115630000001,
+      "preserved": false,
+      "has_handle_gt": true,
+      "contact_axis_gt": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "8865",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        -0.3,
+        -0.1,
+        0.0
+      ],
+      "error_cm": 15.380594260106227,
+      "preserved": false,
+      "has_handle_gt": false,
+      "contact_axis_gt": [
+        -1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "8867",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        -0.2,
+        -0.2,
+        0.3
+      ],
+      "error_cm": 33.0,
+      "preserved": true,
+      "has_handle_gt": true,
+      "contact_axis_gt": [
+        0.7,
+        -0.7,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "8872",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        -0.4,
+        -1.0,
+        0.0
+      ],
+      "error_cm": 107.05475234663803,
+      "preserved": false,
+      "has_handle_gt": true,
+      "contact_axis_gt": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "8874",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        0.3,
+        -0.2,
+        0.4
+      ],
+      "error_cm": 75.70115630000001,
+      "preserved": false,
+      "has_handle_gt": true,
+      "contact_axis_gt": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "8875",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        0.3,
+        0.0,
+        0.0
+      ],
+      "error_cm": 66.15443731292127,
+      "preserved": false,
+      "has_handle_gt": false,
+      "contact_axis_gt": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "8885",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        -0.1,
+        -0.2,
+        0.3
+      ],
+      "error_cm": 35.339843573015905,
+      "preserved": false,
+      "has_handle_gt": false,
+      "contact_axis_gt": [
+        0.7,
+        -0.7,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "8890",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        0.3,
+        -0.2,
+        0.4
+      ],
+      "error_cm": 75.70115630000001,
+      "preserved": false,
+      "has_handle_gt": true,
+      "contact_axis_gt": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "8893",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        -0.4,
+        -1.0,
+        0.0
+      ],
+      "error_cm": 109.83941309700558,
+      "preserved": false,
+      "has_handle_gt": false,
+      "contact_axis_gt": [
+        0.0,
+        -1.0,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "8897",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        -0.4,
+        0.0,
+        0.1
+      ],
+      "error_cm": 10.630635800000004,
+      "preserved": false,
+      "has_handle_gt": true,
+      "contact_axis_gt": [
+        -1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "8903",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        0.4,
+        0.9,
+        0.0
+      ],
+      "error_cm": 126.58219354349016,
+      "preserved": false,
+      "has_handle_gt": true,
+      "contact_axis_gt": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "8926",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        0.3,
+        0.0,
+        -0.2
+      ],
+      "error_cm": 68.43531280793292,
+      "preserved": false,
+      "has_handle_gt": true,
+      "contact_axis_gt": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "8937",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        -0.8,
+        -1.0,
+        0.1
+      ],
+      "error_cm": 113.03129759167788,
+      "preserved": false,
+      "has_handle_gt": false,
+      "contact_axis_gt": [
+        0.0,
+        -1.0,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "8944",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        0.4,
+        0.9,
+        0.0
+      ],
+      "error_cm": 126.58219354349016,
+      "preserved": false,
+      "has_handle_gt": true,
+      "contact_axis_gt": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "8966",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        -0.4,
+        1.0,
+        0.0
+      ],
+      "error_cm": 112.93348127071427,
+      "preserved": false,
+      "has_handle_gt": true,
+      "contact_axis_gt": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "category": "Door",
+      "asset_id": "9280",
+      "joint_name": "joint_0",
+      "status": "ok",
+      "pred_xyz": [
+        -0.3,
+        0.0,
+        0.1
+      ],
+      "gt_xyz": [
+        -0.3,
+        0.0,
+        -0.1
+      ],
+      "error_cm": 21.5,
+      "preserved": true,
+      "has_handle_gt": true,
+      "contact_axis_gt": [
+        0.0,
+        -1.0,
+        0.0
+      ]
+    }
+  ]
+}

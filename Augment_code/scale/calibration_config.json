@@ -1,0 +1,71 @@
+{
+  "schema_version": "1.2",
+  "description": "Per-category scale: pixel | mesh | vlm_refs | vlm_single | vlm_hybrid.",
+  "categories": {
+    "Laptop": {
+      "image": "rendered_0.png",
+      "feature": "area",
+      "scale_method": "pixel"
+    },
+    "Display": {
+      "image": "0.png",
+      "feature": "longest",
+      "scale_method": "pixel"
+    },
+    "Microwave": {
+      "image": "rendered_0.png",
+      "feature": "longest",
+      "scale_method": "pixel",
+      "loo_scale": true
+    },
+    "Drawer": {
+      "image": "parts_render/0.png",
+      "pixel_features": ["longest", "h"],
+      "pixel_aggregate": "min",
+      "scale_method": "pixel",
+      "loo_scale": true
+    },
+    "Lamp": {
+      "image": "parts_render/0.png",
+      "feature": "w",
+      "scale_method": "vlm_hybrid",
+      "hybrid_extrap": "anchor",
+      "hybrid_cap_ratio": 1.20
+    },
+    "Faucet": {
+      "image": "0.png",
+      "feature": "h",
+      "scale_method": "vlm_hybrid"
+    },
+    "Knife": {
+      "image": "0.png",
+      "feature": "longest",
+      "scale_method": "pixel"
+    },
+    "Dishwasher": {
+      "image": "0.png",
+      "feature": "area",
+      "scale_method": "pixel"
+    },
+    "Door": {
+      "image": "0.png",
+      "feature": "longest",
+      "scale_method": "mesh"
+    },
+    "Refrigerator": {
+      "image": "0.png",
+      "feature": "longest",
+      "scale_method": "pixel"
+    },
+    "Scissors": {
+      "image": "0.png",
+      "feature": "h",
+      "scale_method": "vlm_refs"
+    },
+    "StorageFurniture": {
+      "image": "0.png",
+      "feature": "longest",
+      "scale_method": "pixel"
+    }
+  }
+}

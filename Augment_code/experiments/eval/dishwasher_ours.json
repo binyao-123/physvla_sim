@@ -1,0 +1,318 @@
+{
+  "results_path": "/home/ubuntu/workspace/physvla_sim/Augment_code/experiments/vlm_results.jsonl",
+  "bench_path": "/home/ubuntu/workspace/physvla_sim/Augment_code/fitr_bench.json",
+  "bench_assets": 36,
+  "evaluated_ok": 3,
+  "scale": {
+    "n": 3,
+    "mae_cm": 4.142530360899684,
+    "mape_pct": 5.504315780041547,
+    "smape_pct": 5.544951699637614,
+    "rmse_cm": 4.552397938660169,
+    "max_abs_cm": 6.7170635153870535,
+    "max_pct": 7.902427665161239,
+    "max_smape_pct": 8.227514350245704,
+    "scale_factor_mae": 2.071265180449842
+  },
+  "has_handle": {
+    "n": 4,
+    "correct": 3,
+    "accuracy": 0.75,
+    "tp": 0,
+    "fp": 1,
+    "fn": 0,
+    "tn": 3,
+    "precision": 0.0,
+    "recall": null,
+    "f1": 0.0
+  },
+  "door_type": {
+    "n": 0,
+    "correct": 0,
+    "accuracy": null
+  },
+  "by_category": {
+    "Dishwasher": {
+      "scale": {
+        "n": 3,
+        "mae_cm": 4.142530360899684,
+        "mape_pct": 5.504315780041547,
+        "smape_pct": 5.544951699637614,
+        "rmse_cm": 4.552397938660169,
+        "max_abs_cm": 6.7170635153870535,
+        "max_pct": 7.902427665161239,
+        "max_smape_pct": 8.227514350245704
+      },
+      "has_handle_acc": 0.75,
+      "has_handle_f1": 0.0,
+      "has_handle_n": 4,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [],
+      "failed": []
+    },
+    "Display": {
+      "scale": {
+        "n": 0
+      },
+      "has_handle_acc": null,
+      "has_handle_f1": null,
+      "has_handle_n": 0,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [
+        "3386",
+        "3393",
+        "4523"
+      ],
+      "failed": []
+    },
+    "Door": {
+      "scale": {
+        "n": 0
+      },
+      "has_handle_acc": null,
+      "has_handle_f1": null,
+      "has_handle_n": 0,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [
+        "8850",
+        "8867",
+        "9280"
+      ],
+      "failed": []
+    },
+    "Drawer": {
+      "scale": {
+        "n": 0
+      },
+      "has_handle_acc": null,
+      "has_handle_f1": null,
+      "has_handle_n": 0,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [
+        "19179",
+        "19203",
+        "21467"
+      ],
+      "failed": []
+    },
+    "Faucet": {
+      "scale": {
+        "n": 0
+      },
+      "has_handle_acc": null,
+      "has_handle_f1": null,
+      "has_handle_n": 0,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [
+        "148",
+        "149",
+        "988"
+      ],
+      "failed": []
+    },
+    "Knife": {
+      "scale": {
+        "n": 0
+      },
+      "has_handle_acc": null,
+      "has_handle_f1": null,
+      "has_handle_n": 0,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [
+        "103",
+        "395",
+        "834"
+      ],
+      "failed": []
+    },
+    "Lamp": {
+      "scale": {
+        "n": 0
+      },
+      "has_handle_acc": null,
+      "has_handle_f1": null,
+      "has_handle_n": 0,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [
+        "13928",
+        "14372",
+        "14563"
+      ],
+      "failed": []
+    },
+    "Laptop": {
+      "scale": {
+        "n": 0
+      },
+      "has_handle_acc": null,
+      "has_handle_f1": null,
+      "has_handle_n": 0,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [
+        "10223",
+        "9604",
+        "9682"
+      ],
+      "failed": []
+    },
+    "Microwave": {
+      "scale": {
+        "n": 0
+      },
+      "has_handle_acc": null,
+      "has_handle_f1": null,
+      "has_handle_n": 0,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [
+        "3456",
+        "3458",
+        "3461"
+      ],
+      "failed": []
+    },
+    "Refrigerator": {
+      "scale": {
+        "n": 0
+      },
+      "has_handle_acc": null,
+      "has_handle_f1": null,
+      "has_handle_n": 0,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [
+        "10007",
+        "9978",
+        "9985"
+      ],
+      "failed": []
+    },
+    "Scissors": {
+      "scale": {
+        "n": 0
+      },
+      "has_handle_acc": null,
+      "has_handle_f1": null,
+      "has_handle_n": 0,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [
+        "10449",
+        "10471",
+        "10514"
+      ],
+      "failed": []
+    },
+    "StorageFurniture": {
+      "scale": {
+        "n": 0
+      },
+      "has_handle_acc": null,
+      "has_handle_f1": null,
+      "has_handle_n": 0,
+      "door_type_acc": null,
+      "door_type_n": 0,
+      "missing": [
+        "35059",
+        "39030",
+        "41002"
+      ],
+      "failed": []
+    }
+  },
+  "details": [
+    {
+      "category": "Dishwasher",
+      "asset_id": "11453",
+      "L_pred_cm": 62.96721809465194,
+      "L_gt_cm": 59.5,
+      "L_norm_gt": 2.0,
+      "scale_gt": 29.75,
+      "confidence": 0.9,
+      "L_abs_err_cm": 3.4672180946519404,
+      "L_pct_err": 5.827257301936034,
+      "L_smape_pct": 5.662279504009328,
+      "scale_pred": 31.48360904732597,
+      "scale_abs_err": 1.7336090473259702,
+      "has_handle_joint_0_pred": true,
+      "has_handle_joint_0_gt": false
+    },
+    {
+      "category": "Dishwasher",
+      "asset_id": "11710",
+      "L_pred_cm": 78.28293648461295,
+      "L_gt_cm": 85.0,
+      "L_norm_gt": 2.0,
+      "scale_gt": 42.5,
+      "confidence": 0.85,
+      "L_abs_err_cm": 6.7170635153870535,
+      "L_pct_err": 7.902427665161239,
+      "L_smape_pct": 8.227514350245704,
+      "scale_pred": 39.14146824230647,
+      "scale_abs_err": 3.3585317576935267,
+      "has_handle_joint_0_pred": false,
+      "has_handle_joint_0_gt": false
+    },
+    {
+      "category": "Dishwasher",
+      "asset_id": "11763",
+      "L_pred_cm": 82.84330947266005,
+      "L_gt_cm": 80.6,
+      "L_norm_gt": 2.0,
+      "scale_gt": 40.3,
+      "confidence": 0.85,
+      "L_abs_err_cm": 2.2433094726600586,
+      "L_pct_err": 2.7832623730273682,
+      "L_smape_pct": 2.7450612446578093,
+      "scale_pred": 41.42165473633003,
+      "scale_abs_err": 1.1216547363300293,
+      "has_handle_joint_0_pred": false,
+      "has_handle_joint_0_gt": false,
+      "has_handle_joint_1_pred": false,
+      "has_handle_joint_1_gt": false
+    }
+  ],
+  "has_handle_rows": [
+    {
+      "category": "Dishwasher",
+      "asset_id": "11453",
+      "joint_name": "joint_0",
+      "pred": true,
+      "gt": false,
+      "ok": false
+    },
+    {
+      "category": "Dishwasher",
+      "asset_id": "11710",
+      "joint_name": "joint_0",
+      "pred": false,
+      "gt": false,
+      "ok": true
+    },
+    {
+      "category": "Dishwasher",
+      "asset_id": "11763",
+      "joint_name": "joint_0",
+      "pred": false,
+      "gt": false,
+      "ok": true
+    },
+    {
+      "category": "Dishwasher",
+      "asset_id": "11763",
+      "joint_name": "joint_1",
+      "pred": false,
+      "gt": false,
+      "ok": true
+    }
+  ],
+  "door_type_rows": []
+}

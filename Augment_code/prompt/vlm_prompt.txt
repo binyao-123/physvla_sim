@@ -1,0 +1,75 @@
+# prompt_version: 2.7
+# task_id: vlm_prompt
+# placeholders: {category}, {asset_id}, {scale_block}, {category_hint_block}, {joints_block}, {door_type_block}
+# images: refs (if any) then target; LOO excludes target from refs on bench eval
+
+[SYSTEM]
+You analyze rendered images of articulated objects. Estimate the longest bounding-box edge of the whole object in cm. For handles, only mark has_handle true when a clearly protruding grasp handle is visible. Reply with JSON only.
+
+[USER]
+Category: {category}
+Target asset ID: {asset_id}
+
+{category_hint_block}
+
+{scale_block}
+
+{joints_block}
+
+{door_type_block}
+
+Reply with JSON only. No markdown:
+{"longest_edge_cm": <float>, "has_handle": {<joint_name>: <boolean>}, "door_type": <"normal"|"self_closing"|null>, "confidence": <float>}
+
+- longest_edge_cm: longest bounding-box edge of the target (Image {target_image_index}) in cm.
+- has_handle: boolean per joint listed above, or {} if none.
+- confidence: 0.0-1.0.
+
+[SCALE_BLOCK]
+Scale references (same category; known longest edge in cm):
+{scale_ref_lines}
+
+Target (Image {target_image_index}): asset {asset_id}
+Compare the target to the references and estimate its longest edge in cm.
+
+[SCALE_REF_LINE]
+Image {ref_index}: asset {ref_asset_id}, longest edge = {ref_L_real_cm} cm
+
+[SCALE_BLOCK_NONE]
+Target (Image {target_image_index}): asset {asset_id}
+Estimate the longest bounding-box edge of the whole object in cm from this image alone.
+
+[CATEGORY_HINT_DRAWER]
+Object type: table or desk with drawers (Drawer category). Estimate the longest bounding-box edge of the whole table in cm.
+- Small side tables / compact drawer units: often ~25–35 cm.
+- Standard work desks and dining tables: typically at least ~50 cm on the longest edge; large desks are often 100–150 cm wide.
+- If the target looks like a full-size desk (large flat top, substantial legs/frame, similar bulk to the largest reference), do not underestimate below ~50 cm even if the render looks small.
+
+[CATEGORY_HINT_MICROWAVE]
+Microwave door handles are vertical pull handles on the door (a protruding bar or groove to pull the door open).
+- Set has_handle true when you see a vertical pull handle on the door.
+- Set has_handle false when the door has no pull handle (e.g. push-button release only; flat door with no protruding grip).
+
+[CATEGORY_HINT_NONE]
+
+[SCALE_BLOCK_HANDLE_ONLY]
+Target (Image 1): asset {asset_id}
+Focus on whether the movable door has a vertical pull handle.
+
+[JOINTS_BLOCK_HAS_HANDLE]
+Movable joints:
+{joint_lines}
+
+For each joint, set has_handle true only when you see a clearly protruding grasp handle on that movable part.
+
+[JOINTS_BLOCK_NONE]
+Set has_handle to {}.
+
+[DOOR_TYPE_BLOCK]
+Classify door_type: "normal" (no closer) or "self_closing" (visible door closer).
+
+[DOOR_TYPE_NONE]
+Set door_type to null.
+
+[JOINT_LINE]
+- {joint_name} / {link_name} ({motion_type})

@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "asset_id": "<asset_id>",
+  "category": "<CategoryName>",
+  "scale": {
+    "L_norm": null,
+    "L_real_cm": null,
+    "scale": null
+  },
+  "joints": [
+    {
+      "joint_name": "joint_0",
+      "link_name": "door_1",
+      "motion_type": "revolute",
+      "damping": null,
+      "stiffness": null,
+      "effort_limit": null,
+      "door_type": null
+    }
+  ],
+  "affordances": [
+    {
+      "joint_name": "joint_0",
+      "link_name": "door_1",
+      "position_xyz": [null, null, null],
+      "contact_axis_xyz": [null, null, null],
+      "has_handle": null
+    }
+  ]
+}
