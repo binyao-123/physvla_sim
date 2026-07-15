@@ -1,0 +1,294 @@
+Loading user config located at: '/home/ubuntu/isaacsim/kit/data/Kit/Isaac-Sim/5.1/user.config.json'
+[Info] [carb] Logging to file: /home/ubuntu/isaacsim/kit/logs/Kit/Isaac-Sim/5.1/kit_20260715_200438.log
+2026-07-15T12:04:38Z [0ms] [Warning] [carb.crashreporter-breakpad.plugin] [previous crash] preventing upload of minidump due to user opt-out: '/home/ubuntu/isaacsim/kit/data/Kit/Isaac-Sim/5.1/0d81a4fd-59cb-4157-42d97b80-310afb82.dmp'
+2026-07-15T12:04:38Z [0ms] [Warning] [carb.crashreporter-breakpad.plugin] [previous crash] preventing upload of minidump due to user opt-out: '/home/ubuntu/isaacsim/kit/data/Kit/Isaac-Sim/5.1/7efeb785-3cdd-476a-8fc91ca3-38a85c81.dmp'
+2026-07-15T12:04:38Z [0ms] [Warning] [carb.crashreporter-breakpad.plugin] [previous crash] preventing upload of minidump due to user opt-out: '/home/ubuntu/isaacsim/kit/data/Kit/Isaac-Sim/5.1/0ec06837-edee-4570-b459bb9b-e409ca73.dmp'
+2026-07-15T12:04:38Z [0ms] [Warning] [carb.crashreporter-breakpad.plugin] [previous crash] preventing upload of minidump due to user opt-out: '/home/ubuntu/isaacsim/kit/data/Kit/Isaac-Sim/5.1/846da064-407f-481c-dab18ea9-9788aefc.dmp'
+2026-07-15T12:04:38Z [0ms] [Warning] [carb.crashreporter-breakpad.plugin] [previous crash] preventing upload of minidump due to user opt-out: '/home/ubuntu/isaacsim/kit/data/Kit/Isaac-Sim/5.1/7674058d-a5ef-457b-61399da4-1924f871.dmp'
+2026-07-15T12:04:38Z [1ms] [Warning] [carb.crashreporter-breakpad.plugin] [previous crash] preventing upload of minidump due to user opt-out: '/home/ubuntu/isaacsim/kit/data/Kit/Isaac-Sim/5.1/0dbca6de-81d5-44e8-85c7eba5-c7ac64b6.dmp'
+2026-07-15T12:04:38Z [1ms] [Warning] [carb.crashreporter-breakpad.plugin] [previous crash] preventing upload of minidump due to user opt-out: '/home/ubuntu/isaacsim/kit/data/Kit/Isaac-Sim/5.1/96b6ea33-a47b-4c84-2d7408a6-bc8b64a8.dmp'
+2026-07-15T12:04:38Z [187ms] [Warning] [omni.usd_config.extension] Enable omni.materialx.libs extension to use MaterialX
+2026-07-15T12:04:38Z [191ms] [Warning] [omni.platforminfo.plugin] failed to open the default display.  Can't verify X Server version.
+2026-07-15T12:04:39Z [461ms] [Warning] [carb] Acquiring non optional plugin interface which is not listed as dependency: [omni::physx::IPhysxBenchmarks v1.0] (plugin: <default plugin>), by client: omni.physics.physx.plugin. Add it to CARB_PLUGIN_IMPL_DEPS() macro of a client.
+2026-07-15T12:04:39Z [594ms] [Warning] [omni.isaac.dynamic_control] omni.isaac.dynamic_control is deprecated as of Isaac Sim 4.5. No action is needed from end-users.
+
+|---------------------------------------------------------------------------------------------|
+| Driver Version: 580.142       | Graphics API: Vulkan
+|=============================================================================================|
+| GPU | Name                             | Active | LDA | GPU Memory | Vendor-ID | LUID       |
+|     |                                  |        |     |            | Device-ID | UUID       |
+|     |                                  |        |     |            | Bus-ID    |            |
+|---------------------------------------------------------------------------------------------|
+| 0   | NVIDIA GeForce RTX 5090 D v2     | Yes: 0 |     | 24701   MB | 10de      | 0          |
+|     |                                  |        |     |            | 2b8c      | 5f3d0dc0.. |
+|     |                                  |        |     |            | 1         |            |
+|=============================================================================================|
+| OS: 24.04.3 LTS (Noble Numbat) ubuntu, Version: 24.04.3, Kernel: 6.17.0-1017-oem
+| Processor: Intel(R) Core(TM) i9-14900K
+| Cores: 24 | Logical Cores: 32
+|---------------------------------------------------------------------------------------------|
+| Total Memory (MB): 64063 | Free Memory: 53917
+| Total Page/Swap (MB): 8191 | Free Page/Swap: 8191
+|---------------------------------------------------------------------------------------------|
+2026-07-15T12:04:41Z [2,710ms] [Warning] [gpu.foundation.plugin] CPU performance profile is set to powersave. This profile sets the CPU to the lowest frequency reducing performance.
+2026-07-15T12:04:41Z [2,718ms] [Warning] [gpu.foundation.plugin] IOMMU is enabled.
+2026-07-15T12:04:41Z [2,901ms] [Warning] [carb.windowing-glfw.plugin] GLFW initialization failed.
+2026-07-15T12:04:41Z [2,901ms] [Warning] [carb] Failed to startup plugin carb.windowing-glfw.plugin (interfaces: [carb::windowing::IGLContext v1.0],[carb::windowing::IWindowing v1.5]) (impl: carb.windowing-glfw.plugin)
+
+|---------------------------------------------------------------------------------------------|
+| Driver Version: 580.142       | Graphics API: Vulkan
+|=============================================================================================|
+| GPU | Name                             | Active | LDA | GPU Memory | Vendor-ID | LUID       |
+|     |                                  |        |     |            | Device-ID | UUID       |
+|     |                                  |        |     |            | Bus-ID    |            |
+|---------------------------------------------------------------------------------------------|
+| 0   | NVIDIA GeForce RTX 5090 D v2     | Yes: 0 |     | 24701   MB | 10de      | 0          |
+|     |                                  |        |     |            | 2b8c      | 5f3d0dc0.. |
+|     |                                  |        |     |            | 1         |            |
+|=============================================================================================|
+| OS: 24.04.3 LTS (Noble Numbat) ubuntu, Version: 24.04.3, Kernel: 6.17.0-1017-oem
+| Processor: Intel(R) Core(TM) i9-14900K
+| Cores: 24 | Logical Cores: 32
+|---------------------------------------------------------------------------------------------|
+| Total Memory (MB): 64063 | Free Memory: 53692
+| Total Page/Swap (MB): 8191 | Free Page/Swap: 8191
+|---------------------------------------------------------------------------------------------|
+2026-07-15T12:04:41Z [3,135ms] [Warning] [gpu.foundation.plugin] CPU performance profile is set to powersave. This profile sets the CPU to the lowest frequency reducing performance.
+2026-07-15T12:04:41Z [3,135ms] [Warning] [gpu.foundation.plugin] IOMMU is enabled.
+2026-07-15T12:04:41Z [3,337ms] [Warning] [carb.windowing-glfw.plugin] GLFW initialization failed.
+2026-07-15T12:04:41Z [3,337ms] [Warning] [carb] Failed to startup plugin carb.windowing-glfw.plugin (interfaces: [carb::windowing::IGLContext v1.0],[carb::windowing::IWindowing v1.5]) (impl: carb.windowing-glfw.plugin)
+2026-07-15T12:04:41Z [3,350ms] [Warning] [carb.windowing-glfw.plugin] GLFW initialization failed.
+2026-07-15T12:04:41Z [3,350ms] [Warning] [carb] Failed to startup plugin carb.windowing-glfw.plugin (interfaces: [carb::windowing::IGLContext v1.0],[carb::windowing::IWindowing v1.5]) (impl: carb.windowing-glfw.plugin)
+2026-07-15T12:04:41Z [3,354ms] [Warning] [carb.windowing-glfw.plugin] GLFW initialization failed.
+2026-07-15T12:04:41Z [3,354ms] [Warning] [carb] Failed to startup plugin carb.windowing-glfw.plugin (interfaces: [carb::windowing::IGLContext v1.0],[carb::windowing::IWindowing v1.5]) (impl: carb.windowing-glfw.plugin)
+2026-07-15T12:04:41Z [3,359ms] [Warning] [carb.windowing-glfw.plugin] GLFW initialization failed.
+2026-07-15T12:04:41Z [3,359ms] [Warning] [carb] Failed to startup plugin carb.windowing-glfw.plugin (interfaces: [carb::windowing::IGLContext v1.0],[carb::windowing::IWindowing v1.5]) (impl: carb.windowing-glfw.plugin)
+2026-07-15T12:04:41Z [3,360ms] [Warning] [carb.windowing-glfw.plugin] GLFW initialization failed.
+2026-07-15T12:04:41Z [3,360ms] [Warning] [carb] Failed to startup plugin carb.windowing-glfw.plugin (interfaces: [carb::windowing::IGLContext v1.0],[carb::windowing::IWindowing v1.5]) (impl: carb.windowing-glfw.plugin)
+2026-07-15T12:04:41Z [3,361ms] [Warning] [carb.windowing-glfw.plugin] GLFW initialization failed.
+2026-07-15T12:04:41Z [3,361ms] [Warning] [carb] Failed to startup plugin carb.windowing-glfw.plugin (interfaces: [carb::windowing::IGLContext v1.0],[carb::windowing::IWindowing v1.5]) (impl: carb.windowing-glfw.plugin)
+2026-07-15T12:04:42Z [3,607ms] [Warning] [omni.graph.visualization.nodes._impl.extension] No Viewport Window to add omni.graph.visualization.nodes-2.1.3 scene to
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path drawer_front-82 is not a valid usd path, modifying to drawer_front_82
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path drawer_side-83 is not a valid usd path, modifying to drawer_side_83
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path drawer_side-83 is not a valid usd path, modifying to drawer_side_83
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path drawer_side-84 is not a valid usd path, modifying to drawer_side_84
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path drawer_back-85 is not a valid usd path, modifying to drawer_back_85
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path drawer_back-85 is not a valid usd path, modifying to drawer_back_85
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path drawer_bottom-86 is not a valid usd path, modifying to drawer_bottom_86
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path drawer_bottom-86 is not a valid usd path, modifying to drawer_bottom_86
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path handle-47 is not a valid usd path, modifying to handle_47
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path handle-47 is not a valid usd path, modifying to handle_47
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path handle-47 is not a valid usd path, modifying to handle_47
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path handle-47 is not a valid usd path, modifying to handle_47
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path drawer_front-87 is not a valid usd path, modifying to drawer_front_87
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path drawer_side-88 is not a valid usd path, modifying to drawer_side_88
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path drawer_side-89 is not a valid usd path, modifying to drawer_side_89
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path drawer_side-89 is not a valid usd path, modifying to drawer_side_89
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path drawer_back-90 is not a valid usd path, modifying to drawer_back_90
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path drawer_back-90 is not a valid usd path, modifying to drawer_back_90
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path drawer_bottom-91 is not a valid usd path, modifying to drawer_bottom_91
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path drawer_bottom-91 is not a valid usd path, modifying to drawer_bottom_91
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path handle-40 is not a valid usd path, modifying to handle_40
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path handle-40 is not a valid usd path, modifying to handle_40
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path handle-40 is not a valid usd path, modifying to handle_40
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path handle-40 is not a valid usd path, modifying to handle_40
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path board-28 is not a valid usd path, modifying to board_28
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path vertical_side_panel-16 is not a valid usd path, modifying to vertical_side_panel_16
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path vertical_side_panel-17 is not a valid usd path, modifying to vertical_side_panel_17
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path vertical_side_panel-18 is not a valid usd path, modifying to vertical_side_panel_18
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path vertical_side_panel-19 is not a valid usd path, modifying to vertical_side_panel_19
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path bottom_panel-20 is not a valid usd path, modifying to bottom_panel_20
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path leg-21 is not a valid usd path, modifying to leg_21
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path leg-21 is not a valid usd path, modifying to leg_21
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path leg-21 is not a valid usd path, modifying to leg_21
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path leg-21 is not a valid usd path, modifying to leg_21
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path leg-22 is not a valid usd path, modifying to leg_22
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path leg-22 is not a valid usd path, modifying to leg_22
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path leg-22 is not a valid usd path, modifying to leg_22
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path leg-22 is not a valid usd path, modifying to leg_22
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path leg-23 is not a valid usd path, modifying to leg_23
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path leg-23 is not a valid usd path, modifying to leg_23
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path leg-23 is not a valid usd path, modifying to leg_23
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path leg-23 is not a valid usd path, modifying to leg_23
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path leg-24 is not a valid usd path, modifying to leg_24
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path leg-24 is not a valid usd path, modifying to leg_24
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path leg-24 is not a valid usd path, modifying to leg_24
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path leg-24 is not a valid usd path, modifying to leg_24
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path shelf-32 is not a valid usd path, modifying to shelf_32
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path back_panel-53 is not a valid usd path, modifying to back_panel_53
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path bottom_panel-54 is not a valid usd path, modifying to bottom_panel_54
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path shelf-55 is not a valid usd path, modifying to shelf_55
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path shelf-56 is not a valid usd path, modifying to shelf_56
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path shelf-57 is not a valid usd path, modifying to shelf_57
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path shelf-58 is not a valid usd path, modifying to shelf_58
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path bar_stretcher-59 is not a valid usd path, modifying to bar_stretcher_59
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path bar_stretcher-60 is not a valid usd path, modifying to bar_stretcher_60
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path hinge-69 is not a valid usd path, modifying to hinge_69
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path hinge-70 is not a valid usd path, modifying to hinge_70
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path hinge-71 is not a valid usd path, modifying to hinge_71
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path hinge-72 is not a valid usd path, modifying to hinge_72
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path other_leaf-74 is not a valid usd path, modifying to other_leaf_74
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path other_leaf-75 is not a valid usd path, modifying to other_leaf_75
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path other_leaf-76 is not a valid usd path, modifying to other_leaf_76
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path other_leaf-77 is not a valid usd path, modifying to other_leaf_77
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path other_leaf-78 is not a valid usd path, modifying to other_leaf_78
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path other_leaf-79 is not a valid usd path, modifying to other_leaf_79
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path other_leaf-80 is not a valid usd path, modifying to other_leaf_80
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path other_leaf-81 is not a valid usd path, modifying to other_leaf_81
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path cabinet_door_surface-35 is not a valid usd path, modifying to cabinet_door_surface_35
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path cabinet_door_surface-35 is not a valid usd path, modifying to cabinet_door_surface_35
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path cabinet_door_surface-35 is not a valid usd path, modifying to cabinet_door_surface_35
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path cabinet_door_surface-35 is not a valid usd path, modifying to cabinet_door_surface_35
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path cabinet_door_surface-35 is not a valid usd path, modifying to cabinet_door_surface_35
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path handle-36 is not a valid usd path, modifying to handle_36
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path handle-36 is not a valid usd path, modifying to handle_36
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path handle-36 is not a valid usd path, modifying to handle_36
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path handle-36 is not a valid usd path, modifying to handle_36
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path cabinet_door_surface-37 is not a valid usd path, modifying to cabinet_door_surface_37
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path cabinet_door_surface-37 is not a valid usd path, modifying to cabinet_door_surface_37
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path cabinet_door_surface-37 is not a valid usd path, modifying to cabinet_door_surface_37
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path cabinet_door_surface-37 is not a valid usd path, modifying to cabinet_door_surface_37
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path cabinet_door_surface-37 is not a valid usd path, modifying to cabinet_door_surface_37
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path handle-38 is not a valid usd path, modifying to handle_38
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path handle-38 is not a valid usd path, modifying to handle_38
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path handle-38 is not a valid usd path, modifying to handle_38
+2026-07-15T12:04:42Z [3,697ms] [Warning] [isaacsim.asset.importer.urdf] The path handle-38 is not a valid usd path, modifying to handle_38
+2026-07-15T12:04:42Z [3,708ms] [Warning] [isaacsim.asset.importer.urdf] No mass specified for link base
+2026-07-15T12:04:42Z [3,708ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@ <0x281e8f80>)
+
+2026-07-15T12:04:42Z [3,709ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0x281d58f0>)
+
+2026-07-15T12:04:42Z [3,709ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0xd299da0>)
+
+2026-07-15T12:04:42Z [3,709ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@ <0x281f2920>)
+
+2026-07-15T12:04:42Z [3,709ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@ <0x281e8f80>)
+
+2026-07-15T12:04:42Z [3,709ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0x281d58f0>)
+
+2026-07-15T12:04:42Z [3,709ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0xd299da0>)
+
+2026-07-15T12:04:42Z [3,709ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@ <0x281f2920>)
+
+2026-07-15T12:04:42Z [3,709ms] [Warning] [isaacsim.asset.importer.urdf] Link base has no colliders, and no inertia was imported; assigning a small isotropic inertia matrix
+2026-07-15T12:04:42Z [3,710ms] [Warning] [isaacsim.asset.importer.urdf] No mass specified for link link_2
+2026-07-15T12:04:42Z [4,138ms] [Warning] [isaacsim.asset.importer.urdf] No mass specified for link link_0
+2026-07-15T12:04:42Z [4,250ms] [Warning] [isaacsim.asset.importer.urdf] No mass specified for link link_1
+2026-07-15T12:04:42Z [4,358ms] [Warning] [isaacsim.asset.importer.urdf] No mass specified for link link_3
+2026-07-15T12:04:43Z [4,471ms] [Warning] [isaacsim.asset.importer.urdf] No mass specified for link link_4
+2026-07-15T12:04:43Z [4,578ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0x281d58f0>)
+
+2026-07-15T12:04:43Z [4,578ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0xd299da0>)
+
+2026-07-15T12:04:43Z [4,582ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0x281d58f0>)
+
+2026-07-15T12:04:43Z [4,586ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0xd299da0>)
+
+2026-07-15T12:04:43Z [4,589ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0x281d58f0>)
+
+2026-07-15T12:04:43Z [4,592ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0xd299da0>)
+
+2026-07-15T12:04:43Z [4,595ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0x281d58f0>)
+
+2026-07-15T12:04:43Z [4,598ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0xd299da0>)
+
+2026-07-15T12:04:43Z [4,602ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0x281d58f0>)
+
+2026-07-15T12:04:43Z [4,605ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0xd299da0>)
+
+2026-07-15T12:04:43Z [4,610ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0x281d58f0>)
+
+2026-07-15T12:04:43Z [4,613ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0xd299da0>)
+
+2026-07-15T12:04:43Z [4,616ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0x281d58f0>)
+
+2026-07-15T12:04:43Z [4,620ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0xd299da0>)
+
+2026-07-15T12:04:43Z [4,623ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0x281d58f0>)
+
+2026-07-15T12:04:43Z [4,627ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (recomposing stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0xd299da0>)
+
+Loading user config located at: '/home/ubuntu/isaacsim/kit/data/Kit/Isaac-Sim/5.1/user.config.json'
+[Info] [carb] Logging to file: /home/ubuntu/isaacsim/kit/logs/Kit/Isaac-Sim/5.1/kit_20260715_200443.log
+2026-07-15T12:04:43Z [0ms] [Warning] [carb.crashreporter-breakpad.plugin] [previous crash] preventing upload of minidump due to user opt-out: '/home/ubuntu/isaacsim/kit/data/Kit/Isaac-Sim/5.1/0d81a4fd-59cb-4157-42d97b80-310afb82.dmp'
+2026-07-15T12:04:43Z [0ms] [Warning] [carb.crashreporter-breakpad.plugin] [previous crash] preventing upload of minidump due to user opt-out: '/home/ubuntu/isaacsim/kit/data/Kit/Isaac-Sim/5.1/7efeb785-3cdd-476a-8fc91ca3-38a85c81.dmp'
+2026-07-15T12:04:43Z [0ms] [Warning] [carb.crashreporter-breakpad.plugin] [previous crash] preventing upload of minidump due to user opt-out: '/home/ubuntu/isaacsim/kit/data/Kit/Isaac-Sim/5.1/0ec06837-edee-4570-b459bb9b-e409ca73.dmp'
+2026-07-15T12:04:43Z [0ms] [Warning] [carb.crashreporter-breakpad.plugin] [previous crash] preventing upload of minidump due to user opt-out: '/home/ubuntu/isaacsim/kit/data/Kit/Isaac-Sim/5.1/846da064-407f-481c-dab18ea9-9788aefc.dmp'
+2026-07-15T12:04:43Z [0ms] [Warning] [carb.crashreporter-breakpad.plugin] [previous crash] preventing upload of minidump due to user opt-out: '/home/ubuntu/isaacsim/kit/data/Kit/Isaac-Sim/5.1/7674058d-a5ef-457b-61399da4-1924f871.dmp'
+2026-07-15T12:04:43Z [1ms] [Warning] [carb.crashreporter-breakpad.plugin] [previous crash] preventing upload of minidump due to user opt-out: '/home/ubuntu/isaacsim/kit/data/Kit/Isaac-Sim/5.1/0dbca6de-81d5-44e8-85c7eba5-c7ac64b6.dmp'
+2026-07-15T12:04:43Z [1ms] [Warning] [carb.crashreporter-breakpad.plugin] [previous crash] preventing upload of minidump due to user opt-out: '/home/ubuntu/isaacsim/kit/data/Kit/Isaac-Sim/5.1/96b6ea33-a47b-4c84-2d7408a6-bc8b64a8.dmp'
+2026-07-15T12:04:43Z [184ms] [Warning] [omni.platforminfo.plugin] failed to open the default display.  Can't verify X Server version.
+2026-07-15T12:04:43Z [185ms] [Warning] [omni.usd_config.extension] Enable omni.materialx.libs extension to use MaterialX
+2026-07-15T12:04:44Z [468ms] [Warning] [carb] Acquiring non optional plugin interface which is not listed as dependency: [omni::physx::IPhysxBenchmarks v1.0] (plugin: <default plugin>), by client: omni.physics.physx.plugin. Add it to CARB_PLUGIN_IMPL_DEPS() macro of a client.
+2026-07-15T12:04:44Z [601ms] [Warning] [omni.isaac.dynamic_control] omni.isaac.dynamic_control is deprecated as of Isaac Sim 4.5. No action is needed from end-users.
+
+|---------------------------------------------------------------------------------------------|
+| Driver Version: 580.142       | Graphics API: Vulkan
+|=============================================================================================|
+| GPU | Name                             | Active | LDA | GPU Memory | Vendor-ID | LUID       |
+|     |                                  |        |     |            | Device-ID | UUID       |
+|     |                                  |        |     |            | Bus-ID    |            |
+|---------------------------------------------------------------------------------------------|
+| 0   | NVIDIA GeForce RTX 5090 D v2     | Yes: 0 |     | 24701   MB | 10de      | 0          |
+|     |                                  |        |     |            | 2b8c      | 5f3d0dc0.. |
+|     |                                  |        |     |            | 1         |            |
+|=============================================================================================|
+| OS: 24.04.3 LTS (Noble Numbat) ubuntu, Version: 24.04.3, Kernel: 6.17.0-1017-oem
+| Processor: Intel(R) Core(TM) i9-14900K
+| Cores: 24 | Logical Cores: 32
+|---------------------------------------------------------------------------------------------|
+| Total Memory (MB): 64063 | Free Memory: 53879
+| Total Page/Swap (MB): 8191 | Free Page/Swap: 8191
+|---------------------------------------------------------------------------------------------|
+2026-07-15T12:04:46Z [2,583ms] [Warning] [gpu.foundation.plugin] CPU performance profile is set to powersave. This profile sets the CPU to the lowest frequency reducing performance.
+[INFO][AppLauncher]: Using device: cuda:0
+[INFO][AppLauncher]: Loading experience file: /home/ubuntu/workspace/IsaacLab/apps/isaaclab.python.headless.kit
+{
+  "output": "/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd",
+  "scale": 0.2046240302577251,
+  "scale_layer": "/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd",
+  "joints": [
+    {
+      "joint": "/partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/joints/joint_0",
+      "drive": "linear",
+      "damping": 36.0,
+      "stiffness": 0.0,
+      "max_force": 1.2000000476837158
+    },
+    {
+      "joint": "/partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/joints/joint_1",
+      "drive": "linear",
+      "damping": 36.0,
+      "stiffness": 0.0,
+      "max_force": 1.2000000476837158
+    },
+    {
+      "joint": "/partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/joints/joint_3",
+      "drive": "angular",
+      "damping": 45.0,
+      "stiffness": 0.0,
+      "max_force": 2.25
+    },
+    {
+      "joint": "/partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/joints/joint_3",
+      "drive": "angular",
+      "damping": 45.0,
+      "stiffness": 0.0,
+      "max_force": 2.25
+    }
+  ],
+  "dynamics_layer": "/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd",
+  "affordance_links": [
+    "/partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/link_0",
+    "/partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/link_1",
+    "/partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/link_3",
+    "/partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/link_3"
+  ]
+}
+2026-07-15T12:04:46Z [2,591ms] [Warning] [gpu.foundation.plugin] IOMMU is enabled.
+2026-07-15T12:04:46Z [2,728ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (instantiating stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@ <0x16085210>)
+
+2026-07-15T12:04:46Z [2,808ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (instantiating stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@ <0x1193fda0>)
+
+2026-07-15T12:04:46Z [2,814ms] [Warning] [omni.usd] Warning: in _ReportErrors at line 3172 of /builds/omniverse/usd-ci/USD/pxr/usd/usd/stage.cpp -- In </partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals>: Unresolved reference prim path @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_physics.usd@</visuals/base> introduced by @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/configuration/fitr_info1_base.usd@</partnet_77b83ff0d0eeb34e6349f6b5431fb3d1/base/visuals> (instantiating stage on stage @/home/ubuntu/workspace/physvla_sim/datasets/data_normalized/table_urdf/31249/fitr_info1.usd@ <0x949f000>)
+

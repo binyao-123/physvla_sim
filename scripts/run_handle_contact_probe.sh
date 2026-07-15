@@ -5,7 +5,7 @@ cd ~/workspace/physvla_sim/collect
 
 ~/isaacsim/python.sh debug_link_contact_probe.py \
   --task_id adjust_the_faucet \
-  --livestream 2 \
+  $ISAAC_LAB_STREAMING_ARGS \
   --mode yaml_handle_contact \
   --debug-logs \
   --probe_steps 400

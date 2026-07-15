@@ -15,9 +15,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 90.0,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.8
             }
           ],
           "affordances": [
@@ -51,9 +51,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 88.2,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.784
             }
           ],
           "affordances": [
@@ -87,9 +87,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 108.0,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.96
             }
           ],
           "affordances": [
@@ -123,9 +123,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 90.0,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.8
             }
           ],
           "affordances": [
@@ -159,9 +159,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 94.5,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.824
             }
           ],
           "affordances": [
@@ -195,9 +195,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 90.0,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.8
             }
           ],
           "affordances": [
@@ -231,9 +231,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 94.0,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.832
             }
           ],
           "affordances": [
@@ -267,9 +267,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 88.2,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.784
             }
           ],
           "affordances": [
@@ -303,9 +303,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 94.5,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.84
             }
           ],
           "affordances": [
@@ -339,9 +339,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 91.0,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.81
             }
           ],
           "affordances": [
@@ -375,9 +375,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 95.0,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.84
             }
           ],
           "affordances": [
@@ -411,9 +411,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 86.0,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.77
             }
           ],
           "affordances": [
@@ -447,9 +447,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 90.0,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.8
             }
           ],
           "affordances": [
@@ -483,9 +483,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 90.0,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.8
             }
           ],
           "affordances": [
@@ -519,9 +519,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 90.0,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.8
             }
           ],
           "affordances": [
@@ -555,9 +555,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 95.0,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.84
             }
           ],
           "affordances": [
@@ -591,9 +591,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 98.0,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.88
             }
           ],
           "affordances": [
@@ -627,9 +627,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 95.0,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.84
             }
           ],
           "affordances": [
@@ -663,9 +663,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 88.2,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.794
             }
           ],
           "affordances": [
@@ -699,9 +699,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 100.0,
+              "damping": 95.0,
               "stiffness": 0.0,
-              "effort_limit": 4.0
+              "effort_limit": 0.85
             }
           ],
           "affordances": [
@@ -741,7 +741,7 @@
               "motion_type": "revolute",
               "damping": 1500.0,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.4
             }
           ],
           "affordances": [
@@ -775,9 +775,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 1500.0,
+              "damping": 1425.0,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.28
             }
           ],
           "affordances": [
@@ -811,9 +811,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 1500.0,
+              "damping": 1650.0,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.64
             }
           ],
           "affordances": [
@@ -847,9 +847,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 1500.0,
+              "damping": 1515.0,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.424
             }
           ],
           "affordances": [
@@ -883,9 +883,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 1500.0,
+              "damping": 1575.0,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.544
             }
           ],
           "affordances": [
@@ -919,9 +919,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 1500.0,
+              "damping": 1575.0,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.496
             }
           ],
           "affordances": [
@@ -955,9 +955,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 1500.0,
+              "damping": 1380.0,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.208
             }
           ],
           "affordances": [
@@ -991,9 +991,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 1500.0,
+              "damping": 1650.0,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.64
             }
           ],
           "affordances": [
@@ -1027,9 +1027,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 1500.0,
+              "damping": 1575.0,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.544
             }
           ],
           "affordances": [
@@ -1063,9 +1063,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 1500.0,
+              "damping": 1515.0,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.424
             }
           ],
           "affordances": [
@@ -1099,9 +1099,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 1500.0,
+              "damping": 1650.0,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.64
             }
           ],
           "affordances": [
@@ -1135,9 +1135,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 1500.0,
+              "damping": 1575.0,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.544
             }
           ],
           "affordances": [
@@ -1171,9 +1171,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 1500.0,
+              "damping": 1545.0,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.46
             }
           ],
           "affordances": [
@@ -1207,9 +1207,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 1500.0,
+              "damping": 1425.0,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.28
             }
           ],
           "affordances": [
@@ -1243,9 +1243,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 1500.0,
+              "damping": 1462.5,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.352
             }
           ],
           "affordances": [
@@ -1279,9 +1279,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 1500.0,
+              "damping": 1425.0,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.268
             }
           ],
           "affordances": [
@@ -1315,9 +1315,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 1500.0,
+              "damping": 1515.0,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.424
             }
           ],
           "affordances": [
@@ -1351,9 +1351,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 1500.0,
+              "damping": 1590.0,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.54
             }
           ],
           "affordances": [
@@ -1387,9 +1387,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 1500.0,
+              "damping": 1425.0,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.28
             }
           ],
           "affordances": [
@@ -1423,9 +1423,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 1500.0,
+              "damping": 1400.0,
               "stiffness": 0.0,
-              "effort_limit": 10.0
+              "effort_limit": 2.25
             }
           ],
           "affordances": [
@@ -1465,7 +1465,7 @@
               "motion_type": "revolute",
               "damping": 1.0,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.01
             }
           ],
           "affordances": [
@@ -1499,9 +1499,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 1.0,
+              "damping": 1.07,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.0107
             }
           ],
           "affordances": [
@@ -1535,9 +1535,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 1.0,
+              "damping": 1.05,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.01095
             }
           ],
           "affordances": [
@@ -1571,9 +1571,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 1.0,
+              "damping": 1.07,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.0107
             }
           ],
           "affordances": [
@@ -1607,9 +1607,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 1.0,
+              "damping": 1.07,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.0107
             }
           ],
           "affordances": [
@@ -1643,9 +1643,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 1.0,
+              "damping": 1.07,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.0107
             }
           ],
           "affordances": [
@@ -1679,9 +1679,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 1.0,
+              "damping": 1.07,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.0107
             }
           ],
           "affordances": [
@@ -1715,9 +1715,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 1.0,
+              "damping": 1.07,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.0107
             }
           ],
           "affordances": [
@@ -1751,9 +1751,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 1.0,
+              "damping": 1.076,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.01076
             }
           ],
           "affordances": [
@@ -1787,9 +1787,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 1.0,
+              "damping": 1.07,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.0107
             }
           ],
           "affordances": [
@@ -1823,9 +1823,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 1.0,
+              "damping": 1.07,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.0107
             }
           ],
           "affordances": [
@@ -1859,9 +1859,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 1.0,
+              "damping": 1.07,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.0107
             }
           ],
           "affordances": [
@@ -1895,9 +1895,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 1.0,
+              "damping": 1.076,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.01076
             }
           ],
           "affordances": [
@@ -1931,9 +1931,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 1.0,
+              "damping": 1.07,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.0107
             }
           ],
           "affordances": [
@@ -1967,9 +1967,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 1.0,
+              "damping": 1.076,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.01076
             }
           ],
           "affordances": [
@@ -2003,9 +2003,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 1.0,
+              "damping": 1.07,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.0107
             }
           ],
           "affordances": [
@@ -2039,9 +2039,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 1.0,
+              "damping": 1.07,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.0107
             }
           ],
           "affordances": [
@@ -2075,9 +2075,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 1.0,
+              "damping": 1.07,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.0107
             }
           ],
           "affordances": [
@@ -2111,9 +2111,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 1.0,
+              "damping": 1.076,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.01076
             }
           ],
           "affordances": [
@@ -2147,9 +2147,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 1.0,
+              "damping": 1.07,
               "stiffness": 0.0,
-              "effort_limit": 0.1
+              "effort_limit": 0.0107
             }
           ],
           "affordances": [
@@ -2247,65 +2247,65 @@
               "joint_name": "joint_0",
               "link_name": "caster_stem",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_1",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_2",
               "link_name": "caster_stem",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_3",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_4",
               "link_name": "caster_stem",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_5",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_6",
               "link_name": "caster_stem",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_7",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             }
           ],
           "affordances": [
@@ -2451,17 +2451,17 @@
               "joint_name": "joint_0",
               "link_name": "handle",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 45.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.5
             },
             {
               "joint_name": "joint_1",
               "link_name": "drawer_front",
               "motion_type": "prismatic",
-              "damping": 30.0,
+              "damping": 20.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 2.0
             }
           ],
           "affordances": [
@@ -2511,65 +2511,65 @@
               "joint_name": "joint_0",
               "link_name": "caster_mounting_plate",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_1",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_2",
               "link_name": "caster_mounting_plate",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_3",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_4",
               "link_name": "caster_mounting_plate",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_5",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_6",
               "link_name": "caster_mounting_plate",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_7",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             }
           ],
           "affordances": [
@@ -2715,65 +2715,65 @@
               "joint_name": "joint_0",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 34.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.15
             },
             {
               "joint_name": "joint_1",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 34.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.15
             },
             {
               "joint_name": "joint_2",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 34.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.15
             },
             {
               "joint_name": "joint_3",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 34.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.15
             },
             {
               "joint_name": "joint_4",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 34.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.15
             },
             {
               "joint_name": "joint_5",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 34.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.15
             },
             {
               "joint_name": "joint_6",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 34.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.15
             },
             {
               "joint_name": "joint_7",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 34.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.15
             }
           ],
           "affordances": [
@@ -2979,25 +2979,25 @@
               "joint_name": "joint_0",
               "link_name": "drawer_box",
               "motion_type": "prismatic",
-              "damping": 30.0,
+              "damping": 45.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.5
             },
             {
               "joint_name": "joint_1",
               "link_name": "drawer_box",
               "motion_type": "prismatic",
-              "damping": 30.0,
+              "damping": 45.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.5
             },
             {
               "joint_name": "joint_2",
               "link_name": "drawer_box",
               "motion_type": "prismatic",
-              "damping": 30.0,
+              "damping": 45.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.5
             }
           ],
           "affordances": [
@@ -3063,9 +3063,9 @@
               "joint_name": "joint_0",
               "link_name": "drawer",
               "motion_type": "prismatic",
-              "damping": 30.0,
+              "damping": 34.5,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.15
             }
           ],
           "affordances": [
@@ -3099,9 +3099,9 @@
               "joint_name": "joint_0",
               "link_name": "cabinet_door_surface",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 70.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.8
             },
             {
               "joint_name": "joint_1",
@@ -3109,7 +3109,7 @@
               "motion_type": "prismatic",
               "damping": 30.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.2
             },
             {
               "joint_name": "joint_2",
@@ -3117,7 +3117,7 @@
               "motion_type": "prismatic",
               "damping": 30.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.2
             },
             {
               "joint_name": "joint_3",
@@ -3125,15 +3125,15 @@
               "motion_type": "prismatic",
               "damping": 30.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.2
             },
             {
               "joint_name": "joint_4",
               "link_name": "drawer",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 70.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.8
             },
             {
               "joint_name": "joint_5",
@@ -3141,7 +3141,7 @@
               "motion_type": "prismatic",
               "damping": 30.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.2
             },
             {
               "joint_name": "joint_6",
@@ -3149,7 +3149,7 @@
               "motion_type": "prismatic",
               "damping": 30.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.2
             },
             {
               "joint_name": "joint_7",
@@ -3157,7 +3157,7 @@
               "motion_type": "prismatic",
               "damping": 30.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.2
             }
           ],
           "affordances": [
@@ -3303,17 +3303,17 @@
               "joint_name": "joint_0",
               "link_name": "handle",
               "motion_type": "prismatic",
-              "damping": 30.0,
+              "damping": 27.9,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 0.933
             },
             {
               "joint_name": "joint_1",
               "link_name": "handle",
               "motion_type": "prismatic",
-              "damping": 30.0,
+              "damping": 27.9,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 0.933
             }
           ],
           "affordances": [
@@ -3363,65 +3363,65 @@
               "joint_name": "joint_0",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_1",
               "link_name": "caster_stem",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_2",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_3",
               "link_name": "caster_stem",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_4",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_5",
               "link_name": "caster_stem",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_6",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_7",
               "link_name": "caster_stem",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             }
           ],
           "affordances": [
@@ -3567,9 +3567,9 @@
               "joint_name": "joint_0",
               "link_name": "drawer_box",
               "motion_type": "prismatic",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             }
           ],
           "affordances": [
@@ -3603,9 +3603,9 @@
               "joint_name": "joint_0",
               "link_name": "drawer",
               "motion_type": "prismatic",
-              "damping": 30.0,
+              "damping": 45.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.8
             }
           ],
           "affordances": [
@@ -3639,9 +3639,9 @@
               "joint_name": "joint_0",
               "link_name": "drawer_box",
               "motion_type": "prismatic",
-              "damping": 30.0,
+              "damping": 29.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 0.96
             }
           ],
           "affordances": [
@@ -3675,9 +3675,9 @@
               "joint_name": "joint_0",
               "link_name": "drawer",
               "motion_type": "prismatic",
-              "damping": 30.0,
+              "damping": 35.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.25
             }
           ],
           "affordances": [
@@ -3711,25 +3711,25 @@
               "joint_name": "joint_0",
               "link_name": "drawer",
               "motion_type": "prismatic",
-              "damping": 30.0,
+              "damping": 25.5,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 0.85
             },
             {
               "joint_name": "joint_1",
               "link_name": "drawer",
               "motion_type": "prismatic",
-              "damping": 30.0,
+              "damping": 25.5,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 0.85
             },
             {
               "joint_name": "joint_2",
               "link_name": "drawer",
               "motion_type": "prismatic",
-              "damping": 30.0,
+              "damping": 25.5,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 0.85
             }
           ],
           "affordances": [
@@ -3795,9 +3795,9 @@
               "joint_name": "joint_0",
               "link_name": "handle",
               "motion_type": "prismatic",
-              "damping": 30.0,
+              "damping": 32.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.05
             }
           ],
           "affordances": [
@@ -3831,33 +3831,33 @@
               "joint_name": "joint_0",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.15
             },
             {
               "joint_name": "joint_1",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.15
             },
             {
               "joint_name": "joint_2",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.15
             },
             {
               "joint_name": "joint_3",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.15
             }
           ],
           "affordances": [
@@ -3939,65 +3939,65 @@
               "joint_name": "joint_0",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_1",
               "link_name": "brake",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_2",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_3",
               "link_name": "brake",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_4",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_5",
               "link_name": "brake",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_6",
               "link_name": "wheel",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             },
             {
               "joint_name": "joint_7",
               "link_name": "brake",
               "motion_type": "revolute",
-              "damping": 30.0,
+              "damping": 33.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.1
             }
           ],
           "affordances": [
@@ -4143,9 +4143,9 @@
               "joint_name": "joint_0",
               "link_name": "drawer",
               "motion_type": "prismatic",
-              "damping": 30.0,
+              "damping": 34.0,
               "stiffness": 0.0,
-              "effort_limit": 1.0
+              "effort_limit": 1.15
             }
           ],
           "affordances": [
@@ -4185,7 +4185,7 @@
               "motion_type": "revolute",
               "damping": 120.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.5
             },
             {
               "joint_name": "joint_1",
@@ -4193,7 +4193,7 @@
               "motion_type": "revolute",
               "damping": 120.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.5
             }
           ],
           "affordances": [
@@ -4243,33 +4243,33 @@
               "joint_name": "joint_0",
               "link_name": "lamp_arm_straight_bar",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 144.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.8
             },
             {
               "joint_name": "joint_1",
               "link_name": "handle",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 144.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.8
             },
             {
               "joint_name": "joint_2",
               "link_name": "connector",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 144.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.8
             },
             {
               "joint_name": "joint_3",
               "link_name": "lamp_joint",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 144.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.8
             }
           ],
           "affordances": [
@@ -4351,25 +4351,25 @@
               "joint_name": "joint_0",
               "link_name": "lamp_shade",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 160.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 2.0
             },
             {
               "joint_name": "joint_1",
               "link_name": "lamp_arm_straight_bar",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 160.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 2.0
             },
             {
               "joint_name": "joint_2",
               "link_name": "lamp_joint",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 160.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 2.0
             }
           ],
           "affordances": [
@@ -4435,25 +4435,25 @@
               "joint_name": "joint_0",
               "link_name": "lamp_neck",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.875
             },
             {
               "joint_name": "joint_1",
               "link_name": "lamp_shade",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.875
             },
             {
               "joint_name": "joint_2",
               "link_name": "lamp_arm_straight_bar",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.875
             }
           ],
           "affordances": [
@@ -4519,9 +4519,9 @@
               "joint_name": "joint_0",
               "link_name": "lamp_head",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.875
             }
           ],
           "affordances": [
@@ -4555,17 +4555,17 @@
               "joint_name": "joint_0",
               "link_name": "leg",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 117.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.47
             },
             {
               "joint_name": "joint_1",
               "link_name": "lamp_head",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 117.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.47
             }
           ],
           "affordances": [
@@ -4615,17 +4615,17 @@
               "joint_name": "joint_0",
               "link_name": "connector",
               "motion_type": "prismatic",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.875
             },
             {
               "joint_name": "joint_1",
               "link_name": "lamp_shade",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.875
             }
           ],
           "affordances": [
@@ -4675,9 +4675,9 @@
               "joint_name": "joint_0",
               "link_name": "lamp_shade",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 144.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.8
             }
           ],
           "affordances": [
@@ -4711,9 +4711,9 @@
               "joint_name": "joint_0",
               "link_name": "lamp_shade",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 80.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.0
             }
           ],
           "affordances": [
@@ -4747,25 +4747,25 @@
               "joint_name": "joint_0",
               "link_name": "lamp_head",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 132.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.65
             },
             {
               "joint_name": "joint_1",
               "link_name": "lamp_arm_straight_bar",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 132.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.65
             },
             {
               "joint_name": "joint_2",
               "link_name": "lamp_joint",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 132.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.65
             }
           ],
           "affordances": [
@@ -4831,33 +4831,33 @@
               "joint_name": "joint_0",
               "link_name": "lamp_pole",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.875
             },
             {
               "joint_name": "joint_1",
               "link_name": "lamp_body_curved",
               "motion_type": "prismatic",
-              "damping": 120.0,
+              "damping": 40.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 0.625
             },
             {
               "joint_name": "joint_2",
               "link_name": "lamp_head",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.875
             },
             {
               "joint_name": "joint_3",
               "link_name": "movable_part",
               "motion_type": "prismatic",
-              "damping": 120.0,
+              "damping": 40.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 0.625
             }
           ],
           "affordances": [
@@ -4939,49 +4939,49 @@
               "joint_name": "joint_0",
               "link_name": "lamp_joint",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.875
             },
             {
               "joint_name": "joint_1",
               "link_name": "lamp_joint",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.875
             },
             {
               "joint_name": "joint_2",
               "link_name": "lamp_shade",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.875
             },
             {
               "joint_name": "joint_3",
               "link_name": "lamp_neck",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.875
             },
             {
               "joint_name": "joint_4",
               "link_name": "lamp_arm",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.875
             },
             {
               "joint_name": "joint_5",
               "link_name": "lamp_joint",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.875
             }
           ],
           "affordances": [
@@ -5095,17 +5095,17 @@
               "joint_name": "joint_0",
               "link_name": "lamp_shade",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.875
             },
             {
               "joint_name": "joint_1",
               "link_name": "lamp_arm_straight_bar",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.875
             }
           ],
           "affordances": [
@@ -5155,25 +5155,25 @@
               "joint_name": "joint_0",
               "link_name": "lamp_arm_straight_bar",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 170.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 2.25
             },
             {
               "joint_name": "joint_1",
               "link_name": "lamp_head",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 170.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 2.25
             },
             {
               "joint_name": "joint_2",
               "link_name": "lamp_joint",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 170.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 2.25
             }
           ],
           "affordances": [
@@ -5239,25 +5239,25 @@
               "joint_name": "joint_0",
               "link_name": "lamp_head",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.875
             },
             {
               "joint_name": "joint_1",
               "link_name": "lamp_pole",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.875
             },
             {
               "joint_name": "joint_2",
               "link_name": "lamp_pole",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.875
             }
           ],
           "affordances": [
@@ -5323,33 +5323,33 @@
               "joint_name": "joint_0",
               "link_name": "lamp_arm_straight_bar",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 144.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.8
             },
             {
               "joint_name": "joint_1",
               "link_name": "lamp_arm_curved_bar",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 144.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.8
             },
             {
               "joint_name": "joint_2",
               "link_name": "lamp_head",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 144.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.8
             },
             {
               "joint_name": "joint_3",
               "link_name": "lamp_arm_straight_bar",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 144.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.8
             }
           ],
           "affordances": [
@@ -5431,25 +5431,25 @@
               "joint_name": "joint_0",
               "link_name": "lamp_shade",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 115.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.425
             },
             {
               "joint_name": "joint_1",
               "link_name": "lamp_arm_curved_bar",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 115.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.425
             },
             {
               "joint_name": "joint_2",
               "link_name": "other_leaf",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 115.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.425
             }
           ],
           "affordances": [
@@ -5515,9 +5515,9 @@
               "joint_name": "joint_0",
               "link_name": "lamp_pole",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 116.4,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.455
             }
           ],
           "affordances": [
@@ -5551,25 +5551,25 @@
               "joint_name": "joint_0",
               "link_name": "movable_part",
               "motion_type": "prismatic",
-              "damping": 120.0,
+              "damping": 45.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 0.75
             },
             {
               "joint_name": "joint_1",
               "link_name": "connector",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 2.0
             },
             {
               "joint_name": "joint_2",
               "link_name": "lamp_arm_straight_bar",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 150.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 2.0
             }
           ],
           "affordances": [
@@ -5635,25 +5635,25 @@
               "joint_name": "joint_0",
               "link_name": "lamp_arm_straight_bar",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 144.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.8
             },
             {
               "joint_name": "joint_1",
               "link_name": "lamp_head",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 144.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.8
             },
             {
               "joint_name": "joint_2",
               "link_name": "lamp_arm_straight_bar",
               "motion_type": "revolute",
-              "damping": 120.0,
+              "damping": 144.0,
               "stiffness": 0.0,
-              "effort_limit": 5.0
+              "effort_limit": 1.8
             }
           ],
           "affordances": [
@@ -5725,7 +5725,7 @@
               "motion_type": "revolute",
               "damping": 50.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.04
             }
           ],
           "affordances": [
@@ -5759,9 +5759,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 42.5,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.034
             }
           ],
           "affordances": [
@@ -5795,25 +5795,25 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 58.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.046
             },
             {
               "joint_name": "joint_1",
               "link_name": "link_4",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 58.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.046
             },
             {
               "joint_name": "joint_2",
               "link_name": "link_3",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 58.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.046
             }
           ],
           "affordances": [
@@ -5879,17 +5879,17 @@
               "joint_name": "joint_0",
               "link_name": "link_3",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 65.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.055
             },
             {
               "joint_name": "joint_1",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 65.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.055
             }
           ],
           "affordances": [
@@ -5939,9 +5939,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 42.5,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.034
             }
           ],
           "affordances": [
@@ -5975,9 +5975,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 60.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.048
             }
           ],
           "affordances": [
@@ -6011,17 +6011,17 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 62.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.05
             },
             {
               "joint_name": "joint_1",
               "link_name": "link_3",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 62.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.05
             }
           ],
           "affordances": [
@@ -6071,9 +6071,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 52.5,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.041
             }
           ],
           "affordances": [
@@ -6109,7 +6109,7 @@
               "motion_type": "revolute",
               "damping": 50.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.04
             }
           ],
           "affordances": [
@@ -6145,7 +6145,7 @@
               "motion_type": "revolute",
               "damping": 50.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.04
             },
             {
               "joint_name": "joint_1",
@@ -6153,7 +6153,7 @@
               "motion_type": "revolute",
               "damping": 50.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.04
             }
           ],
           "affordances": [
@@ -6205,7 +6205,7 @@
               "motion_type": "revolute",
               "damping": 50.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.04
             }
           ],
           "affordances": [
@@ -6239,9 +6239,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 65.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.052
             }
           ],
           "affordances": [
@@ -6275,25 +6275,25 @@
               "joint_name": "joint_0",
               "link_name": "link_3",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 70.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.06
             },
             {
               "joint_name": "joint_1",
               "link_name": "link_4",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 70.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.06
             },
             {
               "joint_name": "joint_2",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 70.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.06
             }
           ],
           "affordances": [
@@ -6359,9 +6359,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 54.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.0432
             }
           ],
           "affordances": [
@@ -6395,17 +6395,17 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 70.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.07
             },
             {
               "joint_name": "joint_1",
               "link_name": "link_3",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 70.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.07
             }
           ],
           "affordances": [
@@ -6455,9 +6455,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 75.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.07
             }
           ],
           "affordances": [
@@ -6491,9 +6491,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 75.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.06
             }
           ],
           "affordances": [
@@ -6529,7 +6529,7 @@
               "motion_type": "revolute",
               "damping": 50.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.04
             }
           ],
           "affordances": [
@@ -6563,9 +6563,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 65.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.052
             }
           ],
           "affordances": [
@@ -6599,9 +6599,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 50.0,
+              "damping": 65.0,
               "stiffness": 0.0,
-              "effort_limit": 3.5
+              "effort_limit": 0.05
             }
           ],
           "affordances": [
@@ -6641,7 +6641,7 @@
               "motion_type": "revolute",
               "damping": 10.0,
               "stiffness": 50.0,
-              "effort_limit": 6.0
+              "effort_limit": 0.3
             }
           ],
           "affordances": [
@@ -6675,9 +6675,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 10.0,
-              "stiffness": 50.0,
-              "effort_limit": 6.0
+              "damping": 8.5,
+              "stiffness": 0.0,
+              "effort_limit": 0.26
             }
           ],
           "affordances": [
@@ -6711,9 +6711,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 10.0,
-              "stiffness": 50.0,
-              "effort_limit": 6.0
+              "damping": 7.5,
+              "stiffness": 0.0,
+              "effort_limit": 0.225
             }
           ],
           "affordances": [
@@ -6747,9 +6747,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 10.0,
-              "stiffness": 50.0,
-              "effort_limit": 6.0
+              "damping": 8.5,
+              "stiffness": 0.0,
+              "effort_limit": 0.255
             }
           ],
           "affordances": [
@@ -6783,9 +6783,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 10.0,
-              "stiffness": 50.0,
-              "effort_limit": 6.0
+              "damping": 8.5,
+              "stiffness": 0.0,
+              "effort_limit": 0.255
             }
           ],
           "affordances": [
@@ -6819,9 +6819,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 10.0,
-              "stiffness": 50.0,
-              "effort_limit": 6.0
+              "damping": 8.4,
+              "stiffness": 0.0,
+              "effort_limit": 0.25
             }
           ],
           "affordances": [
@@ -6855,9 +6855,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 10.0,
-              "stiffness": 50.0,
-              "effort_limit": 6.0
+              "damping": 8.5,
+              "stiffness": 0.0,
+              "effort_limit": 0.27
             }
           ],
           "affordances": [
@@ -6893,7 +6893,7 @@
               "motion_type": "revolute",
               "damping": 10.0,
               "stiffness": 50.0,
-              "effort_limit": 6.0
+              "effort_limit": 0.3
             }
           ],
           "affordances": [
@@ -6927,9 +6927,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 10.0,
-              "stiffness": 50.0,
-              "effort_limit": 6.0
+              "damping": 8.2,
+              "stiffness": 0.0,
+              "effort_limit": 0.2475
             }
           ],
           "affordances": [
@@ -6963,9 +6963,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 10.0,
+              "damping": 8.5,
               "stiffness": 50.0,
-              "effort_limit": 6.0
+              "effort_limit": 0.255
             }
           ],
           "affordances": [
@@ -6999,9 +6999,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 10.0,
-              "stiffness": 50.0,
-              "effort_limit": 6.0
+              "damping": 9.37,
+              "stiffness": 0.0,
+              "effort_limit": 0.281
             }
           ],
           "affordances": [
@@ -7035,9 +7035,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 10.0,
+              "damping": 8.5,
               "stiffness": 50.0,
-              "effort_limit": 6.0
+              "effort_limit": 0.26
             }
           ],
           "affordances": [
@@ -7071,9 +7071,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 10.0,
-              "stiffness": 50.0,
-              "effort_limit": 6.0
+              "damping": 7.9,
+              "stiffness": 0.0,
+              "effort_limit": 0.238
             }
           ],
           "affordances": [
@@ -7107,9 +7107,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 10.0,
-              "stiffness": 50.0,
-              "effort_limit": 6.0
+              "damping": 8.5,
+              "stiffness": 0.0,
+              "effort_limit": 0.255
             }
           ],
           "affordances": [
@@ -7143,9 +7143,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 10.0,
-              "stiffness": 50.0,
-              "effort_limit": 6.0
+              "damping": 8.5,
+              "stiffness": 0.0,
+              "effort_limit": 0.255
             }
           ],
           "affordances": [
@@ -7179,9 +7179,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 10.0,
-              "stiffness": 50.0,
-              "effort_limit": 6.0
+              "damping": 7.5,
+              "stiffness": 0.0,
+              "effort_limit": 0.225
             }
           ],
           "affordances": [
@@ -7217,7 +7217,7 @@
               "motion_type": "revolute",
               "damping": 10.0,
               "stiffness": 50.0,
-              "effort_limit": 6.0
+              "effort_limit": 0.3
             }
           ],
           "affordances": [
@@ -7253,7 +7253,7 @@
               "motion_type": "revolute",
               "damping": 10.0,
               "stiffness": 50.0,
-              "effort_limit": 6.0
+              "effort_limit": 0.3
             }
           ],
           "affordances": [
@@ -7289,7 +7289,7 @@
               "motion_type": "revolute",
               "damping": 10.0,
               "stiffness": 50.0,
-              "effort_limit": 6.0
+              "effort_limit": 0.3
             }
           ],
           "affordances": [
@@ -7323,9 +7323,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 10.0,
-              "stiffness": 50.0,
-              "effort_limit": 6.0
+              "damping": 8.1,
+              "stiffness": 0.0,
+              "effort_limit": 0.243
             }
           ],
           "affordances": [
@@ -7365,7 +7365,7 @@
               "motion_type": "revolute",
               "damping": 500.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 7.5
             }
           ],
           "affordances": [
@@ -7399,9 +7399,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 714.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 10.71
             }
           ],
           "affordances": [
@@ -7435,9 +7435,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 675.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 11.25
             }
           ],
           "affordances": [
@@ -7471,9 +7471,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 525.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 8.125
             }
           ],
           "affordances": [
@@ -7507,17 +7507,17 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 525.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 8.1
             },
             {
               "joint_name": "joint_1",
               "link_name": "door_2",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 525.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 8.1
             }
           ],
           "affordances": [
@@ -7567,9 +7567,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 525.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 8.125
             }
           ],
           "affordances": [
@@ -7603,9 +7603,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 525.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 8.1
             }
           ],
           "affordances": [
@@ -7639,9 +7639,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 525.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 8.1
             }
           ],
           "affordances": [
@@ -7675,9 +7675,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 525.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 8.1
             }
           ],
           "affordances": [
@@ -7711,9 +7711,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 525.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 8.125
             }
           ],
           "affordances": [
@@ -7747,9 +7747,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 525.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 8.125
             }
           ],
           "affordances": [
@@ -7783,9 +7783,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 525.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 8.1
             }
           ],
           "affordances": [
@@ -7819,9 +7819,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 575.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 8.75
             }
           ],
           "affordances": [
@@ -7855,9 +7855,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 525.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 8.1
             }
           ],
           "affordances": [
@@ -7891,9 +7891,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 525.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 8.125
             }
           ],
           "affordances": [
@@ -7927,9 +7927,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 610.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 9.125
             }
           ],
           "affordances": [
@@ -7963,9 +7963,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 525.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 8.1
             }
           ],
           "affordances": [
@@ -7999,9 +7999,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 525.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 8.1
             }
           ],
           "affordances": [
@@ -8035,9 +8035,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 525.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 8.0
             }
           ],
           "affordances": [
@@ -8071,9 +8071,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 500.0,
+              "damping": 525.0,
               "stiffness": 0.0,
-              "effort_limit": 15.0
+              "effort_limit": 8.0
             }
           ],
           "affordances": [
@@ -8113,7 +8113,7 @@
               "motion_type": "revolute",
               "damping": 70.0,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.8,
               "door_type": "normal"
             }
           ],
@@ -8148,9 +8148,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 70.0,
+              "damping": 72.8,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.836,
               "door_type": "normal"
             }
           ],
@@ -8185,9 +8185,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 70.0,
+              "damping": 74.9,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.854,
               "door_type": "normal"
             }
           ],
@@ -8222,9 +8222,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 70.0,
+              "damping": 72.8,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.836,
               "door_type": "normal"
             }
           ],
@@ -8261,7 +8261,7 @@
               "motion_type": "revolute",
               "damping": 70.0,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.8,
               "door_type": "normal"
             }
           ],
@@ -8296,9 +8296,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 70.0,
+              "damping": 60.0,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.548,
               "door_type": "normal"
             }
           ],
@@ -8333,9 +8333,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 70.0,
+              "damping": 74.2,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.836,
               "door_type": "normal"
             }
           ],
@@ -8370,9 +8370,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 70.0,
+              "damping": 72.1,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.836,
               "door_type": "normal"
             }
           ],
@@ -8409,7 +8409,7 @@
               "motion_type": "revolute",
               "damping": 70.0,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.8,
               "door_type": "normal"
             }
           ],
@@ -8444,9 +8444,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 70.0,
+              "damping": 72.8,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.836,
               "door_type": "normal"
             }
           ],
@@ -8481,9 +8481,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 70.0,
+              "damping": 72.8,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.845,
               "door_type": "normal"
             }
           ],
@@ -8518,9 +8518,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 70.0,
+              "damping": 66.5,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.728,
               "door_type": "normal"
             }
           ],
@@ -8555,9 +8555,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 70.0,
+              "damping": 72.8,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.836,
               "door_type": "normal"
             }
           ],
@@ -8592,9 +8592,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 70.0,
+              "damping": 72.8,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.845,
               "door_type": "normal"
             }
           ],
@@ -8631,7 +8631,7 @@
               "motion_type": "revolute",
               "damping": 70.0,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.8,
               "door_type": "normal"
             }
           ],
@@ -8666,9 +8666,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 70.0,
+              "damping": 73.5,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.872,
               "door_type": "normal"
             }
           ],
@@ -8703,9 +8703,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 70.0,
+              "damping": 67.2,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.728,
               "door_type": "normal"
             }
           ],
@@ -8740,9 +8740,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 70.0,
+              "damping": 66.5,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.71,
               "door_type": "normal"
             }
           ],
@@ -8777,9 +8777,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 70.0,
+              "damping": 73.5,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.872,
               "door_type": "normal"
             }
           ],
@@ -8814,9 +8814,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 70.0,
+              "damping": 74.0,
               "stiffness": 0.0,
-              "effort_limit": 2.0,
+              "effort_limit": 1.91,
               "door_type": "normal"
             }
           ],
@@ -8857,7 +8857,7 @@
               "motion_type": "revolute",
               "damping": 60.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.675
             },
             {
               "joint_name": "joint_1",
@@ -8865,7 +8865,7 @@
               "motion_type": "revolute",
               "damping": 60.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.675
             }
           ],
           "affordances": [
@@ -8915,17 +8915,17 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 61.2,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.704
             },
             {
               "joint_name": "joint_1",
               "link_name": "door_2",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 61.2,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.704
             }
           ],
           "affordances": [
@@ -8975,17 +8975,17 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 59.4,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.66825
             },
             {
               "joint_name": "joint_1",
               "link_name": "door_2",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 59.4,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.66825
             }
           ],
           "affordances": [
@@ -9037,7 +9037,7 @@
               "motion_type": "revolute",
               "damping": 60.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.675
             },
             {
               "joint_name": "joint_1",
@@ -9045,7 +9045,7 @@
               "motion_type": "revolute",
               "damping": 60.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.675
             }
           ],
           "affordances": [
@@ -9095,17 +9095,17 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 63.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.71
             },
             {
               "joint_name": "joint_1",
               "link_name": "door_2",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 63.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.71
             }
           ],
           "affordances": [
@@ -9157,7 +9157,7 @@
               "motion_type": "revolute",
               "damping": 60.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.675
             }
           ],
           "affordances": [
@@ -9191,25 +9191,25 @@
               "joint_name": "joint_0",
               "link_name": "door_3",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 62.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.71
             },
             {
               "joint_name": "joint_1",
               "link_name": "door_2",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 62.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.71
             },
             {
               "joint_name": "joint_2",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 62.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.71
             }
           ],
           "affordances": [
@@ -9275,17 +9275,17 @@
               "joint_name": "joint_0",
               "link_name": "door_2",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 63.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.70875
             },
             {
               "joint_name": "joint_1",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 63.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.70875
             }
           ],
           "affordances": [
@@ -9335,17 +9335,17 @@
               "joint_name": "joint_0",
               "link_name": "door_2",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 63.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.71
             },
             {
               "joint_name": "joint_1",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 63.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.71
             }
           ],
           "affordances": [
@@ -9395,17 +9395,17 @@
               "joint_name": "joint_0",
               "link_name": "door_2",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 63.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.71
             },
             {
               "joint_name": "joint_1",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 63.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.71
             }
           ],
           "affordances": [
@@ -9455,17 +9455,17 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 63.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.71
             },
             {
               "joint_name": "joint_1",
               "link_name": "door_2",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 63.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.71
             }
           ],
           "affordances": [
@@ -9517,7 +9517,7 @@
               "motion_type": "revolute",
               "damping": 60.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.675
             },
             {
               "joint_name": "joint_1",
@@ -9525,7 +9525,7 @@
               "motion_type": "revolute",
               "damping": 60.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.675
             }
           ],
           "affordances": [
@@ -9575,9 +9575,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 62.1,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.708
             }
           ],
           "affordances": [
@@ -9611,17 +9611,17 @@
               "joint_name": "joint_0",
               "link_name": "door_2",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 62.4,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.709
             },
             {
               "joint_name": "joint_1",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 62.4,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.709
             }
           ],
           "affordances": [
@@ -9671,17 +9671,17 @@
               "joint_name": "joint_0",
               "link_name": "door_2",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 62.1,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.708
             },
             {
               "joint_name": "joint_1",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 62.1,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.708
             }
           ],
           "affordances": [
@@ -9733,7 +9733,7 @@
               "motion_type": "revolute",
               "damping": 60.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.675
             },
             {
               "joint_name": "joint_1",
@@ -9741,7 +9741,7 @@
               "motion_type": "revolute",
               "damping": 60.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.675
             }
           ],
           "affordances": [
@@ -9791,9 +9791,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 62.1,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.70875
             }
           ],
           "affordances": [
@@ -9827,17 +9827,17 @@
               "joint_name": "joint_0",
               "link_name": "door_2",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 57.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.63
             },
             {
               "joint_name": "joint_1",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 57.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.63
             }
           ],
           "affordances": [
@@ -9887,17 +9887,17 @@
               "joint_name": "joint_0",
               "link_name": "door_2",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 57.6,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.64125
             },
             {
               "joint_name": "joint_1",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 57.6,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.64125
             }
           ],
           "affordances": [
@@ -9947,9 +9947,9 @@
               "joint_name": "joint_0",
               "link_name": "door_1",
               "motion_type": "revolute",
-              "damping": 60.0,
+              "damping": 66.0,
               "stiffness": 0.0,
-              "effort_limit": 1.5
+              "effort_limit": 0.75
             }
           ],
           "affordances": [
@@ -9989,7 +9989,7 @@
               "motion_type": "revolute",
               "damping": 5.0,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.05
             }
           ],
           "affordances": [
@@ -10023,9 +10023,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 5.0,
+              "damping": 4.25,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.0425
             }
           ],
           "affordances": [
@@ -10059,9 +10059,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 5.0,
+              "damping": 5.25,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.0525
             }
           ],
           "affordances": [
@@ -10095,9 +10095,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 5.0,
+              "damping": 5.1,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.051
             }
           ],
           "affordances": [
@@ -10133,7 +10133,7 @@
               "motion_type": "revolute",
               "damping": 5.0,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.05
             }
           ],
           "affordances": [
@@ -10167,9 +10167,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 5.0,
+              "damping": 4.25,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.0425
             }
           ],
           "affordances": [
@@ -10203,9 +10203,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 5.0,
+              "damping": 5.5,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.055
             }
           ],
           "affordances": [
@@ -10239,9 +10239,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 5.0,
+              "damping": 5.1,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.051
             }
           ],
           "affordances": [
@@ -10275,9 +10275,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 5.0,
+              "damping": 4.9,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.049
             }
           ],
           "affordances": [
@@ -10311,9 +10311,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 5.0,
+              "damping": 4.5,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.0425
             }
           ],
           "affordances": [
@@ -10347,9 +10347,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 5.0,
+              "damping": 4.85,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.0485
             }
           ],
           "affordances": [
@@ -10383,9 +10383,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 5.0,
+              "damping": 4.25,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.0425
             }
           ],
           "affordances": [
@@ -10419,9 +10419,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 5.0,
+              "damping": 4.75,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.0475
             }
           ],
           "affordances": [
@@ -10455,9 +10455,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 5.0,
+              "damping": 4.85,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.0485
             }
           ],
           "affordances": [
@@ -10491,9 +10491,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 5.0,
+              "damping": 4.75,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.0475
             }
           ],
           "affordances": [
@@ -10527,9 +10527,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 5.0,
+              "damping": 4.75,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.0475
             }
           ],
           "affordances": [
@@ -10563,9 +10563,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 5.0,
+              "damping": 5.1,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.051
             }
           ],
           "affordances": [
@@ -10599,9 +10599,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 5.0,
+              "damping": 5.1,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.051
             }
           ],
           "affordances": [
@@ -10635,9 +10635,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 5.0,
+              "damping": 4.85,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.0485
             }
           ],
           "affordances": [
@@ -10671,9 +10671,9 @@
               "joint_name": "joint_0",
               "link_name": "link_1",
               "motion_type": "revolute",
-              "damping": 5.0,
+              "damping": 5.1,
               "stiffness": 0.0,
-              "effort_limit": 0.5
+              "effort_limit": 0.051
             }
           ],
           "affordances": [
@@ -10747,9 +10747,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 10.0,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.75
             }
           ],
           "affordances": [
@@ -10783,9 +10783,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 9.6,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.6
             }
           ],
           "affordances": [
@@ -10819,17 +10819,17 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 8.24,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.06
             },
             {
               "joint_name": "joint_1",
               "link_name": "link_3",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 8.24,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.06
             }
           ],
           "affordances": [
@@ -10879,17 +10879,17 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 9.0,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.375
             },
             {
               "joint_name": "joint_1",
               "link_name": "link_3",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 9.0,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.375
             }
           ],
           "affordances": [
@@ -10939,25 +10939,25 @@
               "joint_name": "joint_0",
               "link_name": "link_4",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 8.24,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.15
             },
             {
               "joint_name": "joint_1",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 8.24,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.15
             },
             {
               "joint_name": "joint_2",
               "link_name": "link_3",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 8.24,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.15
             }
           ],
           "affordances": [
@@ -11023,25 +11023,25 @@
               "joint_name": "joint_0",
               "link_name": "link_4",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 8.4,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.15
             },
             {
               "joint_name": "joint_1",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 8.4,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.15
             },
             {
               "joint_name": "joint_2",
               "link_name": "link_3",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 8.4,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.15
             }
           ],
           "affordances": [
@@ -11107,25 +11107,25 @@
               "joint_name": "joint_0",
               "link_name": "link_4",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 8.24,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.15
             },
             {
               "joint_name": "joint_1",
               "link_name": "link_3",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 8.24,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.15
             },
             {
               "joint_name": "joint_2",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 8.24,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.15
             }
           ],
           "affordances": [
@@ -11191,9 +11191,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 10.0,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.6
             }
           ],
           "affordances": [
@@ -11227,9 +11227,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 9.6,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.6
             }
           ],
           "affordances": [
@@ -11263,9 +11263,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 7.68,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 2.88
             }
           ],
           "affordances": [
@@ -11299,25 +11299,25 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "prismatic",
-              "damping": 8.0,
+              "damping": 9.0,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.3
             },
             {
               "joint_name": "joint_1",
               "link_name": "link_3",
               "motion_type": "prismatic",
-              "damping": 8.0,
+              "damping": 9.0,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.3
             },
             {
               "joint_name": "joint_2",
               "link_name": "link_4",
               "motion_type": "prismatic",
-              "damping": 8.0,
+              "damping": 9.0,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.3
             }
           ],
           "affordances": [
@@ -11383,9 +11383,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 10.0,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.5
             }
           ],
           "affordances": [
@@ -11419,9 +11419,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 9.0,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.375
             }
           ],
           "affordances": [
@@ -11455,9 +11455,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 7.68,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 2.88
             }
           ],
           "affordances": [
@@ -11491,9 +11491,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 10.0,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.6
             }
           ],
           "affordances": [
@@ -11527,9 +11527,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 9.6,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.6
             }
           ],
           "affordances": [
@@ -11563,9 +11563,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 9.6,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 3.6
             }
           ],
           "affordances": [
@@ -11599,9 +11599,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 7.68,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 2.88
             }
           ],
           "affordances": [
@@ -11635,9 +11635,9 @@
               "joint_name": "joint_0",
               "link_name": "link_2",
               "motion_type": "revolute",
-              "damping": 8.0,
+              "damping": 7.68,
               "stiffness": 0.0,
-              "effort_limit": 3.0
+              "effort_limit": 2.88
             }
           ],
           "affordances": [

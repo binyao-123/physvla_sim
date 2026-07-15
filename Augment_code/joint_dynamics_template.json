@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
-  "template_version": "v0.2",
-  "notes": "Per-category joint dynamics priors (Phi_dyn). Not predicted by VLM; filled from measurement / FITR_bench calibration.",
+  "template_version": "v1.0",
+  "notes": "Appendix A per-category reference dynamics priors (Phi_dyn). Values are calibrated on the first reference asset of each category and serve as the VLM prediction anchor.",
   "categories": {
     "Laptop": {
-      "damping": 100.0,
+      "damping": 90.0,
       "stiffness": 0.0,
-      "effort_limit": 4.0
+      "effort_limit": 0.8
     },
     "Display": {
       "damping": 1500.0,
@@ -16,7 +16,7 @@
     "Microwave": {
       "damping": 1.0,
       "stiffness": 0.0,
-      "effort_limit": 0.1
+      "effort_limit": 0.01
     },
     "Drawer": {
       "damping": 30.0,
@@ -26,37 +26,37 @@
     "Lamp": {
       "damping": 120.0,
       "stiffness": 0.0,
-      "effort_limit": 5.0
+      "effort_limit": 1.5
     },
     "Faucet": {
       "damping": 50.0,
       "stiffness": 0.0,
-      "effort_limit": 3.5
+      "effort_limit": 0.04
     },
     "Knife": {
       "damping": 10.0,
       "stiffness": 50.0,
-      "effort_limit": 6.0
+      "effort_limit": 0.3
     },
     "Dishwasher": {
       "damping": 500.0,
       "stiffness": 0.0,
-      "effort_limit": 15.0
+      "effort_limit": 7.5
     },
     "Door": {
       "damping": 70.0,
       "stiffness": 0.0,
-      "effort_limit": 2.0
+      "effort_limit": 1.8
     },
     "Refrigerator": {
       "damping": 60.0,
       "stiffness": 0.0,
-      "effort_limit": 1.5
+      "effort_limit": 0.675
     },
     "Scissors": {
       "damping": 5.0,
       "stiffness": 0.0,
-      "effort_limit": 0.5
+      "effort_limit": 0.05
     },
     "StorageFurniture": {
       "damping": 8.0,

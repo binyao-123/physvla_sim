@@ -49,13 +49,16 @@ def iter_assets(
     *,
     categories: list[str] | None = None,
 ) -> Iterator[tuple[str, str, Path]]:
+    def asset_sort_key(asset_dir: Path) -> tuple[int, int | str]:
+        return (0, int(asset_dir.name)) if asset_dir.name.isdigit() else (1, asset_dir.name)
+
     cat_names = categories or list(vlm_base["categories"])
     for category in cat_names:
         cfg = vlm_base["categories"][category]
         cat_dir = dataset_root / cfg["category_dir"]
         if not cat_dir.is_dir():
             continue
-        for asset_dir in sorted(cat_dir.iterdir()):
+        for asset_dir in sorted(cat_dir.iterdir(), key=asset_sort_key):
             if asset_dir.is_dir():
                 yield category, asset_dir.name, asset_dir
 

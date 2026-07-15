@@ -1,0 +1,1 @@
+{"category": "Drawer", "asset_id": "19825", "error": "Expecting ',' delimiter: line 1 column 81 (char 80)", "raw_response": "{\"joints\":[{\"joint_name\":\"joint_0\",\"damping\":39,\"stiffness\":0,\"effort_limit\":1.3],\"confidence\":0.9},{\"joint_name\":\"joint_1\",\"damping\":39,\"stiffness\":0,\"effort_limit\":1.3],\"confidence\":0.9}]}"}

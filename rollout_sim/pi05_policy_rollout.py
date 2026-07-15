@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import sys
 import time
 from dataclasses import asdict, replace
@@ -28,6 +29,13 @@ for _path in (_ROLLOUT_SIM_DIR, _COLLECT_DIR):
         sys.path.insert(0, str(_path))
 
 from isaaclab_env_module import apply_camera_launch_workarounds
+from domain_randomization_robotwin2 import (
+    add_randomization_cli_args,
+    apply_randomization_sample,
+    format_randomization_sample,
+    randomization_config_from_args,
+    sample_randomization,
+)
 from policy_obs_utils import (
     build_policy_observation,
     build_state14,
@@ -74,6 +82,7 @@ parser.add_argument(
     default="cuda",
     help="Torch device for Pi05 inference (cuda/cpu). Not Isaac AppLauncher --device.",
 )
+add_randomization_cli_args(parser)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -89,6 +98,8 @@ if not args_cli.policy_path:
     parser.error("--policy.path is required.")
 
 task_preset = get_task_preset(args_cli.task_id)
+rand_config = randomization_config_from_args(args_cli, task_preset)
+rng = random.Random(rand_config.seed)
 rollout_success_specs = task_preset.rollout_success_specs
 if args_cli.usd_path:
     p = Path(args_cli.usd_path).expanduser()
@@ -212,7 +223,14 @@ print(
 )
 
 
-def reset_episode() -> None:
+def reset_episode():
+    # Re-sample object pose before reset, then visual/environment DR after reset.
+    # This is the same Direct-GPU-safe order used by automatic collection.
+    episode_preset = get_task_preset(args_cli.task_id)
+    if args_cli.usd_path:
+        episode_preset = replace(episode_preset, usd_path=task_preset.usd_path)
+    env_module.apply_task_preset_scene_root(episode_preset)
+    env_module.apply_task_preset_joint_initial(episode_preset)
     sim.reset()
     robot.reset()
     if env_module.scene_articulation is not None:
@@ -220,23 +238,31 @@ def reset_episode() -> None:
     if sensor_cameras:
         for sensor in sensor_cameras.values():
             sensor.reset()
-    env_module.apply_joint_initial_overrides()
-    env_module.sync_scene_joint_initials_to_sim()
-    robot.write_joint_state_to_sim(robot.data.default_joint_pos, robot.data.default_joint_vel)
-    robot.set_joint_position_target(gripper_close_target, joint_ids=gripper_joint_ids)
-    robot.write_data_to_sim()
+    env_module.ensure_scene_root_baseline()
     env_module.define_camera_prims()
-    for _ in range(SCENE_JOINT_PHYSICS_WARMUP_STEPS):
-        sim.step(render=True)
-    sim.step(render=True)
-    robot.update(sim.cfg.dt)
-    if env_module.scene_articulation is not None:
-        env_module.scene_articulation.update(sim.cfg.dt)
+    sample = sample_randomization(rand_config, rng)
+    apply_randomization_sample(env_module, rand_config, sample)
+    env_module.sync_scene_joints_after_sim_reset(warmup_steps=SCENE_JOINT_PHYSICS_WARMUP_STEPS)
+    env_module.reset_robot_pose_via_targets(
+        gripper_targets=gripper_close_target,
+        gripper_joint_ids=gripper_joint_ids,
+    )
     policy.reset()
+    scene_spec = episode_preset.scene_root_specs[0] if episode_preset.scene_root_specs else None
+    joint_spec = episode_preset.joint_initial_specs[0] if episode_preset.joint_initial_specs else None
+    print(
+        "[INFO] Episode init: "
+        f"scene_xyz={tuple(round(float(v), 4) for v in scene_spec.translation) if scene_spec else None} "
+        f"scene_rot={tuple(round(float(v), 2) for v in scene_spec.rotation_xyz) if scene_spec else None} "
+        f"joint={float(joint_spec.position):.2f}° "
+        f"DR=({format_randomization_sample(sample)})",
+        flush=True,
+    )
+    return episode_preset, sample
 
 
 def run_episode(episode_index: int) -> dict:
-    reset_episode()
+    episode_preset, randomization_sample = reset_episode()
 
     last_rgb_main = None
     last_rgb_wrist = None
@@ -335,6 +361,9 @@ def run_episode(episode_index: int) -> dict:
         "final_joint_degs": final_joint_degs,
         "peak_joint_degs": peak_joint_degs,
         "video": str(mp4_path) if video_frames else None,
+        "scene_root_specs": [asdict(spec) for spec in episode_preset.scene_root_specs],
+        "joint_initial_specs": [asdict(spec) for spec in episode_preset.joint_initial_specs],
+        "randomization": asdict(randomization_sample),
     }
 
 
@@ -348,6 +377,7 @@ output_dir.mkdir(parents=True, exist_ok=True)
             "num_episodes": args_cli.num_episodes,
             "max_steps": args_cli.max_steps,
             "rollout_success_specs": [asdict(spec) for spec in rollout_success_specs],
+            "randomization_config": asdict(rand_config),
             "headless": bool(getattr(args_cli, "headless", False)),
         },
         indent=2,

@@ -1,0 +1,84 @@
+# prompt_version: 1.0
+# task_id: joint_dynamics_prediction
+# images: Image 1 is the calibrated reference asset for this category; Image 2 is the target asset.
+
+[SYSTEM]
+You are estimating OpenUSD/Isaac Sim joint-drive parameters for an articulated household object from rendered images. Return valid JSON only, with no Markdown and no explanation.
+
+The result controls a PD joint drive:
+effort = clip(stiffness * (target_position - position) + damping * (target_velocity - velocity), -effort_limit, effort_limit).
+
+This is an equivalent simulation response, not a decomposition of the real mechanism's material, friction, spring, or gearbox. Use the calibrated reference asset and its parameters as the primary prior. Predict only damping, stiffness, and effort_limit for the target.
+
+[USER]
+Category: {category}
+Target asset ID: {asset_id}
+
+Image 1 is the calibrated reference asset for this category.
+Image 2 is the target asset to predict.
+The recovered longest-edge size of Image 1 is {reference_size_cm} cm.
+The recovered longest-edge size of Image 2 is {target_size_cm} cm.
+Target/reference size ratio = {size_ratio}.
+
+Movable joints of the target:
+{joint_lines}
+In the output, copy only the value after `joint_name:` into `joint_name`; never include link_name or motion_type.
+
+[REFERENCE_AND_ALLOWED_RANGES]
+Every reference value below belongs to Image 1, the first calibrated asset in the corresponding asset library. The target prediction must stay inside the listed inclusive range.
+
+| category | damping range | stiffness range | effort_limit range |
+| Laptop | [80, 150] | {0} | [0.5, 1.2] |
+| Display | [1000, 2000] | {0} | [1.2, 4.8] |
+| Microwave | [0.3, 2] | {0} | [0.005, 0.04] |
+| Drawer | [10, 90] | {0} | [0.3, 3] |
+| Lamp | [40, 300] | {0} | [0.5, 4] |
+| Faucet | [20, 120] | {0} | [0.015, 0.12] |
+| Knife | [3, 30] | {0, [25, 100]} | [0.15, 0.75] |
+| Dishwasher | [200, 1200] | {0} | [3.75, 15] |
+| Door | [30, 150] | {0, [50, 150]} | [0.9, 3.6] |
+| Refrigerator | [20, 150] | {0} | [0.3, 1.35] |
+| Scissors | [2, 15] | {0} | [0.02, 0.15] |
+| StorageFurniture | [3, 30] | {0} | [1, 8] |
+
+Reference parameters for this category (Image 1):
+| category | damping | stiffness | effort_limit |
+| Laptop | 90 | 0 | 0.8 |
+| Display | 1500 | 0 | 2.4 |
+| Microwave | 1 | 0 | 0.01 |
+| Drawer | 30 | 0 | 1 |
+| Lamp | 120 | 0 | 1.5 |
+| Faucet | 50 | 0 | 0.04 |
+| Knife | 10 | 50 | 0.3 |
+| Dishwasher | 500 | 0 | 7.5 |
+| Door | 70 | 0 | 1.8 |
+| Refrigerator | 60 | 0 | 0.675 |
+| Scissors | 5 | 0 | 0.05 |
+| StorageFurniture | 8 | 0 | 3 |
+
+[PARAMETER_SEMANTICS]
+- damping: velocity-proportional resistance. For revolute joints its unit is N·m/(rad/s); for prismatic joints it is N/(m/s).
+- stiffness: position-restoring spring gain. For revolute joints its unit is N·m/rad; for prismatic joints it is N/m. It is NOT ordinary friction, inertia, weight, or hinge tightness.
+- effort_limit: maximum drive torque for a revolute joint (N·m), or maximum drive force for a prismatic joint (N).
+
+[DECISION_RULES]
+1. Begin from the reference parameters for this category, then compare Image 2 against Image 1. The provided size ratio is a recovered physical measurement, so use it instead of estimating apparent size from camera perspective.
+2. Within the permitted range, a visibly larger, thicker, heavier, more reinforced, or more complex target generally receives larger damping and effort_limit; a visibly smaller, thinner, lighter target generally receives smaller values. Use the size ratio as the default adjustment direction.
+3. If the size ratio is greater than 1.10, do not copy both reference damping and reference effort_limit unchanged: choose values above their reference values unless the target visibly has a lighter/simpler mechanism. If the ratio is below 0.90, choose values below their reference values unless the target visibly has a heavier/more resistant mechanism. For ratios between 0.90 and 1.10, retain the reference values only when the mechanisms also look comparable.
+4. Make a proportional but conservative adjustment: a target that is around 15% larger should normally have damping and effort_limit around 10–25% above the reference; a target around 15% smaller should normally have them around 10–25% below it. Keep the result within the allowed range.
+5. Output stiffness = 0 for all ordinary hinges, sliders, friction hinges, drawer rails, faucet cartridges, scissors pivots, and freely positionable mechanisms. Do not use stiffness to model resistance or a heavy object.
+6. Nonzero stiffness is permitted only in these two cases:
+   - Knife: choose 25–100 only when a clearly visible spring-assisted, automatic-return, or detent-return mechanism is present; otherwise choose 0.
+   - Door: choose 50–150 only when a clearly visible spring hinge, door closer, or self-closing mechanism is present; otherwise choose 0.
+7. For a nonzero stiffness prediction, set stiffness exactly to 0 or to a value inside its allowed nonzero interval; never output a small nonzero value.
+8. Predict each listed movable joint separately. If the target has multiple joints with visibly different moving parts, their values may differ. For StorageFurniture, use the joint type to interpret effort_limit: N for drawers and N·m for doors.
+9. All three predicted values must be nonnegative finite numbers and must remain within the category range.
+
+[OUTPUT]
+Reply with this JSON object only:
+{"joints":[{"joint_name":"<joint_name>","damping":<number>,"stiffness":<number>,"effort_limit":<number>,"confidence":<number>}],"confidence":<number>}
+
+- Include exactly one entry for every joint listed above.
+- Each entry in `joints` must be a complete JSON object closed with `}` and entries must be separated with commas. Never close a joint entry with `]`.
+- Put the single overall `confidence` field only after the complete `joints` array; do not put `confidence` between joint entries.
+- confidence is a number from 0.0 to 1.0 and reflects visual evidence for the parameter adjustment relative to Image 1.
