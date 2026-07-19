@@ -43,11 +43,13 @@ from policy_obs_utils import (
     write_mp4,
     write_summary,
 )
+from realtime_action_controller import RealtimeActionController
 from success_utils import evaluate_rollout_success, update_peak_joint_degs
 from task_registry import (
     get_task_preset,
     list_task_presets,
     PHYSVLA_ASSETS_DIR,
+    TASK_PRESETS,
 )
 
 parser = argparse.ArgumentParser(description="Pi05 headless policy rollout (Isaac Lab + LeRobot).")
@@ -63,6 +65,44 @@ parser.add_argument(
 )
 parser.add_argument("--num_episodes", type=int, default=10, help="Number of evaluation episodes.")
 parser.add_argument("--max_steps", type=int, default=600, help="Max control steps per episode.")
+parser.add_argument(
+    "--fixed_task_pose",
+    action="store_true",
+    help="Use the registry base object pose and joint initialization for every episode.",
+)
+parser.add_argument(
+    "--realtime_chunking",
+    action=argparse.BooleanOptionalAction,
+    default=False,
+    help="Use overlapping action chunks, temporal ensembling, filtering, and rate limiting.",
+)
+parser.add_argument(
+    "--replan_hz",
+    type=float,
+    default=3.0,
+    help="Policy chunk generation frequency in simulated time when realtime chunking is enabled.",
+)
+parser.add_argument(
+    "--ensemble_k",
+    type=float,
+    default=0.0625,
+    help="Exponential temporal-ensemble decay; newer chunks receive greater weight.",
+)
+parser.add_argument(
+    "--max_joint_speed_rad_s",
+    type=float,
+    default=0.9,
+    help="Per-joint target slew-rate limit used to approximate Piper speed=30.",
+)
+parser.add_argument(
+    "--model_debug_interval",
+    type=int,
+    default=10,
+    help=(
+        "Print PI05 input/output health checks for the first five replans and then "
+        "every N replans; set 0 to disable."
+    ),
+)
 parser.add_argument(
     "--output_dir",
     type=str,
@@ -97,7 +137,14 @@ if not args_cli.task_id:
 if not args_cli.policy_path:
     parser.error("--policy.path is required.")
 
-task_preset = get_task_preset(args_cli.task_id)
+
+def load_episode_task_preset():
+    if args_cli.fixed_task_pose:
+        return TASK_PRESETS[args_cli.task_id]
+    return get_task_preset(args_cli.task_id)
+
+
+task_preset = load_episode_task_preset()
 rand_config = randomization_config_from_args(args_cli, task_preset)
 rng = random.Random(rand_config.seed)
 rollout_success_specs = task_preset.rollout_success_specs
@@ -197,6 +244,12 @@ print("[INFO] Loading Pi05 policy and processors...")
 policy = PI05Policy.from_pretrained(args_cli.policy_path, local_files_only=True)
 policy.eval()
 policy.to(policy_device)
+policy_parameter_count = sum(parameter.numel() for parameter in policy.parameters())
+print(
+    f"[MODEL] Loaded PI05 on {policy_device}: "
+    f"parameters={policy_parameter_count:,}, training={policy.training}",
+    flush=True,
+)
 preprocessor = PolicyProcessorPipeline.from_pretrained(
     args_cli.policy_path,
     config_filename=f"{POLICY_PREPROCESSOR_DEFAULT_NAME}.json",
@@ -226,7 +279,7 @@ print(
 def reset_episode():
     # Re-sample object pose before reset, then visual/environment DR after reset.
     # This is the same Direct-GPU-safe order used by automatic collection.
-    episode_preset = get_task_preset(args_cli.task_id)
+    episode_preset = load_episode_task_preset()
     if args_cli.usd_path:
         episode_preset = replace(episode_preset, usd_path=task_preset.usd_path)
     env_module.apply_task_preset_scene_root(episode_preset)
@@ -264,6 +317,9 @@ def reset_episode():
 def run_episode(episode_index: int) -> dict:
     episode_preset, randomization_sample = reset_episode()
 
+    def fmt_values(values) -> str:
+        return "[" + ", ".join(f"{float(v):+.4f}" for v in values) + "]"
+
     last_rgb_main = None
     last_rgb_wrist = None
     video_frames: list = []
@@ -276,6 +332,33 @@ def run_episode(episode_index: int) -> dict:
         spec.joint_prim: None for spec in rollout_success_specs
     }
     gripper_open = False
+    realtime_controller = None
+    inference_durations: list[float] = []
+    last_normalized_left7 = torch.zeros(7, dtype=torch.float32, device=policy_device)
+    replan_count = 0
+    previous_normalized_chunk = None
+    if args_cli.realtime_chunking:
+        realtime_controller = RealtimeActionController(
+            control_hz=control_hz,
+            replan_hz=args_cli.replan_hz,
+            ensemble_k=args_cli.ensemble_k,
+            max_joint_speed_rad_s=args_cli.max_joint_speed_rad_s,
+        )
+        initial_state14 = build_state14(
+            robot,
+            arm_joint_ids,
+            gripper_open01=0.0,
+            device=policy_device,
+        )
+        realtime_controller.reset(initial_state14[0])
+        print(
+            "[INFO] Realtime chunking: "
+            f"replan_hz={args_cli.replan_hz:.2f} "
+            f"interval={realtime_controller.replan_interval} control steps "
+            f"ensemble_k={args_cli.ensemble_k:.4f} "
+            f"max_joint_speed={args_cli.max_joint_speed_rad_s:.3f}rad/s",
+            flush=True,
+        )
 
     for _ in range(args_cli.max_steps):
         sim.step(render=True)
@@ -336,16 +419,116 @@ def run_episode(episode_index: int) -> dict:
                     task=instruction_text,
                     device=policy_device,
                 )
-                batch = preprocessor(obs)
-                action = policy.select_action(batch)
-                action = postprocessor(action)
-                if action.dim() == 1:
-                    action = action.unsqueeze(0)
+                if realtime_controller is not None:
+                    if realtime_controller.should_replan(control_step_count):
+                        batch = preprocessor(obs)
+                        if policy_device.type == "cuda":
+                            torch.cuda.synchronize(policy_device)
+                        inference_start = time.perf_counter()
+                        normalized_chunk = policy.predict_action_chunk(batch)
+                        if policy_device.type == "cuda":
+                            torch.cuda.synchronize(policy_device)
+                        inference_sec = time.perf_counter() - inference_start
+                        inference_durations.append(inference_sec)
+
+                        action_chunk = postprocessor(normalized_chunk)
+                        if action_chunk.dim() == 2:
+                            action_chunk = action_chunk.unsqueeze(0)
+                        replan_count += 1
+                        should_log_model = args_cli.model_debug_interval > 0 and (
+                            replan_count <= 5
+                            or replan_count % args_cli.model_debug_interval == 0
+                        )
+                        if should_log_model:
+                            normalized_finite = bool(torch.isfinite(normalized_chunk).all())
+                            action_finite = bool(torch.isfinite(action_chunk).all())
+                            normalized_first = normalized_chunk[0, 0]
+                            action_first = action_chunk[0, 0]
+                            previous_delta = (
+                                float(
+                                    (
+                                        normalized_chunk[0, 0]
+                                        - previous_normalized_chunk[0, 0]
+                                    )
+                                    .abs()
+                                    .max()
+                                    .item()
+                                )
+                                if previous_normalized_chunk is not None
+                                else None
+                            )
+                            previous_delta_text = (
+                                f"{previous_delta:.5f}"
+                                if previous_delta is not None
+                                else "initial"
+                            )
+                            print(
+                                f"[MODEL] replan={replan_count} step={control_step_count} "
+                                f"input_state={fmt_values(obs['observation.state'][0])} "
+                                f"head_mean={float(obs['observation.images.head'].mean()):.4f} "
+                                f"wrist_mean={float(obs['observation.images.left_wrist'].mean()):.4f} "
+                                f"normalized_shape={tuple(normalized_chunk.shape)} "
+                                f"normalized_finite={normalized_finite} "
+                                f"normalized_first={fmt_values(normalized_first[:7])} "
+                                f"action_finite={action_finite} "
+                                f"action_first={fmt_values(action_first[:7])} "
+                                f"prev_first_max_delta={previous_delta_text}",
+                                flush=True,
+                            )
+                        previous_normalized_chunk = normalized_chunk.detach().clone()
+                        realtime_controller.add_chunk(
+                            control_step_count,
+                            action_chunk[0],
+                        )
+                        last_normalized_left7 = normalized_chunk[0, 0, :7].detach().clone()
+                        achieved_hz = 1.0 / inference_sec if inference_sec > 0 else float("inf")
+                        print(
+                            f"[INFERENCE] step={control_step_count} "
+                            f"latency={inference_sec * 1000:.1f}ms "
+                            f"max_sync_hz={achieved_hz:.2f}",
+                            flush=True,
+                        )
+
+                    selected_action = realtime_controller.action_for_step(
+                        control_step_count,
+                        state14[0],
+                    )
+                    if selected_action is None:
+                        continue
+                    action = selected_action.unsqueeze(0)
+                    normalized_left7 = last_normalized_left7
+                else:
+                    batch = preprocessor(obs)
+                    normalized_action = policy.select_action(batch)
+                    normalized_batch = (
+                        normalized_action.unsqueeze(0)
+                        if normalized_action.dim() == 1
+                        else normalized_action
+                    )
+                    normalized_left7 = normalized_batch[0, :7].detach().clone()
+                    action = postprocessor(normalized_action)
+                    if action.dim() == 1:
+                        action = action.unsqueeze(0)
                 left7 = action[0, :7].detach()
 
                 arm_targets = left7[:6].unsqueeze(0).to(device=device, dtype=torch.float32)
                 gripper_open = bool(float(left7[6]) > 0.5)
                 gripper_targets = gripper_open_target if gripper_open else gripper_close_target
+
+                if control_step_count <= 10 or control_step_count % JOINT_LOG_INTERVAL == 0:
+                    current_arm = robot.data.joint_pos[0, arm_joint_ids].detach().to(
+                        device=arm_targets.device, dtype=torch.float32
+                    )
+                    target_delta = arm_targets[0] - current_arm
+                    print(
+                        f"[ACTION] step={control_step_count} "
+                        f"normalized_left7={fmt_values(normalized_left7)} "
+                        f"current_arm={fmt_values(current_arm)} "
+                        f"target_arm={fmt_values(arm_targets[0])} "
+                        f"delta={fmt_values(target_delta)} "
+                        f"gripper_raw={float(left7[6]):+.4f} open={gripper_open}",
+                        flush=True,
+                    )
 
                 robot.set_joint_position_target(arm_targets, joint_ids=arm_joint_ids)
                 robot.set_joint_position_target(gripper_targets, joint_ids=gripper_joint_ids)
@@ -353,6 +536,11 @@ def run_episode(episode_index: int) -> dict:
 
     mp4_path = output_dir / f"episode_{episode_index:04d}.mp4"
     write_mp4(video_frames, mp4_path, args_cli.video_fps)
+    mean_inference_ms = (
+        1000.0 * sum(inference_durations) / len(inference_durations)
+        if inference_durations
+        else None
+    )
     return {
         "episode_index": episode_index,
         "success": success,
@@ -364,6 +552,9 @@ def run_episode(episode_index: int) -> dict:
         "scene_root_specs": [asdict(spec) for spec in episode_preset.scene_root_specs],
         "joint_initial_specs": [asdict(spec) for spec in episode_preset.joint_initial_specs],
         "randomization": asdict(randomization_sample),
+        "realtime_chunking": bool(args_cli.realtime_chunking),
+        "replan_hz": args_cli.replan_hz if args_cli.realtime_chunking else None,
+        "mean_inference_ms": mean_inference_ms,
     }
 
 
@@ -378,6 +569,10 @@ output_dir.mkdir(parents=True, exist_ok=True)
             "max_steps": args_cli.max_steps,
             "rollout_success_specs": [asdict(spec) for spec in rollout_success_specs],
             "randomization_config": asdict(rand_config),
+            "realtime_chunking": bool(args_cli.realtime_chunking),
+            "replan_hz": args_cli.replan_hz,
+            "ensemble_k": args_cli.ensemble_k,
+            "max_joint_speed_rad_s": args_cli.max_joint_speed_rad_s,
             "headless": bool(getattr(args_cli, "headless", False)),
         },
         indent=2,

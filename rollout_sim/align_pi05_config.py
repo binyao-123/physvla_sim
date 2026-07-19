@@ -40,12 +40,6 @@ parser.add_argument(
     default="google/paligemma-3b-pt-224",
     help="Tokenizer to write when policy_preprocessor.json contains a stale absolute path.",
 )
-parser.add_argument(
-    "--normalization-mode",
-    choices=("MIN_MAX", "QUANTILES"),
-    default=None,
-    help="Override STATE/ACTION normalization in config, preprocessor, and postprocessor JSON.",
-)
 args = parser.parse_args()
 
 policy_path = args.policy_path.expanduser().resolve()
@@ -74,34 +68,6 @@ def write_json_atomic(path: Path, data: dict) -> None:
     os.replace(temp_path, path)
 
 
-def set_norm_map(norm_map: object, mode: str, *, source: Path) -> bool:
-    if not isinstance(norm_map, dict):
-        raise ValueError(f"Expected norm_map object in {source}")
-    changed = False
-    desired = {"VISUAL": "IDENTITY", "STATE": mode, "ACTION": mode}
-    for key, value in desired.items():
-        if norm_map.get(key) != value:
-            norm_map[key] = value
-            changed = True
-    return changed
-
-
-def align_processor_norm_map(path: Path, mode: str) -> bool:
-    processor = read_json(path)
-    changed = False
-    for step in processor.get("steps", []):
-        if not isinstance(step, dict):
-            continue
-        step_config = step.get("config")
-        if not isinstance(step_config, dict) or "norm_map" not in step_config:
-            continue
-        if set_norm_map(step_config["norm_map"], mode, source=path):
-            changed = True
-    if changed and not args.dry_run:
-        write_json_atomic(path, processor)
-    return changed
-
-
 changed_files: list[str] = []
 
 config_path = policy_path / "config.json"
@@ -122,13 +88,6 @@ if unsupported_fields:
     changed_files.append(str(config_path))
 else:
     print(f"[INFO] PI05 config already compatible: {config_path}")
-
-if args.normalization_mode is not None:
-    norm_mapping = config.setdefault("normalization_mapping", {})
-    if set_norm_map(norm_mapping, args.normalization_mode, source=config_path):
-        print(f"[INFO] Setting config normalization_mapping STATE/ACTION={args.normalization_mode}")
-        if str(config_path) not in changed_files:
-            changed_files.append(str(config_path))
 
 if str(config_path) in changed_files and not args.dry_run:
     write_json_atomic(config_path, config)
@@ -157,22 +116,12 @@ if preprocessor_path.is_file():
             changed_files.append(str(preprocessor_path))
     else:
         print(f"[INFO] PI05 preprocessor already compatible: {preprocessor_path}")
-    if args.normalization_mode is not None and align_processor_norm_map(
-        preprocessor_path, args.normalization_mode
-    ):
-        print(f"[INFO] Setting preprocessor norm_map STATE/ACTION={args.normalization_mode}")
-        if str(preprocessor_path) not in changed_files:
-            changed_files.append(str(preprocessor_path))
 else:
     print(f"[WARN] PI05 preprocessor not found: {preprocessor_path}")
 
 postprocessor_path = policy_path / "policy_postprocessor.json"
 if postprocessor_path.is_file():
-    if args.normalization_mode is not None and align_processor_norm_map(
-        postprocessor_path, args.normalization_mode
-    ):
-        print(f"[INFO] Setting postprocessor norm_map STATE/ACTION={args.normalization_mode}")
-        changed_files.append(str(postprocessor_path))
+    print(f"[INFO] PI05 postprocessor left unchanged: {postprocessor_path}")
 else:
     print(f"[WARN] PI05 postprocessor not found: {postprocessor_path}")
 
