@@ -200,7 +200,11 @@ def build_scene_hinge_cfg(task_preset: TaskPreset) -> ArticulationCfg | None:
 
     scene_prefix = f"{scene_root_prim}/"
     joint_pos = {
-        spec.prim_path.rsplit("/", 1)[-1]: math.radians(float(spec.position))
+        spec.prim_path.rsplit("/", 1)[-1]: (
+            float(spec.position)
+            if getattr(spec, "joint_type", "revolute") == "prismatic"
+            else math.radians(float(spec.position))
+        )
         for spec in task_preset.joint_initial_specs
         if spec.prim_path.startswith(scene_prefix)
     }

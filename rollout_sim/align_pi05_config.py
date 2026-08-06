@@ -37,12 +37,42 @@ parser.add_argument(
 )
 parser.add_argument(
     "--tokenizer-name",
-    default="google/paligemma-3b-pt-224",
-    help="Tokenizer to write when policy_preprocessor.json contains a stale absolute path.",
+    default=None,
+    help=(
+        "Tokenizer path/id to write into policy_preprocessor.json. "
+        "Default: local HF cache snapshot for google/paligemma-3b-pt-224 if present, "
+        "else the Hub id."
+    ),
 )
 args = parser.parse_args()
 
 policy_path = args.policy_path.expanduser().resolve()
+
+HUB_TOKENIZER_ID = "google/paligemma-3b-pt-224"
+
+
+def resolve_local_tokenizer_dir(repo_id: str = HUB_TOKENIZER_ID) -> Path | None:
+    """Return a local HF hub snapshot dir that contains tokenizer files, if cached."""
+
+    cache_root = Path.home() / ".cache" / "huggingface" / "hub"
+    repo_dir = cache_root / f"models--{repo_id.replace('/', '--')}"
+    snapshots = repo_dir / "snapshots"
+    if not snapshots.is_dir():
+        return None
+    for snap in sorted(snapshots.iterdir(), reverse=True):
+        if not snap.is_dir():
+            continue
+        if (snap / "tokenizer.json").is_file() or (snap / "tokenizer_config.json").is_file():
+            return snap
+    return None
+
+
+_local_tokenizer = resolve_local_tokenizer_dir()
+if args.tokenizer_name:
+    tokenizer_target = str(Path(args.tokenizer_name).expanduser())
+else:
+    tokenizer_target = str(_local_tokenizer) if _local_tokenizer is not None else HUB_TOKENIZER_ID
+print(f"[INFO] Tokenizer target for align: {tokenizer_target}")
 
 
 def read_json(path: Path) -> dict:
@@ -103,12 +133,14 @@ if preprocessor_path.is_file():
         if not isinstance(step_config, dict):
             continue
         tokenizer_name = str(step_config.get("tokenizer_name", ""))
-        if tokenizer_name.startswith("/"):
+        # Always pin to a resolvable local/Hub target so Isaac rollout does not
+        # hit the network during AutoTokenizer init (SSL/proxy flakes).
+        if tokenizer_name != tokenizer_target:
             print(
                 "[INFO] Rewriting tokenizer_name: "
-                f"{tokenizer_name} -> {args.tokenizer_name}"
+                f"{tokenizer_name} -> {tokenizer_target}"
             )
-            step_config["tokenizer_name"] = args.tokenizer_name
+            step_config["tokenizer_name"] = tokenizer_target
             tokenizer_updates += 1
     if tokenizer_updates:
         if not args.dry_run:

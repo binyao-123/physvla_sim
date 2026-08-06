@@ -19,6 +19,7 @@ def evaluate_rollout_success(
         spec.joint_prim: env_module.read_scene_joint_angle_deg(spec.joint_prim)
         for spec in specs
     }
+
     def _spec_success(spec: TaskRolloutSuccessSpec, deg: float | None) -> bool:
         if deg is None:
             return False
@@ -38,9 +39,23 @@ def evaluate_rollout_success(
 def update_peak_joint_degs(
     peak: dict[str, float | None],
     sample: dict[str, float | None],
+    specs: tuple[TaskRolloutSuccessSpec, ...] | None = None,
 ) -> None:
+    """Track best progress toward success: max for gt, min for lt."""
+
+    prefer_min = {
+        spec.joint_prim
+        for spec in (specs or ())
+        if getattr(spec, "angle_lt_deg", None) is not None
+        and getattr(spec, "angle_gt_deg", None) is None
+    }
     for prim, deg in sample.items():
         if deg is None:
             continue
         prev = peak.get(prim)
-        peak[prim] = deg if prev is None else max(prev, deg)
+        if prev is None:
+            peak[prim] = deg
+        elif prim in prefer_min:
+            peak[prim] = min(prev, deg)
+        else:
+            peak[prim] = max(prev, deg)

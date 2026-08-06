@@ -26,22 +26,30 @@ def expand_arm7_to_dual14(arm7: torch.Tensor) -> torch.Tensor:
 
 
 def rgb_to_policy_image(rgb: torch.Tensor, device: torch.device | str) -> torch.Tensor:
-    """Sensor RGB → float CHW [0, 1], directly stretched to 224x224."""
+    """Sensor RGB → float CHW [0, 1], directly stretched to 224x224.
+
+    Accepts HWC/CHW, optional alpha (drops 4th channel), and either uint8 or
+    float buffers. Floats in [0, 255] are scaled the same as uint8 — Isaac can
+    return either depending on annotator/dtype path.
+    """
 
     if rgb is None:
         raise RuntimeError("RGB frame is None")
     x = rgb.detach()
-    if x.dtype == torch.uint8:
-        x = x.float() / 255.0
-    elif x.dtype != torch.float32:
-        x = x.float()
-        if x.max() > 1.5:
-            x = x / 255.0
-    if x.dim() == 3:
-        if x.shape[-1] == 3:
-            x = x.permute(2, 0, 1)
-        x = x.unsqueeze(0)
-    x = x.to(device=device, dtype=torch.float32)
+    if x.dim() == 3 and x.shape[-1] in (3, 4):
+        x = x[..., :3].permute(2, 0, 1)
+    elif x.dim() == 3 and x.shape[0] in (3, 4):
+        x = x[:3]
+    elif x.dim() == 3:
+        raise ValueError(f"Unsupported RGB layout {tuple(x.shape)}; expected HWC/CHW RGB(A).")
+    else:
+        raise ValueError(f"Expected 3D RGB tensor, got shape {tuple(x.shape)}")
+
+    x = x.unsqueeze(0).to(dtype=torch.float32)
+    # Scale any 0..255-like buffer (uint8 or float) into [0, 1].
+    if float(x.max()) > 1.5:
+        x = x / 255.0
+    x = x.clamp(0.0, 1.0).to(device=device)
     if x.shape[-2:] != (POLICY_IMAGE_HEIGHT, POLICY_IMAGE_WIDTH):
         x = F.interpolate(
             x,

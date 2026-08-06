@@ -37,6 +37,7 @@ class TaskCameraSpec:
 @dataclass(frozen=True)
 class TaskJointDriveSpec:
     prim_path: str
+    joint_type: str = "revolute"
     damping: float | None = None
     stiffness: float | None = None
     max_force: float | None = None
@@ -55,6 +56,7 @@ class TaskJointLimitSpec:
 class TaskJointInitialSpec:
     prim_path: str
     position: float
+    joint_type: str = "revolute"
 
 
 @dataclass(frozen=True)
@@ -127,6 +129,7 @@ class TaskRandomizationSpec:
 
 
 SCENE_ARTICULATION_PRIM_PATH = "/World/generated"
+DRAWER_SCENE_ARTICULATION_PRIM_PATH = "/World/mobility_isaac"
 
 
 # ---------------------------------------------------------------------------
@@ -240,6 +243,12 @@ ADJUST_FAUCET_LANGUAGE_INSTRUCTION = "adjust the faucet."
 
 ADJUST_MONITOR_TASK_ID = "adjust_the_monitor"
 ADJUST_MONITOR_LANGUAGE_INSTRUCTION = "adjust the display."
+
+CLOSE_DRAWER_TASK_ID = "close_the_drawer"
+CLOSE_DRAWER_LANGUAGE_INSTRUCTION = "close the top drawer."
+
+LOWER_LAMP_TASK_ID = "lower_the_lamp"
+LOWER_LAMP_LANGUAGE_INSTRUCTION = "lower the desk lamp."
 
 # ---------------------------------------------------------------------------
 # *******************************随机初始化参数*******************************
@@ -451,12 +460,84 @@ ADJUST_FAUCET_HANDLE_CALIBRATION_SCENE_TRANSLATION = (
 )
 ADJUST_FAUCET_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ = (0.0, 0.0, 90.0)
 
-# 调节显示器键盘采集任务：使用显示器分支已经标定的固定初始状态。
-# 不进行关节、场景根节点或视觉域随机化。
-ADJUST_MONITOR_JOINT_INITIAL_DEG = -17.0
-ADJUST_MONITOR_SCENE_ROOT_TRANSLATION = (0.45, 0.0, 0.2326)
+# 调节显示器采集任务：基准姿态 + 关节/位姿随机化（与 monitor 分支 e6c24a9 一致）
+ADJUST_MONITOR_JOINT_INITIAL_BASE_DEG = -17.0
+ADJUST_MONITOR_JOINT_INITIAL_RANDOM_RANGE_DEG = 5.0  # position = base + x → [-22, -12]°
+
+# 基准初始化坐标，X轴±10cm，Y轴±15cm
+ADJUST_MONITOR_SCENE_ROOT_BASE_TRANSLATION = (
+    0.45,
+    0.0,
+    0.2326,
+)
+ADJUST_MONITOR_SCENE_ROOT_RANDOM_X_RANGE_M = 0.10
+ADJUST_MONITOR_SCENE_ROOT_RANDOM_Y_RANGE_M = 0.15
+
+# 基准初始化yaw角：Z轴±20度
 ADJUST_MONITOR_SCENE_ROOT_ROTATION_XYZ = (0.0, 0.0, 180.0)
+ADJUST_MONITOR_SCENE_ROOT_RANDOM_YAW_RANGE_DEG = 20.0
+
+# 基准初始化尺寸
 ADJUST_MONITOR_SCENE_ROOT_SCALE = (0.275, 0.275, 0.275)
+
+# 标定显示器模型基于该坐标平移
+ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_TRANSLATION = (
+    0.4,
+    0.0,
+    0.2326,
+)
+ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ = ADJUST_MONITOR_SCENE_ROOT_ROTATION_XYZ
+
+'''关闭抽屉采集任务（prismatic / 米；来自 drawer 分支）'''
+# joint_1=0.163 表示当前 scene 缩放后的上层抽屉完全打开。
+CLOSE_DRAWER_JOINT_INITIAL_BASE_M = 0.1
+CLOSE_DRAWER_JOINT_INITIAL_RANDOM_RANGE_M = 0.06
+
+CLOSE_DRAWER_SCENE_ROOT_BASE_TRANSLATION = (
+    0.65,
+    0.0,
+    0.105,
+)
+CLOSE_DRAWER_SCENE_ROOT_RANDOM_X_RANGE_M = 0.05
+CLOSE_DRAWER_SCENE_ROOT_RANDOM_Y_RANGE_M = 0.15
+
+CLOSE_DRAWER_SCENE_ROOT_ROTATION_XYZ = (0.0, 0.0, 0.0)
+CLOSE_DRAWER_SCENE_ROOT_RANDOM_YAW_RANGE_DEG = 25.0
+CLOSE_DRAWER_SCENE_ROOT_SCALE = (0.223, 0.158, 0.163)
+
+CLOSE_DRAWER_HANDLE_CALIBRATION_SCENE_TRANSLATION = (
+    0.75,
+    0.0,
+    0.105,
+)
+CLOSE_DRAWER_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ = (0.0, 0.0, 0.0)
+
+'''调低台灯采集任务（来自 lamp 分支）'''
+LOWER_LAMP_SCENE_ROOT_PRIM_PATH = "/World/mobility_isaac"
+LOWER_LAMP_JOINT_PRIM_PATH = "/World/mobility_isaac/joints/joint_0"
+LOWER_LAMP_JOINT_4_PRIM_PATH = "/World/mobility_isaac/joints/joint_4"
+LOWER_LAMP_LINK_PRIM_PATH = "/World/mobility_isaac/link_0"
+
+LOWER_LAMP_JOINT_INITIAL_BASE_DEG = -17
+LOWER_LAMP_JOINT_INITIAL_RANDOM_RANGE_DEG = 2  # → [-19, -15]°
+LOWER_LAMP_JOINT_4_INITIAL_DEG = -15.0
+LOWER_LAMP_SCENE_ROOT_BASE_TRANSLATION = (
+    0.4,
+    -0.08,
+    0.37,
+)
+LOWER_LAMP_SCENE_ROOT_RANDOM_X_RANGE_M = 0.05
+LOWER_LAMP_SCENE_ROOT_RANDOM_Y_RANGE_M = 0.05
+LOWER_LAMP_SCENE_ROOT_ROTATION_XYZ = (0.0, 0.0, 90.0)
+LOWER_LAMP_SCENE_ROOT_RANDOM_YAW_RANGE_DEG = 10.0
+LOWER_LAMP_SCENE_ROOT_SCALE = (0.4, 0.4, 0.4)
+
+LOWER_LAMP_HANDLE_CALIBRATION_SCENE_TRANSLATION = (
+    0.4,
+    -0.08,
+    0.37,
+)
+LOWER_LAMP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ = (0.0, 0.0, 90.0)
 
 
 # ---------------------------------------------------------------------------
@@ -522,7 +603,7 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         joint_drive_specs=(
             TaskJointDriveSpec(
                 prim_path="/World/generated/joints/joint_1",
-                damping=1500.0,
+                damping=3000.0,
                 stiffness=0.0,
                 max_force=2.4,
             ),
@@ -537,13 +618,13 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         joint_initial_specs=(
             TaskJointInitialSpec(
                 prim_path="/World/generated/joints/joint_1",
-                position=ADJUST_MONITOR_JOINT_INITIAL_DEG,
+                position=ADJUST_MONITOR_JOINT_INITIAL_BASE_DEG,
             ),
         ),
         scene_root_specs=(
             TaskSceneRootSpec(
                 prim_path=SCENE_ARTICULATION_PRIM_PATH,
-                translation=ADJUST_MONITOR_SCENE_ROOT_TRANSLATION,
+                translation=ADJUST_MONITOR_SCENE_ROOT_BASE_TRANSLATION,
                 rotation_xyz=ADJUST_MONITOR_SCENE_ROOT_ROTATION_XYZ,
                 scale=ADJUST_MONITOR_SCENE_ROOT_SCALE,
             ),
@@ -554,6 +635,7 @@ TASK_PRESETS: dict[str, TaskPreset] = {
                 angle_gt_deg=-2.0,
             ),
         ),
+        randomization=ROBOTWIN2_COMMON_RANDOMIZATION,
         **_shared_teleop_kwargs(),
     ),
     CLOSE_MICROWAVE_TASK_ID: TaskPreset(
@@ -649,6 +731,108 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         randomization=ROBOTWIN2_COMMON_RANDOMIZATION,
         **_shared_teleop_kwargs(),
     ),
+    CLOSE_DRAWER_TASK_ID: TaskPreset(
+        task_id=CLOSE_DRAWER_TASK_ID,
+        description="Keyboard teleoperation for closing the top drawer (mobility_isaac prismatic joint).",
+        usd_path=_tasks_scene_usd("close_the_drawer", "data", "scene.usd"),
+        env_name="CloseDrawerTask",
+        dataset_file="./datasets/close_the_drawer.hdf5",
+        language_instruction=CLOSE_DRAWER_LANGUAGE_INSTRUCTION,
+        sensitivity=2.0,
+        joint_drive_specs=(
+            TaskJointDriveSpec(
+                prim_path="/World/mobility_isaac/joints/joint_1",
+                joint_type="prismatic",
+                damping=30.0,
+                stiffness=0.0,
+                max_force=6.0,
+            ),
+        ),
+        joint_limit_specs=(
+            TaskJointLimitSpec(
+                prim_path="/World/mobility_isaac/joints/joint_1",
+                lower_limit=0.0,
+                upper_limit=0.163,
+            ),
+        ),
+        joint_initial_specs=(
+            TaskJointInitialSpec(
+                prim_path="/World/mobility_isaac/joints/joint_1",
+                position=CLOSE_DRAWER_JOINT_INITIAL_BASE_M,
+                joint_type="prismatic",
+            ),
+        ),
+        scene_root_specs=(
+            TaskSceneRootSpec(
+                prim_path=DRAWER_SCENE_ARTICULATION_PRIM_PATH,
+                translation=CLOSE_DRAWER_SCENE_ROOT_BASE_TRANSLATION,
+                rotation_xyz=CLOSE_DRAWER_SCENE_ROOT_ROTATION_XYZ,
+                scale=CLOSE_DRAWER_SCENE_ROOT_SCALE,
+            ),
+        ),
+        rollout_success_specs=(
+            TaskRolloutSuccessSpec(
+                joint_prim="/World/mobility_isaac/joints/joint_1",
+                angle_lt_deg=0.005,  # prismatic 米：抽屉位移小于阈值视为关闭成功
+            ),
+        ),
+        randomization=ROBOTWIN2_COMMON_RANDOMIZATION,
+        **_shared_teleop_kwargs(),
+    ),
+    LOWER_LAMP_TASK_ID: TaskPreset(
+        task_id=LOWER_LAMP_TASK_ID,
+        description="Keyboard teleoperation for lowering the desk lamp (mobility_isaac joint_0).",
+        usd_path=_tasks_scene_usd("lower_the_lamp", "data", "scene.usd"),
+        env_name="LowerLampTask",
+        dataset_file="./datasets/lower_the_lamp.hdf5",
+        language_instruction=LOWER_LAMP_LANGUAGE_INSTRUCTION,
+        sensitivity=2.0,
+        joint_drive_specs=(
+            TaskJointDriveSpec(
+                prim_path=LOWER_LAMP_JOINT_PRIM_PATH,
+                damping=4000.0,
+                stiffness=0.0,
+                max_force=5.0,
+            ),
+        ),
+        joint_limit_specs=(
+            TaskJointLimitSpec(
+                prim_path=LOWER_LAMP_JOINT_PRIM_PATH,
+                lower_limit=-30.0,
+                upper_limit=30.0,
+            ),
+            TaskJointLimitSpec(
+                prim_path=LOWER_LAMP_JOINT_4_PRIM_PATH,
+                lower_limit=-15.0,
+            ),
+        ),
+        joint_initial_specs=(
+            TaskJointInitialSpec(
+                prim_path=LOWER_LAMP_JOINT_PRIM_PATH,
+                position=LOWER_LAMP_JOINT_INITIAL_BASE_DEG,
+            ),
+            TaskJointInitialSpec(
+                prim_path=LOWER_LAMP_JOINT_4_PRIM_PATH,
+                position=LOWER_LAMP_JOINT_4_INITIAL_DEG,
+            ),
+        ),
+        scene_root_specs=(
+            TaskSceneRootSpec(
+                prim_path=LOWER_LAMP_SCENE_ROOT_PRIM_PATH,
+                translation=LOWER_LAMP_SCENE_ROOT_BASE_TRANSLATION,
+                rotation_xyz=LOWER_LAMP_SCENE_ROOT_ROTATION_XYZ,
+                scale=LOWER_LAMP_SCENE_ROOT_SCALE,
+            ),
+        ),
+        rollout_success_specs=(
+            TaskRolloutSuccessSpec(
+                joint_prim=LOWER_LAMP_JOINT_PRIM_PATH,
+                angle_lt_deg=-25.0,
+            ),
+        ),
+        randomization=ROBOTWIN2_COMMON_RANDOMIZATION,
+        **_shared_teleop_kwargs(),
+    ),
 }
 
 # ---------------------------------------------------------------------------
@@ -683,6 +867,39 @@ def sample_close_laptop_scene_root_rotation_xyz() -> tuple[float, float, float]:
     yaw_delta = random.uniform(
         -CLOSE_LAPTOP_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
         CLOSE_LAPTOP_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
+    )
+    return (rx, ry, rz + yaw_delta)
+
+
+def sample_adjust_monitor_joint_initial_deg() -> float:
+    """Each call: x ~ U[-range, +range], return base + x."""
+    x = random.uniform(
+        -ADJUST_MONITOR_JOINT_INITIAL_RANDOM_RANGE_DEG,
+        ADJUST_MONITOR_JOINT_INITIAL_RANDOM_RANGE_DEG,
+    )
+    return ADJUST_MONITOR_JOINT_INITIAL_BASE_DEG + x
+
+
+def sample_adjust_monitor_scene_root_translation() -> tuple[float, float, float]:
+    """Each call: scene root translation = base + (dx, dy, 0)."""
+    base_x, base_y, base_z = ADJUST_MONITOR_SCENE_ROOT_BASE_TRANSLATION
+    dx = random.uniform(
+        -ADJUST_MONITOR_SCENE_ROOT_RANDOM_X_RANGE_M,
+        ADJUST_MONITOR_SCENE_ROOT_RANDOM_X_RANGE_M,
+    )
+    dy = random.uniform(
+        -ADJUST_MONITOR_SCENE_ROOT_RANDOM_Y_RANGE_M,
+        ADJUST_MONITOR_SCENE_ROOT_RANDOM_Y_RANGE_M,
+    )
+    return (base_x + dx, base_y + dy, base_z)
+
+
+def sample_adjust_monitor_scene_root_rotation_xyz() -> tuple[float, float, float]:
+    """Each call: scene root rotation = base + (0, 0, yaw_delta)."""
+    rx, ry, rz = ADJUST_MONITOR_SCENE_ROOT_ROTATION_XYZ
+    yaw_delta = random.uniform(
+        -ADJUST_MONITOR_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
+        ADJUST_MONITOR_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
     )
     return (rx, ry, rz + yaw_delta)
 
@@ -734,6 +951,66 @@ def sample_adjust_faucet_scene_root_translation() -> tuple[float, float, float]:
     return (base_x + dx, base_y + dy, base_z)
 
 
+def sample_lower_lamp_joint_initial_deg() -> float:
+    x = random.uniform(
+        -LOWER_LAMP_JOINT_INITIAL_RANDOM_RANGE_DEG,
+        LOWER_LAMP_JOINT_INITIAL_RANDOM_RANGE_DEG,
+    )
+    return LOWER_LAMP_JOINT_INITIAL_BASE_DEG + x
+
+
+def sample_lower_lamp_scene_root_translation() -> tuple[float, float, float]:
+    base_x, base_y, base_z = LOWER_LAMP_SCENE_ROOT_BASE_TRANSLATION
+    dx = random.uniform(
+        -LOWER_LAMP_SCENE_ROOT_RANDOM_X_RANGE_M,
+        LOWER_LAMP_SCENE_ROOT_RANDOM_X_RANGE_M,
+    )
+    dy = random.uniform(
+        -LOWER_LAMP_SCENE_ROOT_RANDOM_Y_RANGE_M,
+        LOWER_LAMP_SCENE_ROOT_RANDOM_Y_RANGE_M,
+    )
+    return (base_x + dx, base_y + dy, base_z)
+
+
+def sample_lower_lamp_scene_root_rotation_xyz() -> tuple[float, float, float]:
+    rx, ry, rz = LOWER_LAMP_SCENE_ROOT_ROTATION_XYZ
+    yaw_delta = random.uniform(
+        -LOWER_LAMP_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
+        LOWER_LAMP_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
+    )
+    return (rx, ry, rz + yaw_delta)
+
+
+def sample_close_drawer_joint_initial_m() -> float:
+    x = random.uniform(
+        -CLOSE_DRAWER_JOINT_INITIAL_RANDOM_RANGE_M,
+        CLOSE_DRAWER_JOINT_INITIAL_RANDOM_RANGE_M,
+    )
+    return CLOSE_DRAWER_JOINT_INITIAL_BASE_M + x
+
+
+def sample_close_drawer_scene_root_translation() -> tuple[float, float, float]:
+    base_x, base_y, base_z = CLOSE_DRAWER_SCENE_ROOT_BASE_TRANSLATION
+    dx = random.uniform(
+        -CLOSE_DRAWER_SCENE_ROOT_RANDOM_X_RANGE_M,
+        CLOSE_DRAWER_SCENE_ROOT_RANDOM_X_RANGE_M,
+    )
+    dy = random.uniform(
+        -CLOSE_DRAWER_SCENE_ROOT_RANDOM_Y_RANGE_M,
+        CLOSE_DRAWER_SCENE_ROOT_RANDOM_Y_RANGE_M,
+    )
+    return (base_x + dx, base_y + dy, base_z)
+
+
+def sample_close_drawer_scene_root_rotation_xyz() -> tuple[float, float, float]:
+    rx, ry, rz = CLOSE_DRAWER_SCENE_ROOT_ROTATION_XYZ
+    yaw_delta = random.uniform(
+        -CLOSE_DRAWER_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
+        CLOSE_DRAWER_SCENE_ROOT_RANDOM_YAW_RANGE_DEG,
+    )
+    return (rx, ry, rz + yaw_delta)
+
+
 def sample_adjust_faucet_episode_initial() -> tuple[float, tuple[float, float, float], tuple[float, float, float]]:
     """Sample faucet episode pose with yaw↔joint equivalence.
 
@@ -778,6 +1055,22 @@ def get_task_preset(task_id: str) -> TaskPreset:
             joint_initial_specs=joint_initial_specs,
             scene_root_specs=scene_root_specs,
         )
+    elif task_id == ADJUST_MONITOR_TASK_ID:
+        angle_deg = sample_adjust_monitor_joint_initial_deg()
+        joint_initial_specs = tuple(
+            replace(spec, position=angle_deg) for spec in preset.joint_initial_specs
+        )
+        scene_translation = sample_adjust_monitor_scene_root_translation()
+        scene_rotation_xyz = sample_adjust_monitor_scene_root_rotation_xyz()
+        scene_root_specs = tuple(
+            replace(spec, translation=scene_translation, rotation_xyz=scene_rotation_xyz)
+            for spec in preset.scene_root_specs
+        )
+        return replace(
+            preset,
+            joint_initial_specs=joint_initial_specs,
+            scene_root_specs=scene_root_specs,
+        )
     elif task_id == CLOSE_MICROWAVE_TASK_ID:
         angle_deg = sample_close_microwave_joint_initial_deg()
         joint_initial_specs = tuple(
@@ -799,6 +1092,41 @@ def get_task_preset(task_id: str) -> TaskPreset:
         joint_initial_specs = tuple(
             replace(spec, position=angle_deg) for spec in preset.joint_initial_specs
         )
+        scene_root_specs = tuple(
+            replace(spec, translation=scene_translation, rotation_xyz=scene_rotation_xyz)
+            for spec in preset.scene_root_specs
+        )
+        return replace(
+            preset,
+            joint_initial_specs=joint_initial_specs,
+            scene_root_specs=scene_root_specs,
+        )
+    elif task_id == CLOSE_DRAWER_TASK_ID:
+        joint_position_m = sample_close_drawer_joint_initial_m()
+        joint_initial_specs = tuple(
+            replace(spec, position=joint_position_m) for spec in preset.joint_initial_specs
+        )
+        scene_translation = sample_close_drawer_scene_root_translation()
+        scene_rotation_xyz = sample_close_drawer_scene_root_rotation_xyz()
+        scene_root_specs = tuple(
+            replace(spec, translation=scene_translation, rotation_xyz=scene_rotation_xyz)
+            for spec in preset.scene_root_specs
+        )
+        return replace(
+            preset,
+            joint_initial_specs=joint_initial_specs,
+            scene_root_specs=scene_root_specs,
+        )
+    elif task_id == LOWER_LAMP_TASK_ID:
+        angle_deg = sample_lower_lamp_joint_initial_deg()
+        joint_initial_specs = tuple(
+            replace(spec, position=angle_deg)
+            if spec.prim_path == LOWER_LAMP_JOINT_PRIM_PATH
+            else spec
+            for spec in preset.joint_initial_specs
+        )
+        scene_translation = sample_lower_lamp_scene_root_translation()
+        scene_rotation_xyz = sample_lower_lamp_scene_root_rotation_xyz()
         scene_root_specs = tuple(
             replace(spec, translation=scene_translation, rotation_xyz=scene_rotation_xyz)
             for spec in preset.scene_root_specs
