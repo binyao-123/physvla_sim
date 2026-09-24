@@ -66,6 +66,20 @@ def black_image_like(ref: torch.Tensor, device: torch.device | str) -> torch.Ten
     return torch.zeros_like(ref)
 
 
+def build_state7(
+    robot,
+    arm_joint_ids: list[int],
+    *,
+    gripper_open01: float,
+    device: torch.device | str,
+) -> torch.Tensor:
+    """Left 6 arm joints (rad) + left gripper 0/1 → (1, 7)."""
+
+    arm = robot.data.joint_pos[:, arm_joint_ids].clone()
+    g = torch.tensor([[gripper_open01]], dtype=arm.dtype, device=arm.device)
+    return torch.cat([arm, g], dim=-1).to(device=device)
+
+
 def build_state14(
     robot,
     arm_joint_ids: list[int],
@@ -73,32 +87,40 @@ def build_state14(
     gripper_open01: float,
     device: torch.device | str,
 ) -> torch.Tensor:
-    """6 arm joints (rad) + gripper 0/1 → (1, 14)."""
+    """6 arm joints (rad) + gripper 0/1 → (1, 14). π0.5 dual-arm placeholder."""
 
-    arm = robot.data.joint_pos[:, arm_joint_ids].clone()
-    g = torch.tensor([[gripper_open01]], dtype=arm.dtype, device=arm.device)
-    arm7 = torch.cat([arm, g], dim=-1)
-    return expand_arm7_to_dual14(arm7).to(device=device)
+    return expand_arm7_to_dual14(
+        build_state7(robot, arm_joint_ids, gripper_open01=gripper_open01, device=device)
+    )
 
 
 def build_policy_observation(
     *,
     rgb_main: torch.Tensor,
     rgb_wrist: torch.Tensor,
-    state14: torch.Tensor,
     task: str,
     device: torch.device | str,
+    state: torch.Tensor | None = None,
+    state14: torch.Tensor | None = None,
+    include_right_wrist: bool = True,
 ) -> dict[str, Any]:
+    """Build policy obs. PRTS left6: pass 7-D ``state`` and ``include_right_wrist=False``."""
+
+    if state is None:
+        state = state14
+    if state is None:
+        raise ValueError("build_policy_observation requires state or state14")
     head = rgb_to_policy_image(rgb_main, device)
     left_wrist = rgb_to_policy_image(rgb_wrist, device)
-    right_wrist = black_image_like(head, device)
-    return {
+    obs: dict[str, Any] = {
         "observation.images.head": head,
         "observation.images.left_wrist": left_wrist,
-        "observation.images.right_wrist": right_wrist,
-        "observation.state": state14.to(dtype=torch.float32),
+        "observation.state": state.to(dtype=torch.float32),
         "task": [task],
     }
+    if include_right_wrist:
+        obs["observation.images.right_wrist"] = black_image_like(head, device)
+    return obs
 
 
 def rgb_tensor_to_uint8_hwc(rgb: torch.Tensor) -> np.ndarray:

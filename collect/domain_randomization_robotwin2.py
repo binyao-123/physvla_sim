@@ -25,7 +25,6 @@ class RobotWin2RandomizationConfig:
     seed: int | None = None
     camera_main_enable: bool = False
     camera_translation_std: float = 0.02
-    camera_rotation_std_deg: float = 3.0
     camera_main_translation_ranges: tuple[
         tuple[float, float],
         tuple[float, float],
@@ -74,7 +73,6 @@ class RobotWin2ClutterPlacement:
 class RobotWin2RandomizationSample:
     camera_translation_offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
     camera_translation: tuple[float, float, float] | None = None
-    camera_rotation_offset_deg: tuple[float, float, float] = (0.0, 0.0, 0.0)
     camera_focal_length: float | None = None
     lighting_intensity_scale: float = 1.0
     lighting_exposure_delta: float = 0.0
@@ -96,7 +94,6 @@ def randomization_config_from_registry(task_preset: TaskPreset) -> RobotWin2Rand
     return RobotWin2RandomizationConfig(
         camera_main_enable=spec.camera_main_enable,
         camera_translation_std=float(spec.camera_translation_std),
-        camera_rotation_std_deg=float(spec.camera_rotation_std_deg),
         camera_main_translation_ranges=spec.camera_main_translation_ranges,
         camera_main_focal_length_range=spec.camera_main_focal_length_range,
         lighting_enable=bool(spec.lighting_enable),
@@ -274,12 +271,6 @@ def sample_randomization(
     if config.camera_main_enable and config.camera_main_focal_length_range is not None:
         f_min, f_max = config.camera_main_focal_length_range
         sample.camera_focal_length = _uniform(rng, float(f_min), float(f_max))
-    if config.camera_main_enable and config.camera_rotation_std_deg > 0:
-        sample.camera_rotation_offset_deg = (
-            _gauss(rng, 0.0, config.camera_rotation_std_deg),
-            _gauss(rng, 0.0, config.camera_rotation_std_deg),
-            _gauss(rng, 0.0, config.camera_rotation_std_deg),
-        )
     if config.lighting_enable:
         i_min, i_max = config.lighting_intensity_scale_range
         e_min, e_max = config.lighting_exposure_delta_range
@@ -973,13 +964,6 @@ def apply_randomization_sample(
             tx, ty, tz = sample.camera_translation_offset
             if tx or ty or tz:
                 env_module.refresh_camera_prim("main", translation_offset=(tx, ty, tz))
-        rx, ry, rz = sample.camera_rotation_offset_deg
-        if config.camera_rotation_std_deg > 0 and (rx or ry or rz):
-            print(
-                "[WARN] RobotWin2 camera rotation DR sampled but not applied yet "
-                f"(offset_deg={sample.camera_rotation_offset_deg}).",
-                flush=True,
-            )
     _apply_lighting_sample(config, sample, verbose=verbose)
     _apply_environment_scene_sample(config, sample, verbose=verbose)
     _apply_clutter_sample(env_module, config, sample, verbose=verbose)
@@ -993,8 +977,6 @@ def format_randomization_sample(sample: RobotWin2RandomizationSample) -> str:
         parts.append(f"cam_t={sample.camera_translation_offset}")
     if sample.camera_focal_length is not None:
         parts.append(f"cam_f={sample.camera_focal_length:.3f}")
-    if any(sample.camera_rotation_offset_deg):
-        parts.append(f"cam_r_deg={sample.camera_rotation_offset_deg}")
     if sample.lighting_intensity_scale != 1.0:
         parts.append(f"light_i_scale={sample.lighting_intensity_scale:.3f}")
     if sample.lighting_exposure_delta:

@@ -53,6 +53,15 @@ from task_registry import (
     ADJUST_FAUCET_HANDLE_CALIBRATION_SCENE_TRANSLATION,
     ADJUST_FAUCET_JOINT_INITIAL_BASE_DEG,
     ADJUST_FAUCET_TASK_ID,
+    ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ,
+    ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_TRANSLATION,
+    ADJUST_MONITOR_TASK_ID,
+    LOWER_LAMP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ,
+    LOWER_LAMP_HANDLE_CALIBRATION_SCENE_TRANSLATION,
+    LOWER_LAMP_TASK_ID,
+    CLOSE_DRAWER_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ,
+    CLOSE_DRAWER_HANDLE_CALIBRATION_SCENE_TRANSLATION,
+    CLOSE_DRAWER_TASK_ID,
     SHARED_TELEOP_PIPER,
 )
 
@@ -80,12 +89,14 @@ class EpisodeStepLimitExceeded(RuntimeError):
 class EeHandleDistExceeded(RuntimeError):
     """EE drifted too far from the live contact anchor during push/close."""
 
-    def __init__(self, dist_m: float, phase: str):
+    def __init__(self, dist_m: float, phase: str, limit_m: float | None = None):
         self.dist_m = float(dist_m)
         self.phase = str(phase)
+        # Resolved in the body: the module constant is defined below this class.
+        self.limit_m = EE_HANDLE_ABORT_DIST_M if limit_m is None else float(limit_m)
         super().__init__(
             f"EE-handle dist {self.dist_m * 1000:.1f}mm exceeds "
-            f"{EE_HANDLE_ABORT_DIST_M * 1000:.0f}mm (phase={self.phase})"
+            f"{self.limit_m * 1000:.0f}mm (phase={self.phase})"
         )
 
 
@@ -226,6 +237,7 @@ class PushInteractionExecutor:
         self.gripper_open_target = gripper_open_target
         self.gripper_close_target = gripper_close_target
         self.joint_upper_limit_deg = joint_upper_limit_deg
+        self.ee_handle_abort_dist_m = EE_HANDLE_ABORT_DIST_M
         self.rng = rng or np.random.default_rng()
         self.home_steps = home_steps
         self.max_ee_pos_step_m = float(getattr(push_config, "max_ee_pos_step_m", KEYBOARD_EE_POS_STEP_M))
@@ -329,10 +341,12 @@ class PushInteractionExecutor:
         return float(np.linalg.norm(ee_pos - handle_w))
 
     def _raise_if_ee_handle_dist_exceeded(self) -> None:
-        dist_m = self._current_ee_handle_dist_m()
-        if dist_m is None or dist_m <= EE_HANDLE_ABORT_DIST_M:
+        if self.ee_handle_abort_dist_m <= 0.0:  # disabled
             return
-        raise EeHandleDistExceeded(dist_m, self._trace_phase)
+        dist_m = self._current_ee_handle_dist_m()
+        if dist_m is None or dist_m <= self.ee_handle_abort_dist_m:
+            return
+        raise EeHandleDistExceeded(dist_m, self._trace_phase, self.ee_handle_abort_dist_m)
 
     def _maybe_trace_ee_handle(self) -> None:
         """Periodic EE vs handle/contact-anchor world position (probe / debug)."""
@@ -462,6 +476,12 @@ class PushInteractionExecutor:
             return CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_TRANSLATION
         if self.task_config.task_id == ADJUST_FAUCET_TASK_ID:
             return ADJUST_FAUCET_HANDLE_CALIBRATION_SCENE_TRANSLATION
+        if self.task_config.task_id == ADJUST_MONITOR_TASK_ID:
+            return ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_TRANSLATION
+        if self.task_config.task_id == CLOSE_DRAWER_TASK_ID:
+            return CLOSE_DRAWER_HANDLE_CALIBRATION_SCENE_TRANSLATION
+        if self.task_config.task_id == LOWER_LAMP_TASK_ID:
+            return LOWER_LAMP_HANDLE_CALIBRATION_SCENE_TRANSLATION
         return None
 
     def _calibration_scene_rotation_xyz(self) -> tuple[float, float, float] | None:
@@ -471,6 +491,12 @@ class PushInteractionExecutor:
             return CLOSE_MICROWAVE_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
         if self.task_config.task_id == ADJUST_FAUCET_TASK_ID:
             return ADJUST_FAUCET_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
+        if self.task_config.task_id == ADJUST_MONITOR_TASK_ID:
+            return ADJUST_MONITOR_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
+        if self.task_config.task_id == CLOSE_DRAWER_TASK_ID:
+            return CLOSE_DRAWER_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
+        if self.task_config.task_id == LOWER_LAMP_TASK_ID:
+            return LOWER_LAMP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ
         return None
 
     def _scene_root_translation_delta_world(self) -> np.ndarray:
@@ -583,7 +609,14 @@ class PushInteractionExecutor:
 
     def _map_calibrated_world_position(self, pos: np.ndarray) -> np.ndarray:
         pos = np.asarray(pos, dtype=np.float64)
-        if self.task_config.task_id not in (CLOSE_LAPTOP_TASK_ID, CLOSE_MICROWAVE_TASK_ID, ADJUST_FAUCET_TASK_ID):
+        if self.task_config.task_id not in (
+            CLOSE_LAPTOP_TASK_ID,
+            CLOSE_MICROWAVE_TASK_ID,
+            ADJUST_FAUCET_TASK_ID,
+            ADJUST_MONITOR_TASK_ID,
+            CLOSE_DRAWER_TASK_ID,
+            LOWER_LAMP_TASK_ID,
+        ):
             return pos
         mapped = self._geometric_map_calibrated_world_position(pos)
         if self.task_config.task_id == ADJUST_FAUCET_TASK_ID:
@@ -1161,6 +1194,21 @@ class PushInteractionExecutor:
                     return float(arc_target)
                 return min(sample_degs)
             return max(sample_degs)
+        if self._close_target_is_less_than():
+            # Prismatic close / faucet-style: success is a lower bound. Planning toward
+            # joint_upper_limit would open the drawer. Drive past the threshold instead.
+            success_ceil = 0.0
+            for spec in self.success_specs:
+                if spec.joint_prim != self.task_config.joint_prim:
+                    continue
+                if spec.angle_lt_deg is not None:
+                    success_ceil = float(spec.angle_lt_deg)
+                break
+            overshoot = 1e-3 if abs(success_ceil) < 1.0 else 1.0
+            target = success_ceil - overshoot
+            ratio_target = joint_deg + self.push_cfg.close_ratio * (target - joint_deg)
+            return min(ratio_target, target)
+
         ratio_target = joint_deg + self.push_cfg.close_ratio * (
             self.joint_upper_limit_deg - joint_deg
         )
@@ -1944,6 +1992,97 @@ class PushInteractionExecutor:
             )
         return stopped
 
+    def _execute_world_z_down_push(
+        self,
+        collector: OfficialEpisodeCollector,
+        on_control_step: Callable[[bool, dict[str, float | None]], bool] | None,
+        *,
+        anchor_xy: np.ndarray,
+        hold_quat: tuple[float, float, float, float],
+        contact_w: np.ndarray | None = None,
+    ) -> bool:
+        """Push straight down in world -Z; lock XY and orientation.
+
+        Used by lower_the_lamp: the hinge is not a laptop-style T_rel arc. When
+        ``contact_w`` is given (skip_contact_phase), first descend to contact_z
+        minus ``close_z_down_contact_press_m``, then push -Z by ``close_z_down_total_m``.
+        """
+        if self.episode_step_limit is None:
+            raise ValueError("world_z_down push requires episode_step_limit")
+
+        step_m = float(getattr(self.push_cfg, "close_z_down_step_m", 0.002))
+        total_m = float(getattr(self.push_cfg, "close_z_down_total_m", 0.08))
+        clamp = bool(getattr(self.push_cfg, "close_clamp_joints", True))
+        substeps = max(1, int(getattr(self.push_cfg, "close_z_down_ik_substeps", 2)))
+        press_m = float(getattr(self.push_cfg, "close_z_down_contact_press_m", 0.003))
+
+        if contact_w is not None:
+            contact_w = np.asarray(contact_w, dtype=np.float64)
+            anchor_xy = contact_w[:2]
+            touch_z = float(contact_w[2]) - press_m
+        else:
+            anchor_xy = np.asarray(anchor_xy, dtype=np.float64)[:2]
+            touch_z = None
+
+        joint_prim = self.task_config.joint_prim
+        start_pos, _ = self._read_ee_pose()
+        z = float(start_pos[2])
+
+        self._reset_ee_tracking_from_robot()
+        self._tracking_pos[0] = float(anchor_xy[0])
+        self._tracking_pos[1] = float(anchor_xy[1])
+        self._tracking_quat_wxyz = hold_quat
+        self.diff_ik_controller.reset()
+        self.diff_ik_pos_controller.reset()
+
+        def _push_target(z_val: float) -> np.ndarray:
+            return np.array([anchor_xy[0], anchor_xy[1], z_val], dtype=np.float64)
+
+        def _servo_z(z_val: float) -> bool:
+            target = _push_target(z_val)
+            for _ in range(substeps):
+                self._advance_tracking_pose(target, hold_quat, max_pos_step_m=step_m)
+                self._tracking_pos[0] = float(anchor_xy[0])
+                self._tracking_pos[1] = float(anchor_xy[1])
+                arm_targets = self._ik_targets_for_pose(self._tracking_pos, hold_quat)
+                if self._control_step_ik(
+                    collector,
+                    arm_targets,
+                    gripper_open=False,
+                    on_control_step=on_control_step,
+                    clamp_joints=clamp,
+                ):
+                    return True
+            if on_control_step is None:
+                success_now, _ = self._episode_success()
+                if success_now:
+                    return True
+            return False
+
+        if touch_z is not None and abs(z - touch_z) > 1e-5:
+            direction = "descend" if z > touch_z else "lift"
+            self._log_info(
+                f"[INFO] World -Z push: pre-{direction} to contact "
+                f"xy={np.round(anchor_xy, 4).tolist()} z={touch_z:.4f} "
+                f"(from z={z:.4f}, press={press_m:.4f}m)"
+            )
+            while abs(z - touch_z) > 1e-5:
+                z = max(z - step_m, touch_z) if z > touch_z else min(z + step_m, touch_z)
+                if _servo_z(z):
+                    return True
+
+        min_z = z - total_m
+        self._log_info(
+            f"[INFO] World -Z push: lock XY={np.round(anchor_xy, 4).tolist()} "
+            f"step={step_m:.4f}m total={total_m:.3f}m "
+            f"z {z:.4f} -> {min_z:.4f} (until success or episode_step_limit)"
+        )
+        while True:
+            if z > min_z + 1e-6:
+                z = max(z - step_m, min_z)
+            if _servo_z(z):
+                return True
+
     def _execute_hinge_close_anchored(
         self,
         collector: OfficialEpisodeCollector,
@@ -1994,8 +2133,15 @@ class PushInteractionExecutor:
         on_control_step: Callable[[bool, dict[str, float | None]], bool] | None,
         approach_step_budget: int | None = None,
         contact_steps_per_waypoint: int | None = None,
+        reach_step_budget: int | None = None,
     ) -> bool:
-        """Pose IK approach + contact with joint clamping. Returns True if on_control_step signals stop."""
+        """Pose IK approach + contact with joint clamping. Returns True if on_control_step signals stop.
+
+        ``reach_step_budget`` caps approach+contact together. The per-waypoint defaults are
+        sized for a reach from home; starting from an arbitrary pose can plan many more
+        waypoints, and without a cap the reach alone can outlast the whole episode budget
+        and starve the phase that actually moves the joint.
+        """
         ee_pos = self.robot.data.body_pos_w[0, self.handles.ee_body_id].detach().cpu().numpy()
         start_quat = tuple(
             float(v) for v in self.robot.data.body_quat_w[0, self.handles.ee_body_id].tolist()
@@ -2012,6 +2158,23 @@ class PushInteractionExecutor:
         else:
             approach_steps_per = max(8, int(approach_step_budget) // max(1, n_approach))
         contact_steps_per = max(8, int(contact_steps_per_waypoint or self.push_cfg.contact_hold_steps))
+        if bool(getattr(self.push_cfg, "skip_contact_phase", False)):
+            contact_poses = []
+            self._log_info(
+                f"[INFO] Handle reach: {n_approach} approach waypoints only "
+                "(contact phase disabled)"
+            )
+
+        if reach_step_budget is not None:
+            total_wp = max(1, n_approach + len(contact_poses))
+            steps_per = max(2, int(reach_step_budget) // total_wp)
+            if steps_per < min(approach_steps_per, contact_steps_per):
+                self._log_info(
+                    f"[INFO] Reach budget {int(reach_step_budget)} steps over {total_wp} waypoints: "
+                    f"{approach_steps_per}/{contact_steps_per} -> {steps_per} steps/wp"
+                )
+                approach_steps_per = steps_per
+                contact_steps_per = steps_per
 
         self._log_info(
             f"[INFO] Handle reach: {n_approach} approach + {len(contact_poses)} contact waypoints "
@@ -2484,10 +2647,19 @@ class PushInteractionExecutor:
         label: str,
         hinge_lever_m: float | None = None,
         episode_step_limit: int | None = None,
+        preserve_step_count: bool = False,
+        home_reset_on_success: bool = True,
+        reach_step_budget: int | None = None,
     ) -> tuple[bool, dict[str, float | None]]:
-        """Approach yaml/HDF5 handle, contact, then hinge-relative close from actual EE anchor."""
-        self.sim_step_count = 0
-        self.control_step_count = 0
+        """Approach yaml/HDF5 handle, contact, then hinge-relative close from actual EE anchor.
+
+        ``preserve_step_count`` keeps the running control-step counter so a PLD takeover
+        continues the base policy's budget instead of restarting it; ``episode_step_limit``
+        then means the whole episode, probing prefix included.
+        """
+        if not preserve_step_count:
+            self.sim_step_count = 0
+            self.control_step_count = 0
         self.set_episode_step_limit(episode_step_limit)
         self.episode_start_wall_time = episode_start_wall_time
         self.last_record = None
@@ -2526,6 +2698,7 @@ class PushInteractionExecutor:
                 contact_w,
                 quat_w,
                 on_control_step=on_step,
+                reach_step_budget=reach_step_budget,
             ):
                 task_success = True
             else:
@@ -2557,11 +2730,24 @@ class PushInteractionExecutor:
                 )
 
                 self._reset_close_phase_tracking()
-                self._init_close_anchor(actual_contact_pos, actual_contact_quat)
-                if self._execute_hinge_close_anchored(collector, on_step):
-                    task_success = True
+                close_strategy = str(getattr(self.push_cfg, "close_strategy", "hinge_t_rel"))
+                if close_strategy == "world_z_down":
+                    if self._execute_world_z_down_push(
+                        collector,
+                        on_step,
+                        anchor_xy=actual_contact_pos[:2],
+                        hold_quat=actual_contact_quat,
+                        contact_w=contact_w,
+                    ):
+                        task_success = True
+                    else:
+                        task_success, final_joint_degs = self._episode_success()
                 else:
-                    task_success, final_joint_degs = self._episode_success()
+                    self._init_close_anchor(actual_contact_pos, actual_contact_quat)
+                    if self._execute_hinge_close_anchored(collector, on_step):
+                        task_success = True
+                    else:
+                        task_success, final_joint_degs = self._episode_success()
         except EpisodeStepLimitExceeded as exc:
             task_success, final_joint_degs = self._episode_success()
             print(f"[WARN] {label} episode timeout: {exc}; mark attempt failed.", flush=True)
@@ -2574,10 +2760,58 @@ class PushInteractionExecutor:
             task_success = False
             print(f"[WARN] {label} recording health abort: {exc}; mark attempt failed.", flush=True)
 
-        if task_success:
+        if task_success and home_reset_on_success:
             self.run_home_reset(collector)
 
         return task_success, final_joint_degs
+
+    def takeover(
+        self,
+        collector: OfficialEpisodeCollector,
+        episode_start_wall_time: float,
+        *,
+        episode_step_limit: int | None = None,
+        ee_handle_abort_dist_m: float | None = None,
+        reach_budget_fraction: float = 0.45,
+    ) -> tuple[bool, dict[str, float | None]]:
+        """PLD expert takeover: re-solve the task from whatever state the sim is in now.
+
+        Unlike :meth:`run_yaml_handle_push` this keeps the control-step counter (the probing
+        prefix counts against the episode budget) and stops at success instead of driving the
+        arm home, so the recorded trajectory ends on the task goal.
+
+        The reach target and the drive anchor are both read live from the sim, so the arm may
+        start anywhere; no scene or robot reset is performed.
+
+        ``ee_handle_abort_dist_m`` overrides the EE-drift abort for this call. The default
+        is tuned for a clean approach from home and is too tight once the arm starts from an
+        arbitrary probed pose. Loosening it only spends more sim time on hopeless attempts:
+        success is still decided by the joint-angle spec, never by this guard.
+        """
+
+        contact_w, quat_w, lever_m = self._resolve_yaml_handle_world()
+        previous_abort_dist = self.ee_handle_abort_dist_m
+        if ee_handle_abort_dist_m is not None:
+            self.ee_handle_abort_dist_m = float(ee_handle_abort_dist_m)
+        reach_budget = None
+        if episode_step_limit is not None:
+            remaining = max(0, int(episode_step_limit) - int(self.control_step_count))
+            reach_budget = max(1, int(remaining * float(reach_budget_fraction)))
+        try:
+            return self._run_handle_contact_push(
+                collector,
+                episode_start_wall_time,
+                contact_w,
+                quat_w,
+                label="pld_takeover",
+                hinge_lever_m=lever_m,
+                episode_step_limit=episode_step_limit,
+                preserve_step_count=True,
+                home_reset_on_success=False,
+                reach_step_budget=reach_budget,
+            )
+        finally:
+            self.ee_handle_abort_dist_m = previous_abort_dist
 
     def run_yaml_handle_push(
         self,

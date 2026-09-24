@@ -87,7 +87,6 @@ class TaskRandomizationSpec:
 
     camera_main_enable: bool = False
     camera_translation_std: float = 0.02
-    camera_rotation_std_deg: float = 3.0
     camera_main_translation_ranges: tuple[tuple[float, float], tuple[float, float], tuple[float, float]] | None = None
     camera_main_focal_length_range: tuple[float, float] | None = None
     lighting_enable: bool = False
@@ -333,7 +332,6 @@ ROBOTWIN2_CLUTTER_YAW_RANGE_DEG = (-180.0, 180.0)
 
 ROBOTWIN2_COMMON_RANDOMIZATION = TaskRandomizationSpec(
     camera_main_enable=ROBOTWIN2_CAMERA_MAIN_RANDOMIZATION_ENABLE,
-    camera_rotation_std_deg=0.0,
     camera_main_translation_ranges=ROBOTWIN2_CAMERA_MAIN_TRANSLATION_RANGES,
     camera_main_focal_length_range=ROBOTWIN2_CAMERA_MAIN_FOCAL_LENGTH_RANGE,
     lighting_enable=ROBOTWIN2_LIGHTING_RANDOMIZATION_ENABLE,
@@ -827,7 +825,7 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         rollout_success_specs=(
             TaskRolloutSuccessSpec(
                 joint_prim=LOWER_LAMP_JOINT_PRIM_PATH,
-                angle_lt_deg=-25.0,
+                angle_lt_deg=-20.0,
             ),
         ),
         randomization=ROBOTWIN2_COMMON_RANDOMIZATION,

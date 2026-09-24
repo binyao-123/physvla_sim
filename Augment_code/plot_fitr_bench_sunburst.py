@@ -61,9 +61,9 @@ ORIGINAL_ATTRS = [
     ("Motion Limits", "#DCC856"),
 ]
 FITR_ATTRS = [
-    ("Absolute Scale", "#F4A261"),
-    ("Handle Contact", "#E07A3D"),
-    ("Joint Dynamics", "#C65D24"),
+    ("Absolute Scale", "#E8964A"),
+    ("Handle Contact", "#D97838"),
+    ("Joint Dynamics", "#C45F28"),
 ]
 ATTRS = [*ORIGINAL_ATTRS, *FITR_ATTRS]
 
@@ -182,8 +182,9 @@ def draw_sunburst(ax) -> None:
             f"{name}",
             0.5 * (R_HOLE + R_INNER),
             mid,
-            fontsize=9.2,
+            fontsize=11.2,
             color=_contrast_text(color),
+            weight="bold",
         )
 
     attr_span = 360.0 / len(ATTRS)
@@ -210,7 +211,7 @@ def draw_sunburst(ax) -> None:
             attr_name,
             0.5 * (R_INNER + R_OUTER),
             mid,
-            fontsize=8.8,
+            fontsize=11.8,
             color=_contrast_text(attr_color),
             weight="bold",
         )
@@ -223,7 +224,7 @@ def draw_sunburst(ax) -> None:
         "FITR-Bench",
         ha="center",
         va="center",
-        fontsize=15,
+        fontsize=17,
         color="#111827",
         fontweight="bold",
         zorder=4,

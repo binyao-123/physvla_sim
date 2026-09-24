@@ -44,6 +44,7 @@ sampling:
     - [-17.0, 0.291089, 0.07873, 0.454119]
     - [-15.0, 0.2937, 0.0487, 0.4858]
   push_contact_joint_fit_range_deg: [-20.0, -15.0]
+  push_contact_joint_arc_target_deg: -28.0
   yaw_contact_anchors:
     - [90.0, 0.291089, 0.07873, 0.454119, -0.746766, 0.001507, -0.665085, 0.000501]
 
@@ -51,7 +52,7 @@ push:
   push_strategy: yaml_handle
   close_strategy: world_z_down
   close_z_down_step_m: 0.003
-  close_z_down_total_m: 0.06
+  close_z_down_total_m: 0.12
   close_z_down_ik_substeps: 2
   close_z_down_contact_press_m: 0.004
   close_ratio: 0.93
@@ -69,4 +70,4 @@ push:
   approach_backoff_m: 0.04
   approach_clearance_z_m: 0.08
   approach_overhead_then_descend: true
-  skip_contact_phase: true
+  skip_contact_phase: false

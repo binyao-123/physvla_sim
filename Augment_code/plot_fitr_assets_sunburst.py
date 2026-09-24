@@ -16,6 +16,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import font_manager
+from matplotlib.colors import to_hex
 from matplotlib.offsetbox import AnnotationBbox, HPacker, TextArea
 from matplotlib.patches import Circle, Wedge
 
@@ -45,32 +46,43 @@ N_CATEGORIES = len(INHERITED) + len(AUGMENTED)
 N_INHERITED = sum(n for *_, n in INHERITED)
 N_AUGMENTED = sum(n for *_, n in AUGMENTED)
 
-# Inherited URDF-Anything+ slices: muted blues with a slow dark→mid ramp
-# so white labels stay readable on every slice.
-BLUE_INNER = "#3F7FA8"
-BLUE_OUTER = [
-    "#2F6B94",
-    "#34729B",
-    "#3979A2",
-    "#3E80A9",
-    "#4387B0",
-    "#488EB7",
-    "#4D95BE",
-    "#529CC5",
-    "#57A3CC",
-    "#5CAAD3",
+# Inner ring: source encoding (light blue = inherited, deep red = FITR-added).
+BLUE_INNER = "#7EB6D9"
+RED_INNER = "#8B1E1E"
+# Outer ring: pastel categorical palette; FITR pair uses deep reds.
+OUTER_COLORS = [
+    "#A8C5E2",  # Faucet
+    "#F5C49A",  # Laptop
+    "#F0A8A8",  # Storage
+    "#A8D5D0",  # Display
+    "#A8D4A0",  # Microwave
+    "#F0E0A0",  # Fridge
+    "#D4B8D8",  # Dishwasher
+    "#F5C8D0",  # Door
+    "#D4C0B0",  # Scissors
+    "#D8D4D0",  # Knife
+    "#8B1E1E",  # Drawer (FITR, deep)
+    "#A33A1C",  # Lamp (FITR, deep)
 ]
-# FITR-added slices: red, same slow ramp (avoid pale pink).
-RED_INNER = "#C4473A"
-RED_OUTER = ["#C4473A", "#D0665A"]
-HIGHLIGHT_RED = "#C4473A"
+HIGHLIGHT_RED = "#8B1E1E"
 
 R_HOLE = 0.38
-R_INNER = 0.64
-R_OUTER = 1.00
+R_INNER = 0.66
+R_OUTER = 1.08
 START_ANGLE = 90.0  # 12 o'clock, then counterclockwise
 TEXT_WHITE = "#FFFFFF"
 TEXT_BLACK = "#1A1A1A"
+# Modest radial explode for the FITR sector (matplotlib pie "explode").
+FITR_EXPLODE = 0.058
+FITR_EDGE = "#FFF7F5"
+FITR_EDGE_LW = 2.6
+FITR_OUTER_COLORS = set(OUTER_COLORS[-2:])
+
+
+def _contrast_text(hex_color: str) -> str:
+    rgb = tuple(int(to_hex(hex_color)[i : i + 2], 16) for i in (1, 3, 5))
+    luminance = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]
+    return TEXT_WHITE if luminance < 155 else TEXT_BLACK
 
 
 def _pick_cjk_font() -> str | None:
@@ -111,9 +123,14 @@ def _wedge_angles(sizes: list[int], start: float = START_ANGLE) -> list[tuple[fl
     return angles
 
 
-def _polar(radius: float, deg: float) -> tuple[float, float]:
+def _polar(radius: float, deg: float, origin: tuple[float, float] = (0.0, 0.0)) -> tuple[float, float]:
     rad = np.deg2rad(deg)
-    return float(radius * np.cos(rad)), float(radius * np.sin(rad))
+    return float(origin[0] + radius * np.cos(rad)), float(origin[1] + radius * np.sin(rad))
+
+
+def _explode_xy(mid_deg: float, amount: float) -> tuple[float, float]:
+    """Offset a wedge center along its angular bisector (classic explode)."""
+    return _polar(amount, mid_deg)
 
 
 def _radial_rotation(deg: float) -> float:
@@ -219,10 +236,11 @@ def _radial_label(
     color: str,
     fontfamily: str | None,
     weight: str = "medium",
+    origin: tuple[float, float] = (0.0, 0.0),
 ) -> None:
     """One intact label rotated to follow the slice radius, as in a sunburst."""
     ax.text(
-        *_polar(radius, deg),
+        *_polar(radius, deg, origin),
         text,
         ha="center",
         va="center",
@@ -239,28 +257,34 @@ def draw_sunburst(ax, lang: str, fontfamily: str | None) -> None:
     inherited_sizes = [n for *_, n in INHERITED]
     augmented_sizes = [n for *_, n in AUGMENTED]
     outer_sizes = inherited_sizes + augmented_sizes
-    outer_meta = [(en, zh, n, c) for (en, zh, n), c in zip(INHERITED, BLUE_OUTER)]
-    outer_meta += [(en, zh, n, c) for (en, zh, n), c in zip(AUGMENTED, RED_OUTER)]
+    outer_meta = [
+        (en, zh, n, c)
+        for (en, zh, n), c in zip(INHERITED + AUGMENTED, OUTER_COLORS)
+    ]
 
     inner_angles = _wedge_angles([N_INHERITED, N_AUGMENTED])
     outer_angles = _wedge_angles(outer_sizes)
 
     inner_wedges = [
-        (inner_angles[0], BLUE_INNER, "URDF-Anything+", TEXT_WHITE, 15.0, "bold"),
-        (inner_angles[1], RED_INNER, "FITR", TEXT_BLACK, 11.0, "bold"),
+        (inner_angles[0], BLUE_INNER, "URDF-Anything+", _contrast_text(BLUE_INNER), 20.0, "bold", False),
+        (inner_angles[1], RED_INNER, "FITR", _contrast_text(RED_INNER), 16.0, "bold", True),
     ]
-    for (theta1, theta2, mid), color, name, text_color, fontsize, weight in inner_wedges:
+    # Explode the whole FITR band (inner + outer) along the FITR bisector.
+    fitr_origin = _explode_xy(inner_angles[1][2], FITR_EXPLODE)
+
+    for (theta1, theta2, mid), color, name, text_color, fontsize, weight, is_fitr in inner_wedges:
+        origin = fitr_origin if is_fitr else (0.0, 0.0)
         ax.add_patch(
             Wedge(
-                (0, 0),
+                origin,
                 R_INNER,
                 theta1,
                 theta2,
                 width=R_INNER - R_HOLE,
                 facecolor=color,
-                edgecolor="white",
-                linewidth=1.8,
-                zorder=2,
+                edgecolor=FITR_EDGE if is_fitr else "white",
+                linewidth=FITR_EDGE_LW if is_fitr else 1.8,
+                zorder=4 if is_fitr else 2,
             )
         )
         if name == "URDF-Anything+":
@@ -287,33 +311,35 @@ def draw_sunburst(ax, lang: str, fontfamily: str | None) -> None:
                 color=text_color,
                 fontfamily=fontfamily,
                 weight=weight,
+                origin=origin,
             )
 
     for (theta1, theta2, mid), (en, zh, count, color) in zip(outer_angles, outer_meta):
+        is_fitr = color in FITR_OUTER_COLORS
+        origin = fitr_origin if is_fitr else (0.0, 0.0)
         ax.add_patch(
             Wedge(
-                (0, 0),
+                origin,
                 R_OUTER,
                 theta1,
                 theta2,
                 width=R_OUTER - R_INNER,
                 facecolor=color,
-                edgecolor="white",
-                linewidth=1.5,
-                zorder=2,
+                edgecolor=FITR_EDGE if is_fitr else "white",
+                linewidth=FITR_EDGE_LW if is_fitr else 1.5,
+                zorder=4 if is_fitr else 2,
             )
         )
         name = _label(en, zh, lang)
         label = f"{name} {count}"
         span = (theta2 - theta1) % 360.0
         if span >= 40.0:
-            fontsize = 10.0
+            fontsize = 15.0
         elif span >= 18.0:
-            fontsize = 8.4
+            fontsize = 13.4
         else:
-            fontsize = 7.0
-        is_red = color in RED_OUTER
-        if is_red:
+            fontsize = 12.0
+        if is_fitr:
             fontsize += 1.0
         _radial_label(
             ax,
@@ -321,9 +347,10 @@ def draw_sunburst(ax, lang: str, fontfamily: str | None) -> None:
             0.5 * (R_INNER + R_OUTER),
             mid,
             fontsize=fontsize,
-            color=TEXT_BLACK if is_red else TEXT_WHITE,
+            color=_contrast_text(color),
             fontfamily=fontfamily,
-            weight="bold" if is_red else "medium",
+            weight="bold",
+            origin=origin,
         )
 
     ax.add_patch(Circle((0, 0), R_HOLE, facecolor="white", edgecolor="none", zorder=3))
@@ -333,7 +360,7 @@ def draw_sunburst(ax, lang: str, fontfamily: str | None) -> None:
         "FITR-Assets",
         ha="center",
         va="center",
-        fontsize=15,
+        fontsize=17,
         color="#111827",
         fontfamily=fontfamily,
         fontweight="bold",
@@ -363,8 +390,8 @@ def draw_sunburst(ax, lang: str, fontfamily: str | None) -> None:
         fontfamily=fontfamily,
     )
 
-    ax.set_xlim(-1.08, 1.08)
-    ax.set_ylim(-1.08, 1.08)
+    ax.set_xlim(-1.12, 1.12)
+    ax.set_ylim(-1.12, 1.12)
     ax.set_aspect("equal")
     ax.axis("off")
 
