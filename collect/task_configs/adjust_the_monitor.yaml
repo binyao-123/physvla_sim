@@ -1,0 +1,80 @@
+task_id: adjust_the_monitor
+interaction_mode: push
+
+interaction:
+  link_prim: /World/generated/link_1
+  joint_prim: /World/generated/joints/joint_1
+  joint_type: revolute
+
+sampling:
+  assets:
+    subdir: monitor
+    mesh: link_1.obj
+    movable_link: link_1
+    base_link: link_0
+    mesh_origin: [0.0, 0.0, 0.0]
+  hinge:
+    origin: [0.0, 0.0, 0.0]
+    axis: [1.0, 0.0, 0.0]
+  num_fps_points: 15
+  num_yaw_perturbations: 8
+  max_yaw_perturb_deg: 30.0
+  approach_offset_m: 0.04
+  contact_offset_m: 0.02
+  min_hinge_distance_percentile: 0.0
+  horizontal_grasp: true
+  max_contact_link_local_y_m: 0.25
+  max_contact_delta_y_from_link_m: 0.15
+  use_push_anchor_fallback: true
+  use_scene_approach_direction: true
+  approach_direction_world: [0.6372, -0.0090, 0.7707]
+  min_approach_direction_dot: 0.08
+  min_contact_world_x_m: -0.10
+  max_contact_world_x_m: 0.50
+  min_contact_world_z_m: 0.10
+  max_contact_world_z_m: 0.50
+  max_contact_dist_from_link_m: 1.2
+  push_anchor_dist_m: 0.10
+  # ─── Handle 世界坐标标定（keyboard HDF5 直接测量） ───
+  # 来源: adjust_the_monitor_20260616_144638.hdf5 demo_0, frames 147:207 (EE稳定触碰handle)
+  # EE world pos = [0.1984, -0.0020, 0.3849]
+  # EE world quat(wxyz) = [-0.7377, 0.0048, -0.6751, -0.0030]
+  # push_contact_offset_link: link-local fallback（arc-fit 覆盖位置时不影响最终结果）
+  push_contact_offset_link: [-0.2197, -0.1373, -0.2356]
+  # contact_quat_link: 被 yaw_contact_anchors 覆盖，此处为占位值
+  contact_quat_link: [-0.7377, 0.0048, -0.6751, -0.0030]
+  # ─── Arc-fit: 决定 EE 目标世界位置 ───
+  # reference_contact_world = keyboard demo 中 EE 在 handle 上的世界坐标（joint=-17°基准）
+  reference_contact_world: [0.1984, -0.0020, 0.3849]
+  push_contact_reference_joint_deg: -17.0
+  # 圆弧标定点 [joint_deg, x, y, z]
+  push_contact_joint_arc_points:
+    - [-22.0, 0.1984, -0.0020, 0.3849]
+    - [-17.0, 0.1984, -0.0020, 0.3849]
+    - [-12.0, 0.1984, -0.0020, 0.3849]
+  push_contact_joint_fit_range_deg: [-23.0, -11.0]
+  # ─── Yaw Anchor: 决定 EE 目标世界姿态（覆盖 contact_quat_link 路径） ───
+  # 格式: [yaw_deg, x, y, z, qw, qx, qy, qz]
+  # 直接从 keyboard HDF5 中 EE 触碰 handle 时的世界四元数标定
+  yaw_contact_anchors:
+    - [180.0, 0.1984, -0.0020, 0.3849, -0.7377, 0.0048, -0.6751, -0.0030]
+
+push:
+  push_strategy: yaml_handle
+  close_ratio: 0.93
+  close_sampled_waypoints: 12
+  close_auto_flip_hinge_axis: true
+  # close_expected_delta_dir_world: 推动阶段 EE 位移的预期方向
+  # 从 _150847 demo_0 轨迹: handle[0.163,0,0.389] -> end[0.268,0,0.389]，即 +X 方向
+  close_expected_delta_dir_world: [1.0, 0.0, 0.0]
+  close_step_deg_usd: 1.0
+  close_clamp_joints: true
+  close_push_ee_step_m: 0.003
+  close_ik_substeps: 8
+  close_steps_per_waypoint: 48
+  close_final_hold_steps: 180
+  max_approach_distance_m: 1.5
+  approach_steps: 80
+  contact_hold_steps: 24
+  approach_backoff_m: 0.04
+  approach_clearance_z_m: 0.14

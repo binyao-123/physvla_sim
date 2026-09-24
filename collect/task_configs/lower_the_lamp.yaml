@@ -1,0 +1,72 @@
+task_id: lower_the_lamp
+interaction_mode: push
+
+interaction:
+  link_prim: /World/mobility_isaac/link_0
+  joint_prim: /World/mobility_isaac/joints/joint_0
+  joint_type: revolute
+
+sampling:
+  assets:
+    subdir: lamp
+    mesh: textured_objs/original_6.obj
+    movable_link: link_0
+    base_link: link_4
+    mesh_origin: [0.000023080532937734358, -0.11025570674203879, 0.56096]
+  hinge:
+    origin: [0.0, 0.0, 0.0]
+    axis: [1.0, 0.0, 0.0]
+  num_fps_points: 15
+  num_yaw_perturbations: 8
+  max_yaw_perturb_deg: 30.0
+  approach_offset_m: 0.04
+  contact_offset_m: 0.02
+  min_hinge_distance_percentile: 0.0
+  horizontal_grasp: true
+  max_contact_link_local_y_m: 0.25
+  max_contact_delta_y_from_link_m: 0.15
+  use_push_anchor_fallback: true
+  use_scene_approach_direction: true
+  min_approach_direction_dot: 0.08
+  max_contact_dist_from_link_m: 1.2
+  push_anchor_dist_m: 0.10
+  # ─── Handle 标定（校准系 stored xyz，见 12_HDF5提取yaml_handle标定点.md）───
+  # 来源: lower_the_lamp_20260626_230052.hdf5 demo_0 尾 90 帧均值
+  # 采集: scene=(0.4,-0.08,0.37) yaw=90° joint_0=-17° random=0
+  # stored = stable_ee_world − (collect_xyz − calib_xyz); 本组 collect==calib
+  # runtime contact_w ≈ stored + (current_xyz − calib_xyz)
+  push_contact_offset_link: [0.0, 0.0, 0.0]
+  contact_quat_link: [-0.746766, 0.001507, -0.665085, 0.000501]
+  reference_contact_world: [0.291089, 0.07873, 0.454119]
+  push_contact_reference_joint_deg: -17.0
+  push_contact_joint_arc_points:
+    - [-20.0, 0.291089, 0.07873, 0.454119]
+    - [-17.0, 0.291089, 0.07873, 0.454119]
+    - [-15.0, 0.2937, 0.0487, 0.4858]
+  push_contact_joint_fit_range_deg: [-20.0, -15.0]
+  yaw_contact_anchors:
+    - [90.0, 0.291089, 0.07873, 0.454119, -0.746766, 0.001507, -0.665085, 0.000501]
+
+push:
+  push_strategy: yaml_handle
+  close_strategy: world_z_down
+  close_z_down_step_m: 0.003
+  close_z_down_total_m: 0.06
+  close_z_down_ik_substeps: 2
+  close_z_down_contact_press_m: 0.004
+  close_ratio: 0.93
+  close_sampled_waypoints: 12
+  close_auto_flip_hinge_axis: true
+  close_step_deg_usd: 1.0
+  close_clamp_joints: true
+  close_push_ee_step_m: 0.003
+  close_ik_substeps: 2
+  close_steps_per_waypoint: 48
+  close_final_hold_steps: 180
+  max_approach_distance_m: 1.5
+  approach_steps: 80
+  contact_hold_steps: 24
+  approach_backoff_m: 0.04
+  approach_clearance_z_m: 0.08
+  approach_overhead_then_descend: true
+  skip_contact_phase: true
