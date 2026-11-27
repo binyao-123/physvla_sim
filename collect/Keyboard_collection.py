@@ -41,6 +41,12 @@ parser.add_argument(
     default=None,
     help="Override TaskPreset.usd_path if your scene is elsewhere (absolute path or cwd-relative).",
 )
+parser.add_argument(
+    "--language_instruction",
+    type=str,
+    default=None,
+    help="Override TaskPreset.language_instruction for this run.",
+)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -62,6 +68,8 @@ if args_cli.usd_path:
         p = p.resolve()
     task_preset = replace(task_preset, usd_path=str(p))
     print(f"[INFO] usd_path override: {task_preset.usd_path}")
+if args_cli.language_instruction:
+    task_preset = replace(task_preset, language_instruction=args_cli.language_instruction)
 
 args_cli = apply_camera_launch_workarounds(args_cli)
 
@@ -397,22 +405,18 @@ try:
                     collector.add_step(last_obs_dict, last_action, last_reward, done_flag, last_state_dict)
                     saved, _, _ = collector.export_episode(success=True)
                     if saved:
+                        completed_demo_slots += 1
                         slot_total = collector.num_demos if collector.num_demos > 0 else "?"
                         print(
-                            f"\n[INFO] Saved demo slot {completed_demo_slots + 1}/{slot_total}"
+                            f"\n[INFO] Saved demo {completed_demo_slots}/{slot_total}"
                         )
                 else:
-                    print("\n[INFO] No trajectory data yet. This slot will be counted and skipped.")
+                    print("\n[INFO] No trajectory data yet. Nothing saved.")
             else:
-                print(
-                    f"\n[INFO] Skipped demo slot {completed_demo_slots + 1}"
-                    f"/{collector.num_demos if collector.num_demos > 0 else '?'} (discard current trajectory)."
-                )
+                print("\n[INFO] Discarded current trajectory (not counted).")
                 collector.reset_episode()
                 last_obs_dict = None
                 last_state_dict = None
-
-            completed_demo_slots += 1
 
             if collector.num_demos > 0 and completed_demo_slots >= collector.num_demos:
                 print("[INFO] Data Collection Completed by demo slots. Exiting...")
@@ -463,7 +467,9 @@ try:
                 else:
                     keyboard_command = keyboard_command.to(device=device, dtype=torch.float32)
 
-                delta_pos = keyboard_command[:3].unsqueeze(0)
+                delta_pos = math_utils.quat_apply(
+                    robot.data.root_quat_w, keyboard_command[:3].unsqueeze(0)
+                )
                 delta_rot = keyboard_command[3:6].unsqueeze(0)
                 gripper_cmd = bool(keyboard_command[6] > 0.0)
 
@@ -593,17 +599,9 @@ if should_exit:
 if dock_task is not None and not dock_task.done():
     dock_task.cancel()
 
-if collector.has_data() and last_obs_dict is not None and last_state_dict is not None:
-    try:
-        done_flag = torch.ones((1,), device=device, dtype=torch.bool)
-        collector.add_step(last_obs_dict, last_action, last_reward, done_flag, last_state_dict)
-        saved, dk, nt = collector.export_episode(success=False)
-        if saved and dk is not None:
-            print(
-                f"[INFO] {dk}: T={nt}, success=False (in-progress shutdown export)"
-            )
-    except Exception as e:
-        print(f"[WARN] Failed to export in-progress episode on exit: {e}")
+if collector.has_data():
+    print("[INFO] Discarded unsaved in-progress trajectory on exit.")
+    collector.reset_episode()
 
 collector.close()
 print("[INFO] Dataset saved and closed safely.")

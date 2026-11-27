@@ -231,6 +231,9 @@ class TaskPreset:
 CLOSE_LAPTOP_TASK_ID = "close_laptop_lid"
 CLOSE_LAPTOP_LANGUAGE_INSTRUCTION = "close the laptop lid."
 
+LAPTOP_DRAWER_123_TASK_ID = "laptop_drawer_123"
+LAPTOP_DRAWER_123_LANGUAGE_INSTRUCTION = "adjust the laptop lid, then close the drawer."
+
 ADJUST_MONITOR_TASK_ID = "adjust_the_monitor"
 ADJUST_MONITOR_LANGUAGE_INSTRUCTION = "adjust the display."
 
@@ -371,6 +374,33 @@ CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_TRANSLATION = (
 )
 CLOSE_LAPTOP_HANDLE_CALIBRATION_SCENE_ROTATION_XYZ = CLOSE_LAPTOP_SCENE_ROOT_ROTATION_XYZ
 
+'''笔记本 + 抽屉键盘遥操作（tasks/123_local.usd，simple_room 场景）'''
+# 123_local.usd 由 scripts/download_123_assets.sh 生成（S3 资产镜像到 assets/s3_mirror）
+LAPTOP_DRAWER_123_USD_PATH = (
+    _tasks_scene_usd("123_local.usd")
+    if Path(_tasks_scene_usd("123_local.usd")).is_file()
+    else _tasks_scene_usd("123.usd")
+)
+# 机械臂、笔记本、抽屉位姿沿用 USD 中的 authored 值，不做 scene root 覆盖，也不随机
+LAPTOP_DRAWER_123_ROBOT_ROOT_POS = (0.5, 0.0, -1.0)
+LAPTOP_DRAWER_123_ROBOT_ROOT_ROT = (0.008726535498373897, 0.0, 0.0, -0.9999619230641713)  # wxyz，yaw -179°
+
+LAPTOP_DRAWER_123_LAPTOP_JOINT = "/World/generated/joints/joint_1"
+LAPTOP_DRAWER_123_LAPTOP_INITIAL_DEG = 6.0
+# 上层抽屉（link_1）；与 close_the_drawer 一致：缩放 0.163 下 0.163 m 为完全打开
+LAPTOP_DRAWER_123_DRAWER_JOINT = "/World/mobility_isaac/joints/joint_1"
+LAPTOP_DRAWER_123_DRAWER_INITIAL_M = 0.07
+
+# 主相机：原 close_laptop_lid 主相机（相对机械臂基座）变换到 123.usd 世界系
+LAPTOP_DRAWER_123_CAMERA_SPECS: tuple[TaskCameraSpec, ...] = (
+    replace(
+        SHARED_CAMERA_SPECS[0],
+        translation=(0.0896, 0.5929, -0.2),
+        rotation_xyz=(0.0, 7.0, 91.0),
+    ),
+    SHARED_CAMERA_SPECS[1],
+)
+
 def scene_root_translation_delta(
     current: tuple[float, float, float],
     calibration: tuple[float, float, float],
@@ -432,6 +462,55 @@ TASK_PRESETS: dict[str, TaskPreset] = {
         ),
         randomization=ROBOTWIN2_COMMON_RANDOMIZATION,
         **_shared_teleop_kwargs(),
+    ),
+    LAPTOP_DRAWER_123_TASK_ID: TaskPreset(
+        task_id=LAPTOP_DRAWER_123_TASK_ID,
+        description="Keyboard teleoperation with the laptop and the drawer (tasks/123_local.usd, simple_room).",
+        usd_path=LAPTOP_DRAWER_123_USD_PATH,
+        env_name="LaptopDrawerRoomTask",
+        dataset_file="./datasets/laptop_drawer_123.hdf5",
+        language_instruction=LAPTOP_DRAWER_123_LANGUAGE_INSTRUCTION,
+        sensitivity=2.0,
+        robot_prim_path=SHARED_TELEOP_PIPER.articulation_prim_path,
+        robot_init_root_pos=LAPTOP_DRAWER_123_ROBOT_ROOT_POS,
+        robot_init_root_rot=LAPTOP_DRAWER_123_ROBOT_ROOT_ROT,
+        robot_init_joint_pos=SHARED_TELEOP_PIPER.joint_pos_dict(),
+        camera_specs=LAPTOP_DRAWER_123_CAMERA_SPECS,
+        joint_drive_specs=(
+            TaskJointDriveSpec(
+                prim_path=LAPTOP_DRAWER_123_LAPTOP_JOINT,
+                damping=80.0,
+                stiffness=0.0,
+                max_force=10.0,
+            ),
+            TaskJointDriveSpec(
+                prim_path=LAPTOP_DRAWER_123_DRAWER_JOINT,
+                damping=30.0,
+                stiffness=0.0,
+                max_force=6.0,
+            ),
+        ),
+        joint_limit_specs=(
+            TaskJointLimitSpec(
+                prim_path=LAPTOP_DRAWER_123_LAPTOP_JOINT,
+                upper_limit=105.0,
+            ),
+            TaskJointLimitSpec(
+                prim_path=LAPTOP_DRAWER_123_DRAWER_JOINT,
+                lower_limit=0.0,
+                upper_limit=0.163,
+            ),
+        ),
+        joint_initial_specs=(
+            TaskJointInitialSpec(
+                prim_path=LAPTOP_DRAWER_123_LAPTOP_JOINT,
+                position=LAPTOP_DRAWER_123_LAPTOP_INITIAL_DEG,
+            ),
+            TaskJointInitialSpec(
+                prim_path=LAPTOP_DRAWER_123_DRAWER_JOINT,
+                position=LAPTOP_DRAWER_123_DRAWER_INITIAL_M,
+            ),
+        ),
     ),
     ADJUST_MONITOR_TASK_ID: TaskPreset(
         task_id=ADJUST_MONITOR_TASK_ID,
